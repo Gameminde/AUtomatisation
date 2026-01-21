@@ -1,0 +1,182 @@
+# ============================================
+# CONTENT FACTORY - .gitignore
+# ============================================
+
+# ============================================
+# ENVIRONNEMENT & SECRETS
+# ============================================
+.env
+.env.local
+.env.production
+*.env
+*.env.*
+!.env.example
+
+# ============================================
+# PYTHON
+# ============================================
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+*.venv
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# ============================================
+# LOGS
+# ============================================
+logs/
+*.log
+*.log.*
+error.log
+debug.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================
+# IDE / EDITEURS
+# ============================================
+# VSCode
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# Cursor
+.cursor/
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ============================================
+# SYSTÈME D'EXPLOITATION
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ============================================
+# DONNÉES & CACHE
+# ============================================
+*.sqlite
+*.db
+*.db-journal
+cache/
+.cache/
+temp/
+tmp/
+*.tmp
+
+# ============================================
+# FICHIERS GÉNÉRÉS
+# ============================================
+# Images/vidéos téléchargées
+downloads/
+media/
+output/
+generated/
+
+# Reports
+reports/
+analytics/
+
+# ============================================
+# DÉPLOIEMENT
+# ============================================
+# Railway
+.railway/
+
+# Heroku
+.heroku/
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+
+# ============================================
+# AUTRES
+# ============================================
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Archives
+*.zip
+*.tar.gz
+*.rar
+
+# Node modules (si utilisation MCP)
+node_modules/
+package-lock.json
+yarn.lock
+
+# ============================================
+# À CONSERVER (NE PAS IGNORER)
+# ============================================
+!.env.example
+!README.md
+!requirements.txt
+!schema.sql
+
+# ============================================
