@@ -50,12 +50,14 @@ def download_article_image(
     output_name: str = "article",
 ) -> Optional[str]:
     """
-    Télécharge une image pour l'article.
+    Télécharge une image pour l'article avec multi-fallback.
     
     Priorité:
     1. URL de l'image originale de l'article
-    2. Recherche Pexels avec le titre
-    3. Image aléatoire Lorem Picsum (fallback)
+    2. Pexels API
+    3. Unsplash Source (gratuit, sans clé)
+    4. Pixabay API
+    5. Lorem Picsum (fallback ultime)
     
     Returns:
         Chemin vers l'image téléchargée ou None
@@ -65,35 +67,30 @@ def download_article_image(
     # 1. Essayer l'URL de l'article si fournie
     if image_url:
         try:
-            logger.info("Téléchargement image article: %s", image_url[:60])
+            logger.info("Source 1/5: Image article URL")
             resp = requests.get(image_url, timeout=15, headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
             })
             resp.raise_for_status()
             
-            # Vérifier que c'est bien une image
             content_type = resp.headers.get("Content-Type", "")
             if "image" in content_type:
                 with open(output_path, "wb") as f:
                     f.write(resp.content)
-                logger.info("Image article téléchargée: %s", output_path)
+                logger.info("✅ Image article téléchargée")
                 return str(output_path)
         except Exception as e:
-            logger.warning("Échec téléchargement image article: %s", e)
+            logger.debug("Source 1 échec: %s", e)
     
     # 2. Essayer Pexels si clé API configurée
     pexels_key = os.getenv("PEXELS_API_KEY", "")
     if pexels_key and search_query:
         try:
-            logger.info("Recherche image Pexels: %s", search_query[:40])
+            logger.info("Source 2/5: Pexels API")
             resp = requests.get(
                 "https://api.pexels.com/v1/search",
                 headers={"Authorization": pexels_key},
-                params={
-                    "query": search_query,
-                    "per_page": 1,
-                    "orientation": "square",
-                },
+                params={"query": search_query, "per_page": 1, "orientation": "square"},
                 timeout=15,
             )
             resp.raise_for_status()
@@ -106,14 +103,63 @@ def download_article_image(
                 
                 with open(output_path, "wb") as f:
                     f.write(img_resp.content)
-                logger.info("Image Pexels téléchargée: %s", output_path)
+                logger.info("✅ Image Pexels téléchargée")
                 return str(output_path)
         except Exception as e:
-            logger.warning("Échec recherche Pexels: %s", e)
+            logger.debug("Source 2 échec: %s", e)
     
-    # 3. Fallback: Lorem Picsum (image aléatoire de qualité)
+    # 3. Essayer Unsplash Source (gratuit, sans clé API)
+    if search_query:
+        try:
+            logger.info("Source 3/5: Unsplash Source")
+            # Unsplash Source - images gratuites par recherche
+            query_clean = search_query.replace(" ", ",")[:50]
+            url = f"https://source.unsplash.com/1024x1024/?{query_clean}"
+            resp = requests.get(url, timeout=20, allow_redirects=True)
+            resp.raise_for_status()
+            
+            if len(resp.content) > 10000:  # Minimum 10KB pour être valide
+                with open(output_path, "wb") as f:
+                    f.write(resp.content)
+                logger.info("✅ Image Unsplash téléchargée")
+                return str(output_path)
+        except Exception as e:
+            logger.debug("Source 3 échec: %s", e)
+    
+    # 4. Essayer Pixabay si clé API configurée
+    pixabay_key = os.getenv("PIXABAY_API_KEY", "")
+    if pixabay_key and search_query:
+        try:
+            logger.info("Source 4/5: Pixabay API")
+            resp = requests.get(
+                "https://pixabay.com/api/",
+                params={
+                    "key": pixabay_key,
+                    "q": search_query[:100],
+                    "image_type": "photo",
+                    "per_page": 3,
+                    "safesearch": "true",
+                },
+                timeout=15,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            
+            if data.get("hits"):
+                photo_url = data["hits"][0]["largeImageURL"]
+                img_resp = requests.get(photo_url, timeout=15)
+                img_resp.raise_for_status()
+                
+                with open(output_path, "wb") as f:
+                    f.write(img_resp.content)
+                logger.info("✅ Image Pixabay téléchargée")
+                return str(output_path)
+        except Exception as e:
+            logger.debug("Source 4 échec: %s", e)
+    
+    # 5. Fallback ultime: Lorem Picsum
     try:
-        logger.info("Fallback: téléchargement image Lorem Picsum")
+        logger.info("Source 5/5: Lorem Picsum (fallback)")
         resp = requests.get(
             "https://picsum.photos/1024/1024",
             timeout=30,
@@ -123,10 +169,10 @@ def download_article_image(
         
         with open(output_path, "wb") as f:
             f.write(resp.content)
-        logger.info("Image fallback téléchargée: %s", output_path)
+        logger.info("✅ Image Lorem Picsum téléchargée")
         return str(output_path)
     except Exception as e:
-        logger.error("Échec téléchargement image fallback: %s", e)
+        logger.error("❌ Toutes les sources ont échoué: %s", e)
         return None
 
 

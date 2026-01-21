@@ -70,26 +70,103 @@ def get_supabase_client():
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Return a logger that writes to console and a module log file."""
+    """
+    Return a logger that writes to:
+    - Console (colored output)
+    - Module-specific log file (e.g., logs/scraper.log)
+    - Master log file (logs/pipeline.log) for all events
+    
+    Features:
+    - Automatic log rotation (5MB max, keep 3 backups)
+    - Detailed timestamp format
+    - Statistics tracking
+    """
+    from logging.handlers import RotatingFileHandler
+    
     logger = logging.getLogger(name)
     if logger.handlers:
         return logger
 
-    logger.setLevel(logging.INFO)
-    formatter = logging.Formatter(
+    logger.setLevel(logging.DEBUG)
+    
+    # Detailed formatter for files
+    file_formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)-8s | %(name)-15s | %(funcName)-20s | %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    
+    # Compact formatter for console
+    console_formatter = logging.Formatter(
         "%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
+    # Module-specific log file with rotation (5MB max, keep 3 backups)
     log_file = LOG_DIR / f"{name}.log"
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-    file_handler.setFormatter(formatter)
+    file_handler = RotatingFileHandler(
+        log_file, 
+        maxBytes=5*1024*1024,  # 5MB
+        backupCount=3,
+        encoding="utf-8"
+    )
+    file_handler.setFormatter(file_formatter)
+    file_handler.setLevel(logging.DEBUG)
+    
+    # Master pipeline log (all modules write here)
+    master_log = LOG_DIR / "pipeline.log"
+    master_handler = RotatingFileHandler(
+        master_log,
+        maxBytes=10*1024*1024,  # 10MB
+        backupCount=5,
+        encoding="utf-8"
+    )
+    master_handler.setFormatter(file_formatter)
+    master_handler.setLevel(logging.INFO)
+    
+    # Console handler
     stream_handler = logging.StreamHandler()
-    stream_handler.setFormatter(formatter)
+    stream_handler.setFormatter(console_formatter)
+    stream_handler.setLevel(logging.INFO)
 
     logger.addHandler(file_handler)
+    logger.addHandler(master_handler)
     logger.addHandler(stream_handler)
+    
     return logger
+
+
+def log_stats() -> dict:
+    """Read and return statistics from log files."""
+    stats = {
+        "total_errors": 0,
+        "total_warnings": 0,
+        "total_info": 0,
+        "modules": {}
+    }
+    
+    for log_file in LOG_DIR.glob("*.log"):
+        if log_file.name == "pipeline.log":
+            continue
+            
+        module = log_file.stem
+        stats["modules"][module] = {"errors": 0, "warnings": 0, "info": 0}
+        
+        try:
+            with open(log_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    if "| ERROR" in line:
+                        stats["modules"][module]["errors"] += 1
+                        stats["total_errors"] += 1
+                    elif "| WARNING" in line:
+                        stats["modules"][module]["warnings"] += 1
+                        stats["total_warnings"] += 1
+                    elif "| INFO" in line:
+                        stats["modules"][module]["info"] += 1
+                        stats["total_info"] += 1
+        except Exception:
+            pass
+    
+    return stats
 
 
 def get_env(name: str, default: Optional[str] = None) -> Optional[str]:

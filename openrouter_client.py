@@ -120,7 +120,7 @@ class OpenRouterClient:
         max_tokens: int,
         temperature: float,
     ) -> str:
-        """Make a single API request."""
+        """Make a single API request with intelligent rate limit handling."""
         headers = {
             "Authorization": f"Bearer {self.current_key}",
             "Content-Type": "application/json",
@@ -148,11 +148,38 @@ class OpenRouterClient:
             logger.error("OpenRouter request failed: %s", exc)
             raise RuntimeError(f"Request failed: {exc}") from exc
         
+        # Check rate limit headers for preventive action
+        remaining = response.headers.get("x-ratelimit-remaining")
+        reset_time = response.headers.get("x-ratelimit-reset")
+        
+        if remaining is not None:
+            try:
+                remaining_int = int(remaining)
+                if remaining_int <= 5:
+                    logger.warning(
+                        "⚠️ Rate limit low: %d remaining on key #%d",
+                        remaining_int,
+                        self.current_key_index + 1
+                    )
+                    # Preventive pause
+                    if remaining_int <= 2:
+                        logger.info("Preventive pause (5s) - rate limit critical")
+                        time.sleep(5)
+            except ValueError:
+                pass
+        
         # Handle rate limit
         if response.status_code == 429:
+            retry_after = response.headers.get("Retry-After", "60")
+            try:
+                wait_seconds = int(retry_after)
+            except ValueError:
+                wait_seconds = 60
+            
             logger.warning(
-                "Rate limit hit for key #%d: %s",
+                "Rate limit hit for key #%d (retry after %ds): %s",
                 self.current_key_index + 1,
+                wait_seconds,
                 response.text[:200],
             )
             raise RateLimitError(f"Key #{self.current_key_index + 1} rate limited")
@@ -181,10 +208,12 @@ class OpenRouterClient:
         if not content:
             raise RuntimeError("OpenRouter returned empty content")
         
+        usage = data.get("usage", {})
         logger.info(
-            "OpenRouter call success (key #%d, %d tokens)",
+            "✅ API success (key #%d, %d tokens, %s remaining)",
             self.current_key_index + 1,
-            data.get("usage", {}).get("total_tokens", 0),
+            usage.get("total_tokens", 0),
+            remaining or "?"
         )
         
         return content
