@@ -78,27 +78,27 @@ def save_config(config_dict: dict) -> None:
 
 
 def get_arabic_font(size: int = 32) -> ImageFont.FreeTypeFont:
-    """Get an Arabic-compatible BOLD font."""
-    # Priority: Arabic Bold fonts first
+    """Get a font that supports BOTH Arabic and Latin characters."""
+    # Priority: Fonts that support Arabic AND Latin (for mixed text like "Facebook")
     font_candidates = [
-        # Custom Arabic Bold font (downloaded)
+        # Windows fonts that support Arabic + Latin (BEST for mixed content)
+        "C:/Windows/Fonts/arialbd.ttf",     # Arial Bold - supports Arabic + Latin
+        "C:/Windows/Fonts/tahomabd.ttf",    # Tahoma Bold - supports Arabic + Latin  
+        "C:/Windows/Fonts/seguibl.ttf",     # Segoe UI Black - supports Arabic + Latin
+        # Custom fonts (Arabic only - fallback)
         str(FONTS_DIR / "NotoSansArabic-Bold.ttf"),
         str(FONTS_DIR / "arabic_bold.ttf"),
-        # Windows Arabic Bold fonts
-        "C:/Windows/Fonts/arialbd.ttf",     # Arial Bold
-        "C:/Windows/Fonts/tahomabd.ttf",    # Tahoma Bold
-        "C:/Windows/Fonts/seguibl.ttf",     # Segoe UI Black
-        "C:/Windows/Fonts/calibrib.ttf",    # Calibri Bold
-        # Windows regular fonts (fallback)
+        # Regular fonts (fallback)
         "C:/Windows/Fonts/arial.ttf",
         "C:/Windows/Fonts/tahoma.ttf",
+        "C:/Windows/Fonts/calibrib.ttf",
     ]
     
     for font_path in font_candidates:
         if os.path.exists(font_path):
             try:
                 font = ImageFont.truetype(font_path, size)
-                logger.debug("Loaded Arabic font: %s", font_path)
+                logger.info("Loaded mixed Arabic+Latin font: %s", font_path)
                 return font
             except Exception as e:
                 logger.warning("Failed to load font %s: %s", font_path, e)
