@@ -13,29 +13,29 @@ logger = config.get_logger("ai_generator")
 
 
 # Batch prompt template - generates content for multiple articles in one call
-BATCH_PROMPT_TEMPLATE = """Tu es un créateur de contenu viral pour Facebook ciblant une audience tech US/UK/Canada.
+BATCH_PROMPT_TEMPLATE = """أنت منشئ محتوى فيروسي لفيسبوك يستهدف جمهوراً عربياً مهتماً بالتكنولوجيا.
 
-OBJECTIF: Transformer ces {count} actualités tech en posts Facebook viraux.
+الهدف: تحويل هذه {count} أخبار تقنية إلى منشورات فيسبوك فيروسية بالعربية.
 
-ARTICLES À TRAITER:
+المقالات للمعالجة:
 {articles_json}
 
-POUR CHAQUE ARTICLE, génère:
+لكل مقال، أنشئ:
 
-1. **POST TEXTE** (150-250 mots):
-   - Hook CHOQUANT ou INTRIGANT (1-2 phrases)
-   - Corps conversationnel et excitant
-   - Utilise des retours à la ligne pour lisibilité
-   - 1-2 emojis pertinents (pas excessif)
-   - CTA fort: "What do you think? Comment below!"
-   - 5-7 hashtags trending
+1. **منشور نصي** (150-250 كلمة):
+   - افتتاحية صادمة أو مثيرة (1-2 جملة)
+   - محتوى محادثاتي ومثير
+   - استخدم فواصل الأسطر للقراءة السهلة
+   - 1-2 إيموجي مناسب
+   - دعوة للتفاعل: "ما رأيكم؟ شاركونا في التعليقات!"
+   - 5-7 هاشتاقات رائجة بالعربية
 
-2. **SCRIPT REEL** (30-45 secondes):
-   - Format: [CUE VISUEL] + Narration
-   - Commence par "DID YOU KNOW...?" ou "THIS JUST CHANGED EVERYTHING:"
-   - Phrases courtes et percutantes
+2. **سكريبت ريلز** (30-45 ثانية):
+   - الصيغة: [إشارة بصرية] + سرد
+   - ابدأ بـ "هل تعلم...؟" أو "هذا غيّر كل شيء:"
+   - جمل قصيرة ومؤثرة
 
-IMPORTANT: Réponds UNIQUEMENT en JSON valide, sans texte avant ou après:
+مهم: أجب فقط بـ JSON صالح، بدون نص قبله أو بعده:
 
 [
   {{
@@ -43,46 +43,47 @@ IMPORTANT: Réponds UNIQUEMENT en JSON valide, sans texte avant ou après:
     "text_post": {{
       "hook": "...",
       "body": "...",
-      "cta": "What do you think? Comment below!",
-      "hashtags": ["#AI", "#Tech", "#Innovation", ...]
+      "cta": "ما رأيكم؟ شاركونا في التعليقات!",
+      "hashtags": ["#الذكاء_الاصطناعي", "#تقنية", "#ابتكار", ...]
     }},
-    "reel_script": "[VISUAL: ...] Narration..."
+    "reel_script": "[بصري: ...] السرد..."
   }},
   ...
 ]
 """
 
+
 # Single article prompt (fallback)
-SINGLE_PROMPT_TEMPLATE = """Tu es un créateur de contenu viral pour Facebook ciblant une audience tech US/UK.
+SINGLE_PROMPT_TEMPLATE = """أنت منشئ محتوى فيروسي لفيسبوك يستهدف جمهوراً عربياً مهتماً بالتكنولوجيا.
 
-Transforme cette actualité tech en post Facebook viral:
+حوّل هذا الخبر التقني إلى منشور فيسبوك فيروسي بالعربية:
 
-TITRE: {title}
-RÉSUMÉ: {summary}
-TYPE DE POST: {post_type}
+العنوان: {title}
+الملخص: {summary}
+نوع المنشور: {post_type}
 
-EXIGENCES:
-- Hook CHOQUANT ou INTRIGANT (1-2 phrases)
-- Ton conversationnel et excitant
-- Retours à la ligne pour lisibilité
-- 1-2 emojis pertinents
-- CTA: "What do you think? Comment below!"
-- 5-7 hashtags trending
-- Longueur: 150-250 mots
-- Style HUMAIN, pas robotique
+المتطلبات:
+- افتتاحية صادمة أو مثيرة (1-2 جملة)
+- أسلوب محادثاتي ومثير
+- استخدم فواصل الأسطر للقراءة السهلة
+- 1-2 إيموجي مناسب
+- دعوة للتفاعل: "ما رأيكم؟ شاركونا في التعليقات!"
+- 5-7 هاشتاقات رائجة بالعربية
+- الطول: 150-250 كلمة
+- أسلوب إنساني، ليس آلياً
 
-Si post_type = reel:
-- Script vidéo 30-45 secondes
-- Format: [CUE VISUEL] + Narration
-- Commence par "DID YOU KNOW...?"
+إذا كان نوع المنشور = reel:
+- سكريبت فيديو 30-45 ثانية
+- الصيغة: [إشارة بصرية] + سرد
+- ابدأ بـ "هل تعلم...؟"
 
-Réponds en JSON:
+أجب بـ JSON:
 {{
   "hook": "...",
   "body": "...",
   "cta": "...",
-  "hashtags": ["#AI", "#Tech", ...],
-  "reel_script": "..." (si applicable)
+  "hashtags": ["#الذكاء_الاصطناعي", "#تقنية", ...],
+  "reel_script": "..." (إذا كان مطلوباً)
 }}
 """
 
