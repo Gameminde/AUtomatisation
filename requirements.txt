@@ -1,5 +1,16 @@
+# Core dependencies
 feedparser
 python-dotenv
 requests
 supabase
+
+# Image generation
 Pillow
+arabic-reshaper
+python-bidi
+
+# Dashboard
+streamlit
+
+# Duplicate detection (optional, for filter_unique_content)
+scikit-learn
