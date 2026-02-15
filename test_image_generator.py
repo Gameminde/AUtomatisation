@@ -45,6 +45,6 @@ if output_path.exists():
 else:
     print("  ✗ File not found!")
 
-print("\n" + "="*50)
+print("\n" + "=" * 50)
 print("All tests passed! Image generator is working.")
 print(f"Generated image: {output_path.absolute()}")

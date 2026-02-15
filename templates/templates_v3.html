@@ -1,0 +1,29 @@
+{% extends "layout_v3.html" %}
+
+{% block content %}
+<div class="card">
+    <div style="display:flex; gap:0.5rem;">
+        <button class="btn btn-ghost" id="tab-image" data-i18n="templates_image">Image Templates</button>
+        <button class="btn btn-ghost" id="tab-text" data-i18n="templates_text">Text Patterns</button>
+    </div>
+    <div id="templates-grid" class="grid-3" style="margin-top:1rem;"></div>
+</div>
+
+<div class="modal" id="template-modal">
+    <div class="modal-content">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 id="modal-title">Template</h3>
+            <button class="btn btn-ghost" onclick="closeModal()">Close</button>
+        </div>
+        <div id="modal-body" style="margin-top:1rem;"></div>
+        <div style="margin-top:1rem; display:flex; gap:0.5rem;">
+            <button class="btn btn-primary" onclick="selectTemplate()" data-i18n="templates_set_default">Set as
+                Default</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/templates_v3.js') }}"></script>
+{% endblock %}

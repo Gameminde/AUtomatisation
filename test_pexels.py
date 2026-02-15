@@ -7,9 +7,9 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-print("="*50)
+print("=" * 50)
 print("TEST: Pexels API + Full Image Generation")
-print("="*50)
+print("=" * 50)
 
 # Test 1: Check API key
 print("\n1. Checking Pexels API key...")
@@ -32,7 +32,7 @@ try:
     resp = requests.get(url, headers=headers, params=params, timeout=15)
     resp.raise_for_status()
     data = resp.json()
-    
+
     if data.get("photos"):
         photo = data["photos"][0]
         image_url = photo["src"]["medium"]
@@ -53,7 +53,7 @@ try:
     result = generate_social_post(
         article_text="L'intelligence artificielle révolutionne les entreprises",
         image_query="artificial intelligence technology",
-        output_filename="test_pexels_full.png"
+        output_filename="test_pexels_full.png",
     )
     print(f"   ✓ Generated: {result}")
 except Exception as e:
@@ -68,6 +68,6 @@ if output_path.exists():
 else:
     print("   ✗ Output file not found")
 
-print("\n" + "="*50)
+print("\n" + "=" * 50)
 print("Test complete!")
-print("="*50)
+print("=" * 50)

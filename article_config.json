@@ -1,0 +1,10 @@
+{
+  "hook_max_words": 20,
+  "body_style": "informative",
+  "tone": "enthusiastic",
+  "cta_style": "question",
+  "hashtags_count": 7,
+  "hashtags_arabic_ratio": 0.5,
+  "emojis_enabled": true,
+  "brand_names_english": true
+}

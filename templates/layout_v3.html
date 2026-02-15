@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Factory v3</title>
+    <meta name="dashboard-api-key" content="{{ dashboard_api_key }}">
+
+    <!-- Fonts & Icons -->
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+
+    <!-- Theme CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme_v3.css') }}">
+
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    <div class="app-shell">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                <div>
+                    <div class="brand-title">Content Factory</div>
+                    <div class="brand-sub">Dashboard v3</div>
+                </div>
+            </div>
+
+            <nav class="nav">
+                <a href="/" class="nav-item {% if active_page == 'dashboard' %}active{% endif %}">
+                    <i class="fa-solid fa-gauge-high"></i>
+                    <span data-i18n="nav_dashboard">Dashboard</span>
+                </a>
+                <a href="/studio" class="nav-item {% if active_page == 'studio' %}active{% endif %}">
+                    <i class="fa-solid fa-layer-group"></i>
+                    <span data-i18n="nav_studio">Studio</span>
+                </a>
+                <a href="/templates" class="nav-item {% if active_page == 'templates' %}active{% endif %}">
+                    <i class="fa-solid fa-swatchbook"></i>
+                    <span data-i18n="nav_templates">Templates</span>
+                </a>
+                <a href="/settings" class="nav-item {% if active_page == 'settings' %}active{% endif %}">
+                    <i class="fa-solid fa-gear"></i>
+                    <span data-i18n="nav_settings">Settings</span>
+                </a>
+                <a href="/health" class="nav-item {% if active_page == 'health' %}active{% endif %}">
+                    <i class="fa-solid fa-heart-pulse"></i>
+                    <span data-i18n="nav_health">Health</span>
+                </a>
+                <div class="nav-spacer"></div>
+                <a href="/setup" class="nav-item {% if active_page == 'setup' %}active{% endif %}">
+                    <i class="fa-solid fa-plug-circle-bolt"></i>
+                    <span data-i18n="nav_setup">Setup</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="chip" id="db-mode-chip">DB: --</div>
+                <div class="chip" id="approval-chip">Approval: --</div>
+            </div>
+        </aside>
+
+        <main class="main">
+            <header class="topbar">
+                <div class="page-title">
+                    <h1 data-i18n="nav_{{ active_page }}">Dashboard</h1>
+                    <div class="page-sub" data-i18n="page_subtitle_default">Live control center</div>
+                </div>
+
+                <div class="top-actions">
+                    <div class="select glass">
+                        <img id="currentPageImg" alt="" />
+                        <select id="pageSelect">
+                            <option value="">Select Page...</option>
+                        </select>
+                    </div>
+                    <button id="theme-toggle" class="icon-btn" onclick="toggleTheme()" title="Toggle theme">
+                        <i class="fa-solid fa-moon"></i>
+                    </button>
+                    <select id="lang-switcher" class="glass">
+                        <option value="AR">AR</option>
+                        <option value="FR">FR</option>
+                        <option value="EN">EN</option>
+                    </select>
+                </div>
+            </header>
+
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/shell.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

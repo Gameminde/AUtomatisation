@@ -1,0 +1,79 @@
+{% extends "layout_v3.html" %}
+
+{% block content %}
+<div class="card" style="margin-bottom: 1rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <div class="muted" data-i18n="dashboard_status">System Status</div>
+            <div id="system-status" style="margin-top:0.5rem; display:flex; align-items:center; gap:0.5rem;">
+                <span class="badge success">Running</span>
+                <span class="muted" id="next-run">Next run: --:--</span>
+            </div>
+        </div>
+        <div style="display:flex; gap:0.6rem;">
+            <button class="btn btn-ghost" onclick="pauseSystem()" data-i18n="dashboard_pause">Pause</button>
+            <button class="btn btn-primary" onclick="runNow()" data-i18n="dashboard_run_now">Run Now</button>
+        </div>
+    </div>
+</div>
+
+<div class="grid-4" style="margin-bottom:1rem;">
+    <div class="card">
+        <div class="muted" data-i18n="kpi_posts">Posts (7d)</div>
+        <div id="kpi-posts" style="font-size:1.6rem; margin-top:0.5rem;">0</div>
+    </div>
+    <div class="card">
+        <div class="muted" data-i18n="kpi_reach">Reach</div>
+        <div id="kpi-reach" style="font-size:1.6rem; margin-top:0.5rem;">0</div>
+    </div>
+    <div class="card">
+        <div class="muted" data-i18n="kpi_likes">Likes</div>
+        <div id="kpi-likes" style="font-size:1.6rem; margin-top:0.5rem;">0</div>
+    </div>
+    <div class="card">
+        <div class="muted" data-i18n="kpi_engagement">Engagement</div>
+        <div id="kpi-engagement" style="font-size:1.6rem; margin-top:0.5rem;">0%</div>
+    </div>
+</div>
+
+<div class="grid-3">
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 data-i18n="queue_waiting">Waiting Approval</h3>
+            <span class="badge warn" id="count-waiting">0</span>
+        </div>
+        <div class="list" id="list-waiting" style="margin-top:0.75rem;"></div>
+    </div>
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 data-i18n="queue_scheduled">Scheduled</h3>
+            <span class="badge" id="count-scheduled">0</span>
+        </div>
+        <div class="list" id="list-scheduled" style="margin-top:0.75rem;"></div>
+    </div>
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 data-i18n="queue_published">Published</h3>
+            <span class="badge" id="count-published">0</span>
+        </div>
+        <div class="list" id="list-published" style="margin-top:0.75rem;"></div>
+    </div>
+</div>
+
+<div class="grid-2" style="margin-top:1rem;">
+    <div class="card">
+        <h3 data-i18n="insights_title">Insights</h3>
+        <div class="muted" data-i18n="insights_hint">Auto insights from recent posts.</div>
+        <div id="insights-box" class="list" style="margin-top:0.75rem;"></div>
+    </div>
+    <div class="card">
+        <h3 data-i18n="pipeline_title">Pipeline</h3>
+        <div class="muted" data-i18n="pipeline_hint">Upcoming scheduled content.</div>
+        <div id="pipeline-box" class="list" style="margin-top:0.75rem;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/dashboard_v3.js') }}"></script>
+{% endblock %}

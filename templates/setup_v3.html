@@ -1,0 +1,285 @@
+{% extends "layout_v3.html" %}
+
+{% block content %}
+<div class="card" style="max-width: 900px; margin: 0 auto;">
+    <h2 data-i18n="setup_title">🚀 Setup Wizard</h2>
+    <div class="muted" data-i18n="setup_subtitle">Get started in 4 easy steps.</div>
+
+    <!-- Step Progress Bar -->
+    <div class="wizard-steps" style="margin-top:1rem;">
+        <div class="wizard-step active" id="step-bar-1"></div>
+        <div class="wizard-step" id="step-bar-2"></div>
+        <div class="wizard-step" id="step-bar-3"></div>
+        <div class="wizard-step" id="step-bar-4"></div>
+    </div>
+
+    {% if oauth_error %}
+    <div class="card" style="margin-top:1rem; border-color: var(--danger);">
+        <strong>OAuth Error:</strong> {{ oauth_error }}
+    </div>
+    {% endif %}
+
+    <!-- Step 1: License -->
+    <div class="wizard-panel" id="panel-1">
+        <div class="card" style="margin-top:1rem;">
+            <h3><i class="fa-solid fa-key" style="color:var(--primary);"></i> Step 1 — Activate License</h3>
+            <div class="muted" style="margin-top:0.5rem;">Enter the license key from your purchase.</div>
+            <div style="margin-top:0.75rem;">
+                <label class="muted">Platform</label>
+                <select id="license-platform" class="input" style="margin-top:0.3rem;">
+                    <option value="gumroad">Gumroad</option>
+                    <option value="lemonsqueezy">LemonSqueezy</option>
+                    <option value="paddle">Paddle</option>
+                    <option value="offline">Offline / Manual Key</option>
+                </select>
+            </div>
+            <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+                <input id="license-key" class="input" placeholder="XXXXXXXX-XXXXXXXX-XXXXXXXX-XXXXXXXX" style="flex:1;">
+                <button class="btn btn-primary" onclick="activateLicense()"><i class="fa-solid fa-check"></i>
+                    Activate</button>
+            </div>
+            <div id="license-status" class="muted" style="margin-top:0.5rem;"></div>
+        </div>
+        <div style="margin-top:1rem; display:flex; justify-content:flex-end;">
+            <button class="btn btn-primary" onclick="goStep(2)">Next <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+    </div>
+
+    <!-- Step 2: AI Provider -->
+    <div class="wizard-panel" id="panel-2" style="display:none;">
+        <div class="card" style="margin-top:1rem;">
+            <h3><i class="fa-solid fa-brain" style="color:var(--accent);"></i> Step 2 — Connect AI</h3>
+            <div class="muted" style="margin-top:0.5rem;">Choose your AI provider. Gemini and Ollama are free!</div>
+
+            <div
+                style="display:grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap:0.75rem; margin-top:1rem;">
+                <label class="provider-card selected" data-provider="gemini" onclick="selectProvider(this)">
+                    <input type="radio" name="provider" value="gemini" checked style="display:none;">
+                    <i class="fa-solid fa-gem" style="font-size:1.4rem; color:#4285f4;"></i>
+                    <div style="font-weight:600;">Gemini</div>
+                    <div class="badge success" style="font-size:0.65rem;">FREE</div>
+                </label>
+                <label class="provider-card" data-provider="openrouter" onclick="selectProvider(this)">
+                    <input type="radio" name="provider" value="openrouter" style="display:none;">
+                    <i class="fa-solid fa-route" style="font-size:1.4rem; color:#f97316;"></i>
+                    <div style="font-weight:600;">OpenRouter</div>
+                    <div class="muted" style="font-size:0.65rem;">Multi-model</div>
+                </label>
+                <label class="provider-card" data-provider="claude" onclick="selectProvider(this)">
+                    <input type="radio" name="provider" value="claude" style="display:none;">
+                    <i class="fa-solid fa-feather" style="font-size:1.4rem; color:#d97706;"></i>
+                    <div style="font-weight:600;">Claude</div>
+                    <div class="muted" style="font-size:0.65rem;">Anthropic</div>
+                </label>
+                <label class="provider-card" data-provider="deepseek" onclick="selectProvider(this)">
+                    <input type="radio" name="provider" value="deepseek" style="display:none;">
+                    <i class="fa-solid fa-water" style="font-size:1.4rem; color:#0ea5e9;"></i>
+                    <div style="font-weight:600;">DeepSeek</div>
+                    <div class="muted" style="font-size:0.65rem;">Budget</div>
+                </label>
+                <label class="provider-card" data-provider="grok" onclick="selectProvider(this)">
+                    <input type="radio" name="provider" value="grok" style="display:none;">
+                    <i class="fa-solid fa-bolt" style="font-size:1.4rem; color:#7c3aed;"></i>
+                    <div style="font-weight:600;">Grok</div>
+                    <div class="muted" style="font-size:0.65rem;">xAI</div>
+                </label>
+                <label class="provider-card" data-provider="kimi" onclick="selectProvider(this)">
+                    <input type="radio" name="provider" value="kimi" style="display:none;">
+                    <i class="fa-solid fa-moon" style="font-size:1.4rem; color:#ec4899;"></i>
+                    <div style="font-weight:600;">Kimi K2</div>
+                    <div class="muted" style="font-size:0.65rem;">Moonshot</div>
+                </label>
+                <label class="provider-card" data-provider="ollama" onclick="selectProvider(this)">
+                    <input type="radio" name="provider" value="ollama" style="display:none;">
+                    <i class="fa-solid fa-server" style="font-size:1.4rem; color:#22c55e;"></i>
+                    <div style="font-weight:600;">Ollama</div>
+                    <div class="badge success" style="font-size:0.65rem;">LOCAL</div>
+                </label>
+            </div>
+
+            <div id="ai-key-section" style="margin-top:0.75rem;">
+                <input id="ai-key" class="input" placeholder="Paste your API key here">
+            </div>
+            <div id="ai-help-link" class="muted" style="margin-top:0.5rem;">
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--primary);"
+                    id="provider-help-link">
+                    Get free Gemini key →
+                </a>
+            </div>
+            <button class="btn btn-ghost" onclick="testAIKey()" style="margin-top:0.75rem;">
+                <i class="fa-solid fa-flask-vial"></i> Test Connection
+            </button>
+            <div id="ai-test-result" class="muted" style="margin-top:0.5rem;"></div>
+        </div>
+        <div style="margin-top:1rem; display:flex; justify-content:space-between;">
+            <button class="btn btn-ghost" onclick="goStep(1)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+            <button class="btn btn-primary" onclick="goStep(3)">Next <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+    </div>
+
+    <!-- Step 3: Facebook -->
+    <div class="wizard-panel" id="panel-3" style="display:none;">
+        <div class="card" style="margin-top:1rem;">
+            <h3><i class="fa-brands fa-facebook" style="color:#1877f2;"></i> Step 3 — Connect Facebook</h3>
+            <div class="muted" style="margin-top:0.5rem;">Connect your Facebook page to start posting.</div>
+            <div style="margin-top:1rem; display:flex; gap:0.75rem; flex-wrap:wrap;">
+                <a href="/oauth/facebook" class="btn btn-primary">
+                    <i class="fa-brands fa-facebook"></i> Connect with OAuth
+                </a>
+            </div>
+            <div style="margin-top:1rem;">
+                <div class="muted">Or paste your token manually:</div>
+                <input id="fb-token" class="input" placeholder="EAA..." style="margin-top:0.5rem;">
+            </div>
+        </div>
+        <div style="margin-top:1rem; display:flex; justify-content:space-between;">
+            <button class="btn btn-ghost" onclick="goStep(2)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+            <button class="btn btn-primary" onclick="goStep(4)">Next <i class="fa-solid fa-arrow-right"></i></button>
+        </div>
+    </div>
+
+    <!-- Step 4: Finish -->
+    <div class="wizard-panel" id="panel-4" style="display:none;">
+        <div class="card" style="margin-top:1rem;">
+            <h3><i class="fa-solid fa-rocket" style="color:var(--primary);"></i> Step 4 — Launch!</h3>
+            <div class="muted" style="margin-top:0.5rem;">Configure optional settings and get started.</div>
+            <div style="margin-top:1rem;">
+                <label class="muted">Pexels API Key (optional — free stock images)</label>
+                <input id="pexels-key" class="input" placeholder="PDffo3yQ..." style="margin-top:0.4rem;">
+            </div>
+        </div>
+        <div style="margin-top:1.5rem; display:flex; justify-content:space-between;">
+            <button class="btn btn-ghost" onclick="goStep(3)"><i class="fa-solid fa-arrow-left"></i> Back</button>
+            <button class="btn btn-primary" onclick="saveSetup()" style="font-size:1rem; padding:0.8rem 1.6rem;">
+                <i class="fa-solid fa-rocket"></i> Save & Start
+            </button>
+        </div>
+        <div id="setup-result" class="muted" style="margin-top:0.75rem;"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    .provider-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.3rem;
+        padding: 0.75rem;
+        border-radius: 0.6rem;
+        cursor: pointer;
+        border: 2px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+        background: var(--glass-bg, rgba(255, 255, 255, 0.05));
+        transition: all 0.2s ease;
+    }
+
+    .provider-card:hover {
+        border-color: var(--primary);
+        transform: translateY(-2px);
+    }
+
+    .provider-card.selected {
+        border-color: var(--primary);
+        background: rgba(var(--primary-rgb, 99, 102, 241), 0.15);
+    }
+</style>
+<script>
+    let currentStep = 1;
+
+    const providerHelp = {
+        gemini: { label: 'Get free Gemini key →', url: 'https://aistudio.google.com/app/apikey', needsKey: true },
+        openrouter: { label: 'Get OpenRouter key →', url: 'https://openrouter.ai/keys', needsKey: true },
+        claude: { label: 'Get Claude key →', url: 'https://console.anthropic.com/settings/keys', needsKey: true },
+        deepseek: { label: 'Get DeepSeek key →', url: 'https://platform.deepseek.com/api_keys', needsKey: true },
+        grok: { label: 'Get Grok key →', url: 'https://console.x.ai', needsKey: true },
+        kimi: { label: 'Get Kimi key →', url: 'https://platform.moonshot.cn/console/api-keys', needsKey: true },
+        ollama: { label: 'Download Ollama →', url: 'https://ollama.ai/download', needsKey: false },
+    };
+
+    function selectProvider(el) {
+        document.querySelectorAll('.provider-card').forEach(c => c.classList.remove('selected'));
+        el.classList.add('selected');
+        el.querySelector('input[type=radio]').checked = true;
+
+        const provider = el.dataset.provider;
+        const info = providerHelp[provider] || {};
+        const keySection = document.getElementById('ai-key-section');
+        const helpLink = document.getElementById('provider-help-link');
+
+        keySection.style.display = info.needsKey ? 'block' : 'none';
+        helpLink.href = info.url || '#';
+        helpLink.textContent = info.label || '';
+    }
+
+    function goStep(n) {
+        document.querySelectorAll('.wizard-panel').forEach(p => p.style.display = 'none');
+        document.getElementById(`panel-${n}`).style.display = 'block';
+        for (let i = 1; i <= 4; i++) {
+            const bar = document.getElementById(`step-bar-${i}`);
+            bar.classList.remove('active', 'done');
+            if (i < n) bar.classList.add('done');
+            if (i === n) bar.classList.add('active');
+        }
+        currentStep = n;
+    }
+
+    async function activateLicense() {
+        const key = document.getElementById('license-key').value.trim();
+        const platform = document.getElementById('license-platform').value;
+        const status = document.getElementById('license-status');
+        if (!key) { status.textContent = 'Please enter a license key.'; return; }
+        status.textContent = 'Verifying...';
+        try {
+            const res = await apiCall('/api/license/activate', 'POST', { license_key: key, platform });
+            if (res.valid) {
+                status.innerHTML = `<span style="color:var(--primary);">✅ Activated via ${res.platform || platform}! Welcome, ${res.email || 'user'}.</span>`;
+                if (window.showToast) showToast('License activated!', 'success');
+            } else {
+                status.innerHTML = `<span style="color:var(--danger);">❌ ${res.reason || 'Invalid key'}</span>`;
+            }
+        } catch (e) {
+            status.innerHTML = `<span style="color:var(--danger);">❌ ${e.message}</span>`;
+        }
+    }
+
+    async function testAIKey() {
+        const provider = document.querySelector('input[name="provider"]:checked')?.value || 'gemini';
+        const key = document.getElementById('ai-key').value.trim();
+        const result = document.getElementById('ai-test-result');
+
+        if (provider !== 'ollama' && !key) { result.textContent = 'Paste a key first.'; return; }
+        result.textContent = 'Testing...';
+        try {
+            const res = await apiCall('/api/settings/test-ai', 'POST', { key, provider });
+            result.innerHTML = res.success
+                ? '<span style="color:var(--primary);">✅ Connection successful!</span>'
+                : `<span style="color:var(--danger);">❌ ${res.error || 'Failed'}</span>`;
+        } catch (e) {
+            result.innerHTML = `<span style="color:var(--danger);">❌ ${e.message}</span>`;
+        }
+    }
+
+    async function saveSetup() {
+        const result = document.getElementById('setup-result');
+        result.textContent = 'Saving...';
+
+        const provider = document.querySelector('input[name="provider"]:checked')?.value || 'gemini';
+        const payload = {
+            provider,
+            ai_key: document.getElementById('ai-key')?.value || '',
+            fb_token: document.getElementById('fb-token')?.value || '',
+            pexels_key: document.getElementById('pexels-key')?.value || '',
+        };
+
+        try {
+            await apiCall('/api/settings/keys', 'POST', payload);
+            result.innerHTML = '<span style="color:var(--primary);">✅ Setup complete! Redirecting...</span>';
+            if (window.showToast) showToast('Setup complete! 🎉', 'success');
+            setTimeout(() => window.location.href = '/', 1500);
+        } catch (e) {
+            result.innerHTML = `<span style="color:var(--danger);">❌ ${e.message}</span>`;
+        }
+    }
+</script>
+{% endblock %}

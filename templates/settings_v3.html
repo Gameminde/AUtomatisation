@@ -1,0 +1,121 @@
+{% extends "layout_v3.html" %}
+
+{% block content %}
+<div class="grid-2">
+    <div class="card">
+        <h3 data-i18n="settings_general">General</h3>
+        <div style="margin-top:0.75rem;">
+            <label class="muted" data-i18n="settings_posts_per_day">Posts per day</label>
+            <input id="posts-per-day" class="input" type="number" min="1" max="20" value="3">
+        </div>
+        <div style="margin-top:0.75rem;">
+            <label class="muted" data-i18n="settings_approval_mode">Approval Mode</label>
+            <div style="display:flex; gap:0.5rem; align-items:center;">
+                <input id="approval-toggle" type="checkbox">
+                <span class="muted" data-i18n="settings_approval_hint">Require manual approval before publish.</span>
+            </div>
+        </div>
+        <div style="margin-top:0.75rem;">
+            <button class="btn btn-ghost" onclick="saveApprovalMode()">Save Approval</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 data-i18n="settings_language_ratio">Language Ratio</h3>
+        <div class="grid-3" style="margin-top:0.75rem;">
+            <input id="lang-ar" class="input" type="number" min="0" max="100" value="80" placeholder="AR %">
+            <input id="lang-fr" class="input" type="number" min="0" max="100" value="15" placeholder="FR %">
+            <input id="lang-en" class="input" type="number" min="0" max="100" value="5" placeholder="EN %">
+        </div>
+        <div style="margin-top:0.75rem;">
+            <button class="btn btn-primary" onclick="saveLanguageRatio()"
+                data-i18n="settings_save_language">Save</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 data-i18n="settings_api_keys">API Keys</h3>
+        <div class="muted" style="margin-top:0.5rem;">Configure your API keys for each service.</div>
+        <div class="grid-2" style="margin-top:0.75rem;">
+            <div>
+                <label class="muted">Facebook Token</label>
+                <input id="facebook-token" class="input" placeholder="EAA..." style="margin-top:0.3rem;">
+            </div>
+            <div>
+                <label class="muted">Facebook Page ID</label>
+                <input id="facebook-page-id" class="input" placeholder="123456789" style="margin-top:0.3rem;">
+            </div>
+            <div>
+                <label class="muted">Gemini Key <span class="badge success"
+                        style="font-size:0.6rem;">FREE</span></label>
+                <input id="gemini-key" class="input" placeholder="AIza..." style="margin-top:0.3rem;">
+            </div>
+            <div>
+                <label class="muted">OpenRouter Key</label>
+                <input id="openrouter-key" class="input" placeholder="sk-or-..." style="margin-top:0.3rem;">
+            </div>
+            <div>
+                <label class="muted">Claude Key (Anthropic)</label>
+                <input id="claude-key" class="input" placeholder="sk-ant-..." style="margin-top:0.3rem;">
+            </div>
+            <div>
+                <label class="muted">DeepSeek Key</label>
+                <input id="deepseek-key" class="input" placeholder="sk-..." style="margin-top:0.3rem;">
+            </div>
+            <div>
+                <label class="muted">Grok Key (xAI)</label>
+                <input id="grok-key" class="input" placeholder="xai-..." style="margin-top:0.3rem;">
+            </div>
+            <div>
+                <label class="muted">Kimi K2 Key (Moonshot)</label>
+                <input id="kimi-key" class="input" placeholder="sk-..." style="margin-top:0.3rem;">
+            </div>
+            <div>
+                <label class="muted">Pexels Key</label>
+                <input id="pexels-key" class="input" placeholder="PDffo3yQ..." style="margin-top:0.3rem;">
+            </div>
+        </div>
+        <div style="margin-top:0.75rem;">
+            <button class="btn btn-primary" onclick="saveApiKeys()">Save Keys</button>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3 data-i18n="settings_database">Database</h3>
+        <div class="muted" data-i18n="settings_database_hint">SQLite by default. Supabase optional.</div>
+
+        <div style="margin-top:0.75rem; padding:0.75rem; border-radius:0.5rem; background:rgba(99,102,241,0.08);">
+            <div style="font-weight:600; margin-bottom:0.5rem;">📚 How to connect Supabase:</div>
+            <ol style="margin:0; padding-left:1.5rem; line-height:1.7;">
+                <li>Go to <a href="https://supabase.com/dashboard" target="_blank"
+                        style="color:var(--primary);">supabase.com/dashboard</a></li>
+                <li>Create a project (or use existing)</li>
+                <li>Go to <strong>Settings → API</strong></li>
+                <li>Copy <strong>Project URL</strong> → paste below</li>
+                <li>Copy <strong>service_role key</strong> → paste below</li>
+            </ol>
+        </div>
+
+        <div style="margin-top:0.75rem;">
+            <label class="muted">Supabase URL</label>
+            <input id="supabase-url" class="input" placeholder="https://your-project.supabase.co"
+                style="margin-top:0.3rem;">
+        </div>
+        <div style="margin-top:0.75rem;">
+            <label class="muted">Supabase Service Role Key</label>
+            <input id="supabase-key" class="input" placeholder="eyJhbGciOiJIUzI1NiI..." type="password"
+                style="margin-top:0.3rem;">
+        </div>
+        <div id="supabase-test-result" class="muted" style="margin-top:0.5rem;"></div>
+        <div style="margin-top:0.75rem; display:flex; gap:0.5rem;">
+            <button class="btn btn-primary" onclick="connectSupabase()">Connect Supabase</button>
+            <button class="btn btn-ghost" onclick="testSupabase()">Test Connection</button>
+            <button class="btn btn-ghost" onclick="useSqlite()">Use SQLite</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/settings_v3.js') }}"></script>
+{% endblock %}

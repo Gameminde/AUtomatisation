@@ -11,6 +11,9 @@
 *.env
 *.env.*
 !.env.example
+.flask_secret
+.master_key
+.license
 
 # ============================================
 # PYTHON

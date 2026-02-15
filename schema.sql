@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS raw_articles (
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'processed', 'rejected'))
 );
 
--- Table 2: Contenus générés par l'IA
+-- Table 2: Contenus générés par l'IA (v2.1.1: Anti Double-Publish + Thread Safety)
 CREATE TABLE IF NOT EXISTS processed_content (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   article_id UUID REFERENCES raw_articles(id) ON DELETE CASCADE,
@@ -28,9 +28,48 @@ CREATE TABLE IF NOT EXISTS processed_content (
   hashtags TEXT[],
   hook TEXT,
   call_to_action TEXT,
-  target_audience TEXT DEFAULT 'US',
-  generated_at TIMESTAMP DEFAULT NOW()
+  target_audience TEXT DEFAULT 'AR',
+  generated_at TIMESTAMP DEFAULT NOW(),
+  -- v2.1: State Machine (v2.1.1: added 'rejected' status)
+  status TEXT DEFAULT 'drafted' CHECK (status IN ('drafted', 'media_ready', 'waiting_approval', 'scheduled', 'publishing', 'published', 'failed', 'retry_scheduled', 'rejected')),
+  -- v2.1: Idempotence (Anti-Doublon)
+  content_hash TEXT,
+  -- v2.1.1: Anti Double-Publish (skip API if already posted)
+  fb_post_id TEXT,
+  publish_attempt_id TEXT,
+  -- v2.1: Error Tracking
+  retry_count INTEGER DEFAULT 0,
+  last_error TEXT,
+  last_error_at TIMESTAMP,
+  -- v2.1.1: Retry clarity
+  next_retry_at TIMESTAMP,
+  rejected_reason TEXT
 );
+
+-- v2.1: Unique index on content_hash for idempotence
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_content_hash ON processed_content(content_hash) WHERE content_hash IS NOT NULL;
+-- v2.1.1: Index on fb_post_id for fast lookup
+CREATE INDEX IF NOT EXISTS idx_content_fb_post_id ON processed_content(fb_post_id) WHERE fb_post_id IS NOT NULL;
+
+-- Table 2b: System Status (v2.1.1 Observability + Process Lock)
+CREATE TABLE IF NOT EXISTS system_status (
+  key TEXT PRIMARY KEY,
+  value TEXT,
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Initialize system status keys (v2.1.1: added 'running' for process lock)
+INSERT INTO system_status (key, value) VALUES 
+  ('last_success_publish_at', NULL),
+  ('next_run_at', NULL),
+  ('last_error_code', NULL),
+  ('last_error_action', NULL),
+  ('queue_size', '0'),
+  ('cooldown_until', NULL),
+  ('token_valid', 'true'),
+  ('running', 'false'),
+  ('running_since', NULL)
+ON CONFLICT (key) DO NOTHING;
 
 -- Table 3: Planning de publication
 CREATE TABLE IF NOT EXISTS scheduled_posts (

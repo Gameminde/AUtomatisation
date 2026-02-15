@@ -1,0 +1,317 @@
+{
+    "layouts": [
+        {
+            "id": "classic_bottom_text",
+            "name": "Classic — Text at Bottom",
+            "template_file": "Publication Instagram - Transforming the  Future of Business (1).png",
+            "preview": null,
+            "weight": 3,
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1350,
+                "image_area_top": 316,
+                "image_area_bottom": 991,
+                "image_area_left": 35,
+                "image_area_right": 1045,
+                "text_area_top": 1045,
+                "text_area_bottom": 1230,
+                "text_padding_x": 30,
+                "text_color": [
+                    255,
+                    200,
+                    50
+                ],
+                "text_font_size": 76,
+                "text_line_spacing": 8,
+                "text_max_lines": 3,
+                "image_overlay_alpha": 45
+            }
+        },
+        {
+            "id": "fullscreen_overlay",
+            "name": "Fullscreen + Dark Overlay",
+            "template_file": null,
+            "weight": 2,
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1080,
+                "image_area_top": 0,
+                "image_area_bottom": 1080,
+                "image_area_left": 0,
+                "image_area_right": 1080,
+                "text_area_top": 750,
+                "text_area_bottom": 1050,
+                "text_padding_x": 50,
+                "text_color": [
+                    255,
+                    255,
+                    255
+                ],
+                "text_font_size": 64,
+                "text_line_spacing": 10,
+                "text_max_lines": 4,
+                "image_overlay_alpha": 120,
+                "background_color": [
+                    20,
+                    20,
+                    20
+                ]
+            }
+        },
+        {
+            "id": "gradient_bottom",
+            "name": "Gradient Fade Bottom",
+            "template_file": null,
+            "weight": 2,
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1350,
+                "image_area_top": 0,
+                "image_area_bottom": 1100,
+                "image_area_left": 0,
+                "image_area_right": 1080,
+                "text_area_top": 1100,
+                "text_area_bottom": 1320,
+                "text_padding_x": 40,
+                "text_color": [
+                    255,
+                    255,
+                    255
+                ],
+                "text_font_size": 58,
+                "text_line_spacing": 8,
+                "text_max_lines": 4,
+                "image_overlay_alpha": 0,
+                "gradient_overlay": true,
+                "background_color": [
+                    25,
+                    25,
+                    35
+                ]
+            }
+        },
+        {
+            "id": "minimal_white",
+            "name": "Minimal White Card",
+            "template_file": null,
+            "weight": 1,
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1080,
+                "image_area_top": 80,
+                "image_area_bottom": 700,
+                "image_area_left": 80,
+                "image_area_right": 1000,
+                "text_area_top": 730,
+                "text_area_bottom": 1000,
+                "text_padding_x": 80,
+                "text_color": [
+                    30,
+                    30,
+                    30
+                ],
+                "text_font_size": 48,
+                "text_line_spacing": 6,
+                "text_max_lines": 5,
+                "image_overlay_alpha": 0,
+                "background_color": [
+                    250,
+                    250,
+                    250
+                ]
+            }
+        },
+        {
+            "id": "nb_tech_dark",
+            "name": "Tech Dark",
+            "template_file": "static/templates/tpl_tech_dark.png",
+            "weight": 5,
+            "preview": "tpl_tech_dark.png",
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1350,
+                "text_area_top": 800,
+                "text_area_bottom": 1250,
+                "text_padding_x": 60,
+                "text_color": [
+                    180,
+                    220,
+                    255
+                ],
+                "text_font_size": 60,
+                "text_line_spacing": 10,
+                "text_max_lines": 5,
+                "image_overlay_alpha": 0
+            }
+        },
+        {
+            "id": "nb_gold_luxury",
+            "name": "Gold Luxury",
+            "template_file": "static/templates/tpl_gold_luxury.png",
+            "weight": 5,
+            "preview": "tpl_gold_luxury.png",
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1350,
+                "text_area_top": 400,
+                "text_area_bottom": 1000,
+                "text_padding_x": 80,
+                "text_color": [
+                    255,
+                    215,
+                    0
+                ],
+                "text_font_size": 72,
+                "text_line_spacing": 12,
+                "text_max_lines": 6,
+                "image_overlay_alpha": 0
+            }
+        },
+        {
+            "id": "nb_clean_white",
+            "name": "Clean White",
+            "template_file": "static/templates/tpl_clean_white.png",
+            "weight": 5,
+            "preview": "tpl_clean_white.png",
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1350,
+                "text_area_top": 500,
+                "text_area_bottom": 1100,
+                "text_padding_x": 80,
+                "text_color": [
+                    30,
+                    30,
+                    40
+                ],
+                "text_font_size": 60,
+                "text_line_spacing": 10,
+                "text_max_lines": 6,
+                "image_overlay_alpha": 0
+            }
+        },
+        {
+            "id": "nb_viral_red",
+            "name": "Viral Red",
+            "template_file": "static/templates/tpl_viral_red.png",
+            "weight": 5,
+            "preview": "tpl_viral_red.png",
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1350,
+                "text_area_top": 300,
+                "text_area_bottom": 1100,
+                "text_padding_x": 50,
+                "text_color": [
+                    255,
+                    255,
+                    255
+                ],
+                "text_font_size": 80,
+                "text_line_spacing": 15,
+                "text_max_lines": 6,
+                "image_overlay_alpha": 0
+            }
+        },
+        {
+            "id": "nb_ocean_blue",
+            "name": "Ocean Blue",
+            "template_file": "static/templates/tpl_ocean_blue.png",
+            "weight": 5,
+            "preview": "tpl_ocean_blue.png",
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1350,
+                "text_area_top": 600,
+                "text_area_bottom": 1200,
+                "text_padding_x": 60,
+                "text_color": [
+                    200,
+                    230,
+                    255
+                ],
+                "text_font_size": 64,
+                "text_line_spacing": 10,
+                "text_max_lines": 5,
+                "image_overlay_alpha": 0
+            }
+        },
+        {
+            "id": "nb_nature_green",
+            "name": "Nature Green",
+            "template_file": "static/templates/tpl_nature_green.png",
+            "weight": 5,
+            "preview": "tpl_nature_green.png",
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1350,
+                "text_area_top": 500,
+                "text_area_bottom": 1100,
+                "text_padding_x": 60,
+                "text_color": [
+                    220,
+                    255,
+                    220
+                ],
+                "text_font_size": 60,
+                "text_line_spacing": 10,
+                "text_max_lines": 6,
+                "image_overlay_alpha": 0
+            }
+        },
+        {
+            "id": "nb_sunset_warm",
+            "name": "Sunset Warm",
+            "template_file": "static/templates/tpl_sunset_warm.png",
+            "weight": 5,
+            "preview": "tpl_sunset_warm.png",
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1350,
+                "text_area_top": 600,
+                "text_area_bottom": 1200,
+                "text_padding_x": 60,
+                "text_color": [
+                    255,
+                    255,
+                    255
+                ],
+                "text_font_size": 64,
+                "text_line_spacing": 10,
+                "text_max_lines": 5,
+                "image_overlay_alpha": 0
+            }
+        },
+        {
+            "id": "nb_neon_purple",
+            "name": "Neon Purple",
+            "template_file": "static/templates/tpl_neon_purple.png",
+            "weight": 5,
+            "preview": "tpl_neon_purple.png",
+            "config": {
+                "canvas_width": 1080,
+                "canvas_height": 1350,
+                "text_area_top": 400,
+                "text_area_bottom": 1050,
+                "text_padding_x": 60,
+                "text_color": [
+                    220,
+                    180,
+                    255
+                ],
+                "text_font_size": 68,
+                "text_line_spacing": 12,
+                "text_max_lines": 5,
+                "image_overlay_alpha": 0
+            }
+        }
+    ],
+    "user_overrides": {
+        "background_color": null,
+        "font_family": null,
+        "font_size_override": null
+    },
+    "anti_repeat": {
+        "remember_last_n": 3
+    }
+}

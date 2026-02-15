@@ -1,16 +1,48 @@
-# Core dependencies
-feedparser
-python-dotenv
-requests
-supabase
+# ==============================================
+# Content Factory v2.0 - Gumroad Edition
+# ==============================================
+# Python 3.10+ required
+# Install: pip install -r requirements.txt
+# ==============================================
 
-# Image generation
-Pillow
-arabic-reshaper
-python-bidi
+# ============ CORE (Required) ============
+python-dotenv>=1.0.0        # Environment variable management
+requests>=2.31.0            # HTTP client
 
-# Dashboard
-streamlit
+# ============ DATABASE ============
+# SQLite is built-in (default, no install needed)
+supabase>=2.0.0             # Optional: cloud database (if DB_MODE=supabase)
 
-# Duplicate detection (optional, for filter_unique_content)
-scikit-learn
+# ============ CONTENT SOURCES ============
+feedparser>=6.0.10          # RSS feed parsing
+pytrends>=4.9.0             # Google Trends (free)
+
+# ============ IMAGE PROCESSING ============
+Pillow>=10.0.0              # Image processing
+arabic-reshaper>=3.0.0      # Arabic text rendering
+python-bidi>=0.4.2          # Bidirectional text support
+
+# ============ WEB DASHBOARD ============
+flask>=3.0.0                # Web framework
+flask-cors>=4.0.0           # CORS support
+
+# ============ SECURITY ============
+cryptography>=41.0.0        # Token encryption (optional, fallback exists)
+
+# ============ PACKAGING ============
+pyinstaller>=6.0.0          # Create .exe (for building only)
+
+# ==============================================
+# Quick Setup (3 API keys only):
+# 
+# 1. FACEBOOK: Use OAuth button in dashboard (automatic!)
+#    - Or manual: developers.facebook.com/tools/explorer
+#
+# 2. AI (choose one - Gemini recommended, it's FREE):
+#    - GEMINI_API_KEY: makersuite.google.com/app/apikey
+#    - OPENROUTER_API_KEY: openrouter.ai/keys
+#
+# 3. IMAGES (optional):
+#    - PEXELS_API_KEY: pexels.com/api (free, 200 req/hour)
+#    - Works without it (fallback images)
+# ==============================================

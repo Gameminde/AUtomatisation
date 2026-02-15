@@ -1,0 +1,77 @@
+{
+    "AR": {
+        "patterns": [
+            {
+                "id": "ar_educatif_liste",
+                "name": "Éducatif + Liste",
+                "weight": 3,
+                "structure": "🔥 [HOOK صادم 10 كلمات]\n\n📌 النقاط الرئيسية:\n• [نقطة 1]\n• [نقطة 2]\n• [نقطة 3]\n\n🔗 الرابط: {LINK}\n\n{HASHTAGS}",
+                "example": "🔥 OpenAI تطلق ميزة ستغير طريقة عملك للأبد!\n\n📌 النقاط الرئيسية:\n• سرعة أعلى بـ 10 أضعاف\n• تكلفة أقل بنسبة 50%\n• متاح للجميع اليوم\n\n🔗 الرابط: example.com\n\n#ChatGPT #AI #تقنية #ذكاء_اصطناعي"
+            },
+            {
+                "id": "ar_outrage_comparatif",
+                "name": "Outrage + Comparatif",
+                "weight": 2,
+                "structure": "🚨 [HOOK استفزازي]\n\n❌ ما يقولونه: [خرافة شائعة]\n✅ الحقيقة: [الواقع]\n\n🔗 الرابط: {LINK}\n\n{HASHTAGS}",
+                "example": "🚨 كل ما تعرفه عن الـ AI خاطئ!\n\n❌ ما يقولونه: الذكاء الاصطناعي سيأخذ وظيفتك\n✅ الحقيقة: من يتقن AI سيأخذ وظيفة من لا يتقنه\n\n🔗 الرابط: example.com\n\n#AI #وظائف #مستقبل"
+            },
+            {
+                "id": "ar_problem_solution",
+                "name": "Problème → Solution",
+                "weight": 2,
+                "structure": "😤 [المشكلة التي يعاني منها الجميع]\n\n💡 الحل الجديد:\n✨ [ميزة 1]\n✨ [ميزة 2]\n✨ [ميزة 3]\n\n🔗 الرابط: {LINK}\n\n{HASHTAGS}",
+                "example": "😤 تضيع ساعات في كتابة الإيميلات؟\n\n💡 الحل الجديد:\n✨ يكتب الإيميل في 10 ثواني\n✨ بأسلوبك الشخصي\n✨ مجاني 100%\n\n🔗 الرابط: example.com\n\n#Productivity #Email #AI"
+            }
+        ]
+    },
+    "FR": {
+        "patterns": [
+            {
+                "id": "fr_insight_liste",
+                "name": "Insight + Liste",
+                "weight": 2,
+                "structure": "🔥 [HOOK accrocheur]\n\nCe qu'il faut retenir:\n• [Point 1]\n• [Point 2]\n• [Point 3]\n\n🔗 Lien : {LINK}\n\n{HASHTAGS}",
+                "example": "🔥 OpenAI vient de changer les règles du jeu!\n\nCe qu'il faut retenir:\n• GPT-5 arrive en mars\n• 10x plus rapide\n• Prix divisé par 2\n\n🔗 Lien : example.com\n\n#OpenAI #GPT5 #IA #Tech"
+            },
+            {
+                "id": "fr_avant_apres",
+                "name": "Avant/Après",
+                "weight": 2,
+                "structure": "⚡ [HOOK percutant]\n\n❌ Avant: [ancienne méthode]\n✅ Maintenant: [nouvelle réalité]\n\n🔗 Lien : {LINK}\n\n{HASHTAGS}",
+                "example": "⚡ La création de contenu a changé pour toujours!\n\n❌ Avant: 4h pour écrire un article\n✅ Maintenant: 15 min avec l'IA\n\n🔗 Lien : example.com\n\n#ContentCreation #IA #Productivité"
+            }
+        ]
+    },
+    "EN": {
+        "patterns": [
+            {
+                "id": "en_insight_bullets",
+                "name": "Insight + Bullets",
+                "weight": 2,
+                "structure": "🔥 [PUNCHY HOOK]\n\nKey takeaways:\n• [Point 1]\n• [Point 2]\n• [Point 3]\n\n🔗 Link: {LINK}\n\n{HASHTAGS}",
+                "example": "🔥 OpenAI just dropped something MASSIVE!\n\nKey takeaways:\n• GPT-5 is coming in March\n• 10x faster responses\n• 50% cheaper pricing\n\n🔗 Link: example.com\n\n#OpenAI #GPT5 #AI #Tech"
+            },
+            {
+                "id": "en_hot_take",
+                "name": "Hot Take",
+                "weight": 2,
+                "structure": "🚨 [CONTROVERSIAL HOOK]\n\n[2-3 sentences explaining why]\n\n🔗 Link: {LINK}\n\n{HASHTAGS}",
+                "example": "🚨 Everyone is using AI wrong!\n\nThe problem isn't the tools—it's the prompts. Master prompt engineering and you'll 10x your results overnight.\n\n🔗 Link: example.com\n\n#AI #Productivity #PromptEngineering"
+            },
+            {
+                "id": "en_storytelling",
+                "name": "Storytelling (Viral)",
+                "weight": 3,
+                "structure": "📖 I lost everything in 2022. Here is how I got it back:\n\n[Story - Beginning]\n[Story - Middle]\n[Story - Climax]\n\nLesson: [The big takeaway]\n\n🔗 Link: {LINK}\n\n{HASHTAGS}",
+                "example": "📖 I lost my job in 2022. Here is how I built a 6-figure business:\n\nI started with $0.\nI learned coding at night.\nI launched 5 failed apps.\n\nThen one worked.\n\nLesson: Consistency beats talent.\n\n🔗 Link: example.com #Story #Success"
+            },
+            {
+                "id": "en_question_engagement",
+                "name": "Question (Engagement)",
+                "weight": 2,
+                "structure": "❓ If you could only keep ONE app on your phone, what would it be?\n\nA) WhatsApp\nB) Instagram\nC) TikTok\nD) Other (comment below)\n\n👇 Let us know!",
+                "example": "❓ If you could only use ONE AI tool, which one?\n\nA) ChatGPT\nB) Claude\nC) Gemini\n\n👇 Comment your choice!"
+            }
+        ]
+    }
+}

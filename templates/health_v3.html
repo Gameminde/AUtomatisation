@@ -1,0 +1,47 @@
+{% extends "layout_v3.html" %}
+
+{% block content %}
+<div class="grid-4">
+    <div class="card">
+        <div class="muted" data-i18n="health_last_error">Last Error</div>
+        <div id="error-message" style="margin-top:0.5rem;">-</div>
+        <div class="muted" id="error-time" style="margin-top:0.25rem;">-</div>
+    </div>
+    <div class="card">
+        <div class="muted" data-i18n="health_cooldown">Cooldown</div>
+        <div id="cooldown-status" style="margin-top:0.5rem;">-</div>
+        <div class="muted" id="cooldown-reason" style="margin-top:0.25rem;">-</div>
+    </div>
+    <div class="card">
+        <div class="muted" data-i18n="health_tokens">Token Health</div>
+        <div id="token-facebook" style="margin-top:0.5rem;">FB: -</div>
+        <div id="token-ai">AI: -</div>
+        <div id="token-pexels">Pexels: -</div>
+    </div>
+    <div class="card">
+        <div class="muted" data-i18n="health_quotas">API Quotas</div>
+        <div id="quota-gemini" style="margin-top:0.5rem;">Gemini: -</div>
+        <div id="quota-pexels">Pexels: -</div>
+    </div>
+</div>
+
+<div class="grid-2" style="margin-top:1rem;">
+    <div class="card">
+        <h3 data-i18n="health_events">Recent Events</h3>
+        <div id="events-list" class="list" style="margin-top:0.75rem;"></div>
+    </div>
+    <div class="card">
+        <h3 data-i18n="health_diagnostics">Diagnostics</h3>
+        <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:0.5rem; margin-top:0.75rem;">
+            <button class="btn btn-ghost" onclick="testService('facebook')">Test Facebook</button>
+            <button class="btn btn-ghost" onclick="testService('ai')">Test AI</button>
+            <button class="btn btn-ghost" onclick="testService('pexels')">Test Pexels</button>
+            <button class="btn btn-ghost" onclick="testService('database')">Test DB</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/health_v3.js') }}"></script>
+{% endblock %}

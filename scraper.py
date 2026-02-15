@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from datetime import datetime
 from typing import Iterable, List
@@ -14,11 +15,28 @@ import config
 logger = config.get_logger("scraper")
 
 
-RSS_FEEDS = [
+_DEFAULT_RSS_FEEDS = [
     "https://techcrunch.com/feed/",
     "https://www.theverge.com/rss/index.xml",
     "https://news.mit.edu/rss/topic/technology",
 ]
+
+
+def get_feeds() -> List[str]:
+    """Get current RSS feed URLs from env or defaults."""
+    env_val = os.environ.get("RSS_FEED_URLS", "").strip()
+    if env_val:
+        return [u.strip() for u in env_val.split(",") if u.strip()]
+    return list(_DEFAULT_RSS_FEEDS)
+
+
+def set_feeds(urls: List[str]) -> None:
+    """Update RSS_FEED_URLS in the runtime environment."""
+    os.environ["RSS_FEED_URLS"] = ",".join(urls)
+
+
+# Keep module-level name for backward compatibility
+RSS_FEEDS = get_feeds()
 
 
 def fetch_newsdata_articles() -> List[dict]:
@@ -113,7 +131,7 @@ def fetch_hackernews_top(limit: int = 20) -> List[dict]:
 
 def keyword_match(text: str, keywords: Iterable[str]) -> bool:
     text_lower = text.lower()
-    return any(keyword in text_lower for keyword in keywords)
+    return any(keyword.lower() in text_lower for keyword in keywords)
 
 
 def filter_articles(items: Iterable[dict], keywords: Iterable[str]) -> List[dict]:
@@ -157,12 +175,7 @@ def save_articles(items: Iterable[dict]) -> int:
         if not url:
             continue
         try:
-            existing = (
-                client.table("raw_articles")
-                .select("id")
-                .eq("url", url)
-                .execute()
-            )
+            existing = client.table("raw_articles").select("id").eq("url", url).execute()
             if existing.data:
                 continue
         except Exception as exc:
@@ -189,7 +202,7 @@ def save_articles(items: Iterable[dict]) -> int:
 def run() -> int:
     items: List[dict] = []
     items.extend(fetch_newsdata_articles())
-    for rss_url in RSS_FEEDS:
+    for rss_url in get_feeds():
         items.extend(fetch_rss_feed(rss_url))
         time.sleep(config.REQUEST_SLEEP_SECONDS)
     items.extend(fetch_hackernews_top())
