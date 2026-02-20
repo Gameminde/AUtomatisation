@@ -1,531 +1,906 @@
 /**
- * Studio v3 — Canvas WYSIWYG Editor
- * Real-time preview: draws background, photo zone, title text, and logo bar.
+ * Studio v4 - The Magic Update 🪄
+ * Core Engine: Interactive Canvas + AI Features
  */
 
-// ── Toast ──
-function showToast(msg, type = 'info', dur = 3000) {
-    let c = document.getElementById('toast-container');
-    if (!c) { c = document.createElement('div'); c.id = 'toast-container'; c.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.4rem;pointer-events:none;'; document.body.appendChild(c); }
-    const t = document.createElement('div'); t.className = `toast ${type}`; t.textContent = msg; t.style.pointerEvents = 'auto';
-    c.appendChild(t); setTimeout(() => { t.classList.add('fade-out'); setTimeout(() => t.remove(), 300); }, dur);
-}
+// ==========================================
+// 1. ENGINE & STATE MANAGEMENT
+// ==========================================
 
-// ── State ──
-let currentContent = null;
-let templates = [];
-let selectedTemplateId = null;
-let bgImage = null;        // Background Image object
-let photoImage = null;     // Content photo Image object
-let logoImage = null;      // @SmartEraPro logo strip
-
-const CANVAS_W = 1080;
-const CANVAS_H = 1350;
-
-// Default template config (matches the example image style)
-const DEFAULT_TPL = {
-    id: 'smartera_classic',
-    name: 'SmartEra Classic',
-    bg_color: '#0c0f14',
-    // Logo bar
-    logo_bar_y: 20,
-    logo_bar_h: 60,
-    // Photo area
-    photo_y: 120,
-    photo_h: 700,
-    photo_x: 35,
-    photo_w: 1010,
-    photo_radius: 8,
-    // Title area
-    title_y: 880,
-    title_h: 350,
-    title_color: '#ffc832',
-    title_size: 72,
-    title_align: 'center',
-    // Branding
-    brand_text: '@SmartEraPro',
-    brand_color: '#ffffff',
+const FORMAT_SPECS = {
+    'post': { w: 1080, h: 1350, name: 'Post (4:5)' },
+    'story': { w: 1080, h: 1920, name: 'Story (9:16)' },
+    'square': { w: 1080, h: 1080, name: 'Square (1:1)' }
 };
 
-// Template presets
+// State
+let appState = {
+    selectedTemplateId: 'smart_classic',
+    bgImage: null,
+    bgOpacity: 1.0,     // 0.0 to 1.0
+    photoImage: null,
+    elements: [],       // List of CanvasObject
+    selectedElementId: null,
+    isDragging: false,
+    isResizing: false,
+    dragStart: { x: 0, y: 0, originalSize: 0 },
+    history: [],        // Undo stack
+    historyIndex: -1,
+    format: 'post',     // post, story, square
+    width: 1080,
+    height: 1350,
+    socialIcons: ['instagram', 'facebook', 'x-twitter']  // Active platforms
+};
+
+// ==========================================
+// 2. TEMPLATE PRESETS (Updated Object Model)
+// ==========================================
+
 const TEMPLATE_PRESETS = [
     {
-        ...DEFAULT_TPL,
-    },
-    {
+        id: 'smart_classic',
+        name: 'SmartEra Classic',
+        bg_color: '#0c0f14',
+        elements: [
+            { type: 'logo_bar', y: 30, brand_text: '@SmartEraPro', color: '#ffffff' },
+            { type: 'image_zone', x: 40, y: 150, w: 1000, h: 800, radius: 20 },
+            { type: 'text', text: 'Titre principal ici', x: 540, y: 1050, fontSize: 80, color: '#FFD700', align: 'center', font: 'IBM Plex Sans Arabic' }
+        ]
+    }, {
         id: 'dark_bold',
         name: 'Dark Bold',
-        bg_color: '#111111',
-        photo_y: 100, photo_h: 750, photo_x: 0, photo_w: 1080, photo_radius: 0,
-        title_y: 900, title_h: 350, title_color: '#ffffff', title_size: 80,
-        title_align: 'center', brand_text: '@SmartEraPro', brand_color: '#aaaaaa',
-        logo_bar_y: 20, logo_bar_h: 60,
-    },
-    {
+        bg_color: '#000000',
+        elements: [
+            { type: 'logo_bar', y: 40, brand_text: '@SmartEraPro', color: '#ffffff' },
+            { type: 'image_zone', x: 0, y: 0, w: 1080, h: 900, radius: 0 }, // Full width top
+            { type: 'text', text: 'TITRE ACCROCHEUR', x: 540, y: 950, fontSize: 90, color: '#ffffff', align: 'center', font: 'Rubik' },
+            { type: 'shape', x: 40, y: 1150, w: 1000, h: 10, color: '#E50914' } // Red line
+        ]
+    }, {
         id: 'gold_elegant',
         name: 'Gold Elegant',
-        bg_color: '#0a0a0a',
-        photo_y: 140, photo_h: 650, photo_x: 60, photo_w: 960, photo_radius: 16,
-        title_y: 850, title_h: 400, title_color: '#ffd700', title_size: 68,
-        title_align: 'center', brand_text: '@SmartEraPro', brand_color: '#ffd700',
-        logo_bar_y: 25, logo_bar_h: 60,
-    },
-    {
-        id: 'clean_light',
-        name: 'Clean Light',
-        bg_color: '#f5f5f5',
-        photo_y: 120, photo_h: 700, photo_x: 40, photo_w: 1000, photo_radius: 12,
-        title_y: 880, title_h: 370, title_color: '#1a1a1a', title_size: 66,
-        title_align: 'center', brand_text: '@SmartEraPro', brand_color: '#333333',
-        logo_bar_y: 20, logo_bar_h: 60,
-    },
-    {
-        id: 'red_breaking',
-        name: 'Breaking News',
-        bg_color: '#1a0000',
-        photo_y: 130, photo_h: 680, photo_x: 30, photo_w: 1020, photo_radius: 4,
-        title_y: 860, title_h: 380, title_color: '#ff3333', title_size: 76,
-        title_align: 'center', brand_text: '@SmartEraPro', brand_color: '#ff6666',
-        logo_bar_y: 20, logo_bar_h: 60,
-    },
-    {
-        id: 'ocean_calm',
-        name: 'Ocean Calm',
-        bg_color: '#0a1628',
-        photo_y: 130, photo_h: 700, photo_x: 50, photo_w: 980, photo_radius: 20,
-        title_y: 890, title_h: 360, title_color: '#7cc4fa', title_size: 64,
-        title_align: 'center', brand_text: '@SmartEraPro', brand_color: '#7cc4fa',
-        logo_bar_y: 22, logo_bar_h: 60,
-    },
+        bg_color: '#1a1a1a',
+        elements: [
+            { type: 'logo_bar', y: 50, brand_text: '@SmartEraPro', color: '#D4AF37' },
+            { type: 'image_zone', x: 100, y: 200, w: 880, h: 700, radius: 300 }, // Circle-ish
+            { type: 'text', text: 'عنوان فاخر هنا', x: 540, y: 1000, fontSize: 85, color: '#D4AF37', align: 'center', font: 'Amiri' }
+        ]
+    }
 ];
 
-// ── DOM Ready ──
-document.addEventListener('DOMContentLoaded', () => {
-    loadContentList();
-    renderTemplateStrip();
-    selectTemplatePreset(TEMPLATE_PRESETS[0].id);
+// ==========================================
+// 3. INTERACTIVE ENGINE CLASS
+// ==========================================
 
-    document.getElementById('search-input').addEventListener('input', debounce(loadContentList, 300));
-    document.getElementById('status-filter').addEventListener('change', loadContentList);
-    document.getElementById('text-color').addEventListener('input', (e) => {
-        document.getElementById('color-label').textContent = e.target.value.toUpperCase();
-        renderCanvas();
-    });
+class StudioEngine {
+    constructor(canvasId) {
+        this.canvas = document.getElementById(canvasId);
+        this.ctx = this.canvas.getContext('2d');
+
+        // Initial Setup
+        this.updateCanvasSize();
+
+        this.initListeners();
+        this.loadTemplate('smart_classic');
+        this.startLoop();
+    }
+
+    updateCanvasSize() {
+        this.canvas.width = appState.width;
+        this.canvas.height = appState.height;
+        // Keep display 100% via CSS, intrinsic size changes
+    }
+
+    // --- Core Rendering ---
+    startLoop() {
+        const loop = () => {
+            this.render();
+            requestAnimationFrame(loop);
+        };
+        requestAnimationFrame(loop);
+    }
+
+    render() {
+        // Clear
+        this.ctx.clearRect(0, 0, appState.width, appState.height);
+
+        // 1. Background
+        const tpl = TEMPLATE_PRESETS.find(t => t.id === appState.selectedTemplateId) || TEMPLATE_PRESETS[0];
+        // Always draw template bg color first
+        this.ctx.fillStyle = tpl.bg_color;
+        this.ctx.fillRect(0, 0, appState.width, appState.height);
+
+        if (appState.bgImage) {
+            this.ctx.save();
+            this.ctx.globalAlpha = appState.bgOpacity;
+            this.ctx.drawImage(appState.bgImage, 0, 0, appState.width, appState.height);
+            this.ctx.restore();
+        } else {
+            this.drawNoise(this.ctx);
+        }
+        // Draw Grid if an element is selected (visual feedback)
+        if (appState.selectedElementId) this.drawGrid();
+
+        // 2. Render Elements (Z-index order)
+        appState.elements.forEach(el => this.drawElement(el));
+
+        // 3. Selection Overlay (if any)
+        if (appState.selectedElementId) {
+            const el = appState.elements.find(e => e.id === appState.selectedElementId);
+            if (el) this.drawSelectionBox(el);
+        }
+    }
+
+    drawElement(el) {
+        this.ctx.save();
+
+        if (el.type === 'image_zone') {
+            this.drawImageZone(el);
+        } else if (el.type === 'text') {
+            this.drawTextElement(el);
+        } else if (el.type === 'logo_bar') {
+            this.drawLogoBar(el);
+        } else if (el.type === 'shape') {
+            this.ctx.fillStyle = el.color;
+            this.ctx.fillRect(el.x, el.y, el.w, el.h);
+        }
+
+        this.ctx.restore();
+    }
+
+    drawImageZone(el) {
+        // Clip Radius
+        this.ctx.beginPath();
+        this.ctx.roundRect(el.x, el.y, el.w, el.h, el.radius || 0);
+        this.ctx.clip();
+
+        // Draw Image or Placeholder
+        if (appState.photoImage) {
+            drawCoverImage(this.ctx, appState.photoImage, el.x, el.y, el.w, el.h);
+        } else {
+            this.ctx.fillStyle = 'rgba(255,255,255,0.1)';
+            this.ctx.fillRect(el.x, el.y, el.w, el.h);
+            this.ctx.fillStyle = '#ffffff';
+            this.ctx.font = '40px sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText('📷 Photo Zone', el.x + el.w / 2, el.y + el.h / 2);
+        }
+    }
+
+    drawTextElement(el) {
+        this.ctx.fillStyle = el.color;
+        this.ctx.font = `bold ${el.fontSize}px "${el.font}", sans-serif`;
+        this.ctx.textAlign = el.align;
+        this.ctx.textBaseline = 'top'; // Easier for wrapping
+
+        // Shadow for readability
+        this.ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        this.ctx.shadowBlur = 10;
+        this.ctx.shadowOffsetX = 2;
+        this.ctx.shadowOffsetY = 2;
+
+        if (el.text) {
+            wrapText(this.ctx, el.text, el.x, el.y, 900, el.fontSize * 1.3);
+        }
+
+        // Reset Shadow
+        this.ctx.shadowColor = 'transparent';
+    }
+
+    drawLogoBar(el) {
+        const brandColor = el.color;
+        this.ctx.textBaseline = 'middle';
+
+        // Platform icon map (text characters to render on canvas)
+        const ICON_MAP = {
+            'instagram': { char: '\uf16d', font: '"Font Awesome 6 Brands"' },
+            'facebook': { char: '\uf39e', font: '"Font Awesome 6 Brands"' },
+            'x-twitter': { char: '\ue61b', font: '"Font Awesome 6 Brands"' },
+            'youtube': { char: '\uf167', font: '"Font Awesome 6 Brands"' },
+            'tiktok': { char: '\ue07b', font: '"Font Awesome 6 Brands"' },
+            'linkedin': { char: '\uf0e1', font: '"Font Awesome 6 Brands"' },
+            'snapchat': { char: '\uf2ab', font: '"Font Awesome 6 Brands"' },
+            'threads': { char: '\ue618', font: '"Font Awesome 6 Brands"' }
+        };
+
+        // Fallback text icons if Font Awesome not available on canvas
+        const FALLBACK_MAP = {
+            'instagram': '📷',
+            'facebook': 'f',
+            'x-twitter': '𝕏',
+            'youtube': '▶',
+            'tiktok': '♪',
+            'linkedin': 'in',
+            'snapchat': '👻',
+            'threads': '@'
+        };
+
+        let ix = 40;
+        const iconY = el.y + 30;
+        const activeIcons = appState.socialIcons || ['instagram', 'facebook', 'x-twitter'];
+
+        activeIcons.forEach(platform => {
+            // Draw circle bg
+            this.ctx.beginPath();
+            this.ctx.arc(ix + 16, iconY, 22, 0, Math.PI * 2);
+            this.ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            this.ctx.fill();
+
+            // Try Font Awesome icon first
+            const iconInfo = ICON_MAP[platform];
+            const fallback = FALLBACK_MAP[platform] || '?';
+
+            this.ctx.fillStyle = brandColor;
+            this.ctx.textAlign = 'center';
+
+            // Attempt FA Brands font, fall back to text
+            if (iconInfo) {
+                this.ctx.font = `900 22px ${iconInfo.font}`;
+                this.ctx.fillText(iconInfo.char, ix + 16, iconY + 1);
+
+                // Check if it rendered (measure width > 0)
+                const m = this.ctx.measureText(iconInfo.char);
+                if (m.width < 2) {
+                    // Font not loaded yet, use fallback
+                    this.ctx.font = 'bold 20px "Space Grotesk", sans-serif';
+                    this.ctx.fillText(fallback, ix + 16, iconY + 1);
+                }
+            } else {
+                this.ctx.font = 'bold 20px "Space Grotesk", sans-serif';
+                this.ctx.fillText(fallback, ix + 16, iconY + 1);
+            }
+
+            ix += 56;
+        });
+
+        // Brand Name (editable from input)
+        this.ctx.fillStyle = brandColor;
+        this.ctx.textAlign = 'left';
+        this.ctx.font = 'bold 32px "Space Grotesk", sans-serif';
+        this.ctx.fillText(el.brand_text, ix + 10, iconY);
+    }
+
+    drawSelectionBox(el) {
+        let bounds = this.getBounds(el);
+        // Simple bounding box
+        this.ctx.strokeStyle = '#00F0FF'; // Neon Blue
+        this.ctx.lineWidth = 3;
+        this.ctx.setLineDash([10, 5]);
+        this.ctx.strokeRect(bounds.x - 10, bounds.y - 10, bounds.w + 20, bounds.h + 20);
+        this.ctx.setLineDash([]);
+
+        // Drag Handles (Bottom Right)
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.fillRect(bounds.x + bounds.w + 5, bounds.y + bounds.h + 5, 20, 20);
+        // Draw icon inside handle?
+    }
+
+    resizeCanvas(formatKey) {
+        if (!FORMAT_SPECS[formatKey]) return;
+
+        const oldW = appState.width;
+        const oldH = appState.height;
+        const newSpec = FORMAT_SPECS[formatKey];
+
+        appState.format = formatKey;
+        appState.width = newSpec.w;
+        appState.height = newSpec.h;
+        this.updateCanvasSize(); // Update DOM canvas size
+
+        // Reposition Elements (Auto-Layout)
+        const scaleX = newSpec.w / oldW;
+        const scaleY = newSpec.h / oldH;
+
+        appState.elements.forEach(el => {
+            // Center X relative to new width
+            if (el.type === 'text' || el.align === 'center') {
+                // If it was centered, keep it centered
+                // Simple approach: Scale X
+                el.x = el.x * scaleX;
+            } else {
+                el.x = el.x * scaleX;
+            }
+
+            // Scale Y
+            el.y = el.y * scaleY;
+
+            // Scale size
+            if (el.w) el.w = el.w * scaleX;
+            if (el.h) el.h = el.h * scaleY; // Maybe scaleY?
+            // if (el.fontSize) el.fontSize = el.fontSize * ((scaleX + scaleY) / 2);
+        });
+
+        this.saveHistory();
+    }
+
+    drawGrid() {
+        this.ctx.save();
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.1)';
+        this.ctx.lineWidth = 1;
+        const GRID = 100; // Visual guide every 100px
+
+        this.ctx.beginPath();
+        for (let x = 0; x <= appState.width; x += GRID) {
+            this.ctx.moveTo(x, 0);
+            this.ctx.lineTo(x, appState.height);
+        }
+        for (let y = 0; y <= appState.height; y += GRID) {
+            this.ctx.moveTo(0, y);
+            this.ctx.lineTo(appState.width, y);
+        }
+        this.ctx.stroke();
+        this.ctx.restore();
+    }
+
+    drawNoise(ctx) {
+        // Optimized noise
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 215, 0, 0.05)';
+        for (let i = 0; i < 300; i++) {
+            ctx.fillRect(Math.random() * appState.width, Math.random() * appState.height, 2, 2);
+        }
+        ctx.restore();
+    }
+
+    // --- State & Logic ---
+
+    loadTemplate(id) {
+        const tpl = TEMPLATE_PRESETS.find(t => t.id === id);
+        if (!tpl) return;
+
+        appState.selectedTemplateId = id;
+        // Deep copy elements to state, adding IDs
+        appState.elements = tpl.elements.map((el, i) => ({
+            ...el,
+            id: `el_${Date.now()}_${i}`
+        }));
+
+        // Update UI inputs if needed
+        const titleEl = appState.elements.find(e => e.type === 'text');
+        if (titleEl) {
+            document.getElementById('text-input').value = titleEl.text;
+            document.getElementById('text-color').value = titleEl.color;
+        }
+
+        this.saveHistory();
+    }
+
+    saveHistory() {
+        // Remove any "future" history if we were in the middle of the stack
+        if (appState.historyIndex < appState.history.length - 1) {
+            appState.history = appState.history.slice(0, appState.historyIndex + 1);
+        }
+        appState.history.push(JSON.stringify(appState.elements));
+        appState.historyIndex++;
+
+        // Limit Stack Size
+        if (appState.history.length > 50) {
+            appState.history.shift();
+            appState.historyIndex--;
+        }
+    }
+
+    undo() {
+        if (appState.historyIndex > 0) {
+            appState.historyIndex--;
+            appState.elements = JSON.parse(appState.history[appState.historyIndex]);
+            appState.selectedElementId = null; // Deselect on undo to avoid ghost handles
+        }
+    }
+
+    redo() {
+        if (appState.historyIndex < appState.history.length - 1) {
+            appState.historyIndex++;
+            appState.elements = JSON.parse(appState.history[appState.historyIndex]);
+            appState.selectedElementId = null;
+        }
+    }
+
+    // --- Interaction ---
+    initListeners() {
+        this.canvas.addEventListener('mousedown', (e) => this.handleMouseDown(e));
+        this.canvas.addEventListener('mousemove', (e) => this.handleMouseMove(e));
+        this.canvas.addEventListener('mouseup', (e) => this.handleMouseUp(e));
+
+        // Keyboard Shortcuts
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                this.undo();
+            }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'Z'))) {
+                e.preventDefault();
+                this.redo();
+            }
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                if (appState.selectedElementId) {
+                    this.deleteSelected();
+                }
+            }
+        });
+    }
+
+    deleteSelected() {
+        if (appState.selectedElementId) {
+            this.saveHistory(); // Save before deleting
+            appState.elements = appState.elements.filter(el => el.id !== appState.selectedElementId);
+            appState.selectedElementId = null;
+        }
+    }
+
+    getCanvasCoords(e) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    }
+
+    handleMouseDown(e) {
+        const coords = this.getCanvasCoords(e);
+        const hitX = coords.x;
+        const hitY = coords.y;
+
+        // 1. Check Resize Handle of Selected Element first
+        if (appState.selectedElementId) {
+            const el = appState.elements.find(e => e.id === appState.selectedElementId);
+            const bounds = this.getBounds(el);
+            // Handle is at bottom-right (bounds.x + bounds.w, bounds.y + bounds.h)
+            const hx = bounds.x + bounds.w;
+            const hy = bounds.y + bounds.h;
+
+            // 30px hit zone for handle (offset by the padding drawn in drawSelectionBox)
+            if (Math.abs(hitX - (hx + 10)) < 40 && Math.abs(hitY - (hy + 10)) < 40) {
+                appState.isResizing = true;
+                appState.dragStart = { x: hitX, y: hitY, originalSize: el.type === 'text' ? el.fontSize : el.w };
+                return;
+            }
+        }
+
+        // 2. HIT TEST Elements
+        let hitElement = null;
+        for (let i = appState.elements.length - 1; i >= 0; i--) {
+            const el = appState.elements[i];
+            if (this.isHit(el, hitX, hitY)) {
+                hitElement = el;
+                break;
+            }
+        }
+
+        if (hitElement) {
+            appState.selectedElementId = hitElement.id;
+            appState.isDragging = true;
+            appState.dragStart = { x: hitX - hitElement.x, y: hitY - hitElement.y };
+
+            // Sync UI
+            if (hitElement.type === 'text') {
+                document.getElementById('text-input').value = hitElement.text;
+                document.getElementById('text-color').value = hitElement.color;
+            }
+        } else {
+            appState.selectedElementId = null;
+        }
+    }
+
+    handleMouseMove(e) {
+        const coords = this.getCanvasCoords(e);
+
+        // RESIZE LOGIC
+        if (appState.isResizing && appState.selectedElementId) {
+            const el = appState.elements.find(e => e.id === appState.selectedElementId);
+            if (el) {
+                const dx = coords.x - appState.dragStart.x;
+
+                if (el.type === 'text') {
+                    // Scale font size
+                    const newSize = appState.dragStart.originalSize + (dx * 0.5);
+                    el.fontSize = Math.max(20, newSize);
+                } else if (el.type === 'image_zone' || el.type === 'shape') {
+                    // Scale width
+                    el.w = Math.max(100, appState.dragStart.originalSize + dx);
+                }
+                this.canvas.style.cursor = 'nwse-resize';
+            }
+            return;
+        }
+
+        // DRAG LOGIC
+        if (appState.isDragging && appState.selectedElementId) {
+            const el = appState.elements.find(e => e.id === appState.selectedElementId);
+            if (el) {
+                let newX = coords.x - appState.dragStart.x;
+                let newY = coords.y - appState.dragStart.y;
+
+                // Simple Snap-to-Grid (Grid Size 20px)
+                const GRID_SIZE = 20;
+                if (!e.shiftKey) { // Hold Shift to disable snapping
+                    newX = Math.round(newX / GRID_SIZE) * GRID_SIZE;
+                    newY = Math.round(newY / GRID_SIZE) * GRID_SIZE;
+                }
+
+                el.x = newX;
+                el.y = newY;
+                this.canvas.style.cursor = 'move';
+            }
+            return;
+        }
+
+        // HOVER CURSOR
+        this.updateCursor(coords);
+    }
+
+    handleMouseUp(e) {
+        if (appState.isDragging || appState.isResizing) {
+            this.saveHistory();
+        }
+        appState.isDragging = false;
+        appState.isResizing = false;
+    }
+
+    updateCursor(coords) {
+        if (appState.selectedElementId) {
+            const el = appState.elements.find(e => e.id === appState.selectedElementId);
+            const bounds = this.getBounds(el);
+            const hx = bounds.x + bounds.w + 10;
+            const hy = bounds.y + bounds.h + 10;
+            if (Math.abs(coords.x - hx) < 30 && Math.abs(coords.y - hy) < 30) {
+                this.canvas.style.cursor = 'nwse-resize';
+                return;
+            }
+        }
+
+        for (let i = appState.elements.length - 1; i >= 0; i--) {
+            if (this.isHit(appState.elements[i], coords.x, coords.y)) {
+                this.canvas.style.cursor = 'move';
+                return;
+            }
+        }
+        this.canvas.style.cursor = 'default';
+    }
+
+    isHit(el, x, y) {
+        if (el.type === 'image_zone' || el.type === 'shape') {
+            return (x >= el.x && x <= el.x + el.w && y >= el.y && y <= el.y + el.h);
+        }
+        if (el.type === 'text') {
+            const bounds = this.getBounds(el);
+            return (x >= bounds.x && x <= bounds.x + bounds.w && y >= bounds.y && y <= bounds.y + bounds.h);
+        }
+        if (el.type === 'logo_bar') {
+            return (y >= el.y && y <= el.y + 80);
+        }
+        return false;
+    }
+
+    getBounds(el) {
+        if (!el) return { x: 0, y: 0, w: 0, h: 0 };
+        if (el.type === 'text') {
+            this.ctx.font = `bold ${el.fontSize}px "${el.font}", sans-serif`;
+            const metrics = this.ctx.measureText(el.text);
+            let lx = el.x;
+            if (el.align === 'center') lx = el.x - metrics.width / 2;
+            else if (el.align === 'right') lx = el.x - metrics.width;
+            return { x: lx, y: el.y, w: metrics.width, h: el.fontSize * 1.5 }; // 1.5 lineHeight
+        }
+        return { x: el.x, y: el.y, w: el.w, h: el.h || 100 };
+    }
+}
+
+// ==========================================
+// 4. GLOBAL HELPERS & EXPORTS
+// ==========================================
+
+let engine = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+    engine = new StudioEngine('live-canvas');
+    initUI();
 });
 
-// ── Canvas Rendering ──
-function renderCanvas() {
-    const canvas = document.getElementById('live-canvas');
-    const ctx = canvas.getContext('2d');
-    const tpl = TEMPLATE_PRESETS.find(t => t.id === selectedTemplateId) || DEFAULT_TPL;
+// ==========================================
+// 5. TEMPLATE MANAGER (LocalStorage)
+// ==========================================
 
-    // 1. Background
-    if (bgImage) {
-        ctx.drawImage(bgImage, 0, 0, CANVAS_W, CANVAS_H);
-    } else {
-        ctx.fillStyle = tpl.bg_color;
-        ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-        // Add subtle noise/texture for dark themes
-        if (isColorDark(tpl.bg_color)) {
-            drawNoiseTexture(ctx);
+function getSavedTemplates() {
+    try {
+        const raw = localStorage.getItem('studio_templates');
+        return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+        console.error("Error loading templates", e);
+        return [];
+    }
+}
+
+function saveTemplate() {
+    const name = prompt("Enter a name for this template:", "My Cool Design");
+    if (!name) return;
+
+    const newTpl = {
+        id: 'user_' + Date.now(),
+        name: name,
+        created_at: new Date().toISOString(),
+        state: appState // Save the entire state
+    };
+
+    const saved = getSavedTemplates();
+    saved.unshift(newTpl); // Add to top
+    localStorage.setItem('studio_templates', JSON.stringify(saved));
+
+    // Re-render strip
+    initUI(); // simpler to just re-init or we can extract renderTemplateStrip
+
+    // Show toast (simple alert for now)
+    // alert("Template saved!"); 
+    // Better: quick visual feedback?
+    const btn = document.querySelector('.fa-floppy-disk').parentElement;
+    const ogHtml = btn.innerHTML;
+    btn.innerHTML = '<i class="fa-solid fa-check" style="color:var(--primary)"></i>';
+    setTimeout(() => btn.innerHTML = ogHtml, 2000);
+}
+
+function deleteTemplate(id) {
+    const saved = getSavedTemplates().filter(t => t.id !== id);
+    localStorage.setItem('studio_templates', JSON.stringify(saved));
+    initUI();
+}
+
+// Make globally available
+window.saveTemplate = saveTemplate;
+window.deleteTemplate = deleteTemplate;
+
+// Extracted for re-use
+function renderTemplateStrip() {
+    // Template Strip
+    const strip = document.getElementById('template-strip');
+    if (strip) {
+        strip.innerHTML = '';
+
+        // 1. Render User Saved Templates
+        const saved = getSavedTemplates();
+        if (saved.length > 0) {
+            // Label or separator could go here
+            saved.forEach(tpl => {
+                const div = document.createElement('div');
+                div.className = 'tpl-item';
+                div.innerHTML = `<span style="color:var(--primary)">★</span> ${tpl.name}`;
+                div.title = "Right-click to delete";
+
+                div.onclick = () => {
+                    // Load saved state
+                    if (tpl.state) {
+                        // Restore state
+                        appState = JSON.parse(JSON.stringify(tpl.state));
+                        // Re-hook images if needed (images might be broken if blobs, but URLs work)
+                        // For MVP assuming standard assets. 
+                        // We need to re-render.
+                        engine.render();
+                        // Update UI inputs to match state
+                        const tInput = document.getElementById('text-input');
+                        const brandInput = document.getElementById('brand-input');
+                        const textEl = appState.elements.find(e => e.type === 'text');
+                        const logoEl = appState.elements.find(e => e.type === 'logo_bar');
+
+                        if (tInput && textEl) tInput.value = textEl.text;
+                        if (brandInput && logoEl) brandInput.value = logoEl.brand_text;
+
+                        // Update Social Icons UI
+                        if (appState.socialIcons) {
+                            document.querySelectorAll('.social-chip').forEach(chip => {
+                                const platform = chip.dataset.platform;
+                                const active = appState.socialIcons.includes(platform);
+                                if (active) chip.classList.add('active');
+                                else chip.classList.remove('active');
+                                const chk = chip.querySelector('input');
+                                if (chk) chk.checked = active;
+                            });
+                        }
+                    } else {
+                        engine.loadTemplate(tpl.id);
+                    }
+
+                    strip.querySelectorAll('.tpl-item').forEach(d => d.classList.remove('active'));
+                    div.classList.add('active');
+                };
+
+                // Right click to delete
+                div.oncontextmenu = (e) => {
+                    e.preventDefault();
+                    if (confirm(`Delete template "${tpl.name}"?`)) {
+                        deleteTemplate(tpl.id);
+                    }
+                };
+
+                strip.appendChild(div);
+            });
+
+            // Divider
+            const divider = document.createElement('div');
+            divider.style.width = '1px';
+            divider.style.background = 'var(--border)';
+            divider.style.margin = '0 4px';
+            strip.appendChild(divider);
+        }
+
+        // 2. Render System Presets
+        TEMPLATE_PRESETS.forEach(tpl => {
+            const div = document.createElement('div');
+            div.className = 'tpl-item';
+            div.textContent = tpl.name;
+            div.onclick = () => {
+                engine.loadTemplate(tpl.id);
+                strip.querySelectorAll('.tpl-item').forEach(d => d.classList.remove('active'));
+                div.classList.add('active');
+            };
+            strip.appendChild(div);
+        });
+
+        // Set first as active if none selected
+        if (!strip.querySelector('.active') && strip.firstChild) {
+            strip.firstChild.classList.add('active');
         }
     }
-
-    // 2. Photo zone
-    ctx.save();
-    roundRect(ctx, tpl.photo_x, tpl.photo_y, tpl.photo_w, tpl.photo_h, tpl.photo_radius);
-    ctx.clip();
-    if (photoImage) {
-        drawCoverImage(ctx, photoImage, tpl.photo_x, tpl.photo_y, tpl.photo_w, tpl.photo_h);
-    } else {
-        // Placeholder
-        ctx.fillStyle = 'rgba(255,255,255,0.05)';
-        ctx.fillRect(tpl.photo_x, tpl.photo_y, tpl.photo_w, tpl.photo_h);
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.font = '48px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('📷 Photo Area', tpl.photo_x + tpl.photo_w / 2, tpl.photo_y + tpl.photo_h / 2);
-    }
-    ctx.restore();
-
-    // 3. Logo bar (top)
-    drawLogoBand(ctx, tpl);
-
-    // 4. Title text (bottom)
-    const titleText = document.getElementById('hook-input')?.value || '';
-    const textColor = document.getElementById('text-color')?.value || tpl.title_color;
-    if (titleText) {
-        drawTitleText(ctx, titleText, textColor, tpl);
-    } else {
-        // Draw placeholder text
-        ctx.fillStyle = 'rgba(255,255,255,0.1)';
-        ctx.font = `bold ${tpl.title_size}px "IBM Plex Sans Arabic", "Space Grotesk", sans-serif`;
-        ctx.textAlign = tpl.title_align;
-        const tx = tpl.title_align === 'center' ? CANVAS_W / 2 : 60;
-        ctx.fillText('Type your title here...', tx, tpl.title_y + tpl.title_h / 2);
-    }
 }
 
-function drawTitleText(ctx, text, color, tpl) {
-    ctx.fillStyle = color;
-    const fontSize = tpl.title_size;
-    ctx.font = `bold ${fontSize}px "IBM Plex Sans Arabic", "Space Grotesk", sans-serif`;
-    ctx.textAlign = tpl.title_align;
-    ctx.textBaseline = 'top';
+function initUI() {
+    renderTemplateStrip();
 
-    const maxWidth = CANVAS_W - 120;
-    const lineHeight = fontSize * 1.4;
-    const lines = wrapText(ctx, text, maxWidth);
-    const maxLines = Math.floor(tpl.title_h / lineHeight);
-    const visibleLines = lines.slice(0, maxLines);
-
-    // Vertically center the text in the title area
-    const totalTextH = visibleLines.length * lineHeight;
-    let startY = tpl.title_y + (tpl.title_h - totalTextH) / 2;
-
-    const tx = tpl.title_align === 'center' ? CANVAS_W / 2 : 60;
-
-    // Text shadow for readability
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 8;
-    ctx.shadowOffsetX = 2;
-    ctx.shadowOffsetY = 2;
-
-    visibleLines.forEach((line, i) => {
-        ctx.fillText(line, tx, startY + i * lineHeight);
-    });
-
-    ctx.shadowColor = 'transparent';
-    ctx.shadowBlur = 0;
-}
-
-function drawLogoBand(ctx, tpl) {
-    const y = tpl.logo_bar_y;
-    const brandColor = tpl.brand_color || '#ffffff';
-
-    // Social icons as simple text (YouTube, Facebook, X)
-    ctx.fillStyle = brandColor;
-    ctx.font = 'bold 36px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-
-    const iconY = y + 30;
-    // Simple circle icons
-    const icons = ['▶', 'f', '𝕏'];
-    let ix = 40;
-    icons.forEach(icon => {
-        // Circle bg
-        ctx.beginPath();
-        ctx.arc(ix + 16, iconY, 22, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255,255,255,0.15)';
-        ctx.fill();
-
-        // Icon
-        ctx.fillStyle = brandColor;
-        ctx.font = 'bold 24px "Space Grotesk", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(icon, ix + 16, iconY + 1);
-        ix += 56;
-    });
-
-    // Brand name
-    ctx.fillStyle = brandColor;
-    ctx.font = 'bold 32px "Space Grotesk", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(tpl.brand_text, ix + 10, iconY);
-}
-
-function drawNoiseTexture(ctx) {
-    // Subtle geometric lines like the example
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-    ctx.lineWidth = 1;
-    for (let i = 0; i < 8; i++) {
-        ctx.beginPath();
-        ctx.moveTo(Math.random() * CANVAS_W, Math.random() * CANVAS_H);
-        ctx.lineTo(Math.random() * CANVAS_W, Math.random() * CANVAS_H);
-        ctx.stroke();
+    // Format Select
+    const fmtSelect = document.getElementById('format-select');
+    if (fmtSelect) {
+        fmtSelect.addEventListener('change', (e) => {
+            engine.resizeCanvas(e.target.value);
+        });
     }
-    // Subtle golden noise dots
-    for (let i = 0; i < 200; i++) {
-        const x = Math.random() * CANVAS_W;
-        const y = Math.random() * CANVAS_H;
-        const a = Math.random() * 0.08;
-        ctx.fillStyle = `rgba(255, 200, 50, ${a})`;
-        ctx.fillRect(x, y, 1, 1);
+
+    // Hook / Title Input
+    const tInput = document.getElementById('text-input');
+    if (tInput) {
+        tInput.addEventListener('input', (e) => {
+            const el = appState.elements.find(x => x.type === 'text');
+            if (el) el.text = e.target.value;
+        });
+    }
+
+    // Text Color
+    const cInput = document.getElementById('text-color');
+    if (cInput) {
+        cInput.addEventListener('input', (e) => {
+            const el = appState.elements.find(x => x.type === 'text');
+            if (el) el.color = e.target.value;
+            const label = document.getElementById('color-label');
+            if (label) label.textContent = e.target.value.toUpperCase();
+        });
+    }
+
+    // Brand / Page Name Input
+    const brandInput = document.getElementById('brand-input');
+    if (brandInput) {
+        brandInput.addEventListener('input', (e) => {
+            const logoEl = appState.elements.find(x => x.type === 'logo_bar');
+            if (logoEl) logoEl.brand_text = e.target.value;
+        });
+    }
+
+    // BG Intensity Slider
+    const bgSlider = document.getElementById('bg-intensity');
+    const bgValue = document.getElementById('bg-intensity-value');
+    const bgWrap = document.getElementById('bg-intensity-wrap');
+    if (bgSlider) {
+        bgSlider.addEventListener('input', (e) => {
+            appState.bgOpacity = parseInt(e.target.value) / 100;
+            if (bgValue) bgValue.textContent = e.target.value + '%';
+        });
+    }
+
+    // Social Icons Picker
+    const socialPicker = document.getElementById('social-icons-picker');
+    if (socialPicker) {
+        socialPicker.querySelectorAll('.social-chip').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                e.preventDefault();
+                const checkbox = chip.querySelector('input[type="checkbox"]');
+                checkbox.checked = !checkbox.checked;
+                chip.classList.toggle('active', checkbox.checked);
+
+                // Rebuild socialIcons array from checked chips
+                const active = [];
+                socialPicker.querySelectorAll('.social-chip').forEach(c => {
+                    if (c.querySelector('input').checked) {
+                        active.push(c.dataset.platform);
+                    }
+                });
+                appState.socialIcons = active;
+            });
+        });
     }
 }
 
-// ── Helpers ──
-function wrapText(ctx, text, maxWidth) {
+function triggerMagic() {
+    showToast('✨ Analyzing canvas with AI...', 'info');
+    // TODO: Connect to backend Gemini API
+    setTimeout(() => {
+        showToast('🪄 Magic suggestions ready!', 'success');
+    }, 1500);
+}
+
+window.handleBgUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => {
+        appState.bgImage = img;
+        // Show intensity slider
+        const wrap = document.getElementById('bg-intensity-wrap');
+        if (wrap) wrap.style.display = 'block';
+    };
+    img.src = URL.createObjectURL(file);
+};
+
+window.handlePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const img = new Image();
+    img.onload = () => { appState.photoImage = img; };
+    img.src = URL.createObjectURL(file);
+};
+
+window.exportCanvas = () => {
+    const link = document.createElement('a');
+    link.download = `studio_magic_${Date.now()}.png`;
+    link.href = document.getElementById('live-canvas').toDataURL('image/png');
+    link.click();
+    showToast('Exported ✅', 'success');
+};
+
+
+// --- Utils ---
+
+function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
     const words = text.split(' ');
-    const lines = [];
-    let current = '';
-    words.forEach(word => {
-        const test = current ? current + ' ' + word : word;
-        if (ctx.measureText(test).width > maxWidth && current) {
-            lines.push(current);
-            current = word;
-        } else {
-            current = test;
-        }
-    });
-    if (current) lines.push(current);
-    return lines;
-}
+    let line = '';
 
-function roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
+    for (let n = 0; n < words.length; n++) {
+        const testLine = line + words[n] + ' ';
+        const metrics = ctx.measureText(testLine);
+        const testWidth = metrics.width;
+        if (testWidth > maxWidth && n > 0) {
+            ctx.fillText(line, x, y);
+            line = words[n] + ' ';
+            y += lineHeight;
+        } else {
+            line = testLine;
+        }
+    }
+    ctx.fillText(line, x, y);
 }
 
 function drawCoverImage(ctx, img, x, y, w, h) {
-    const iw = img.naturalWidth || img.width;
-    const ih = img.naturalHeight || img.height;
-    const scale = Math.max(w / iw, h / ih);
-    const sw = iw * scale, sh = ih * scale;
-    const sx = x + (w - sw) / 2, sy = y + (h - sh) / 2;
-    ctx.drawImage(img, sx, sy, sw, sh);
+    const scale = Math.max(w / img.width, h / img.height);
+    const nw = img.width * scale;
+    const nh = img.height * scale;
+    const nx = x + (w - nw) / 2;
+    const ny = y + (h - nh) / 2;
+    ctx.drawImage(img, nx, ny, nw, nh);
 }
 
-function isColorDark(hex) {
-    const c = hex.replace('#', '');
-    const r = parseInt(c.substr(0, 2), 16);
-    const g = parseInt(c.substr(2, 2), 16);
-    const b = parseInt(c.substr(4, 2), 16);
-    return (r * 0.299 + g * 0.587 + b * 0.114) < 128;
-}
-
-// ── Template Strip ──
-function renderTemplateStrip() {
-    const grid = document.getElementById('template-grid');
-    // Generate mini canvas previews for each template
-    grid.innerHTML = TEMPLATE_PRESETS.map(t => {
-        return `
-            <div class="tpl-item ${selectedTemplateId === t.id ? 'active' : ''}"
-                 data-id="${t.id}"
-                 onclick="selectTemplatePreset('${t.id}')"
-                 title="${t.name}">
-                <canvas width="50" height="62" id="mini-${t.id}"></canvas>
-            </div>`;
-    }).join('');
-
-    // Render mini previews
-    requestAnimationFrame(() => {
-        TEMPLATE_PRESETS.forEach(t => {
-            const mini = document.getElementById(`mini-${t.id}`);
-            if (!mini) return;
-            const mc = mini.getContext('2d');
-            mc.fillStyle = t.bg_color;
-            mc.fillRect(0, 0, 50, 62);
-            // Mini photo zone
-            const sx = (t.photo_x / CANVAS_W) * 50;
-            const sy = (t.photo_y / CANVAS_H) * 62;
-            const sw = (t.photo_w / CANVAS_W) * 50;
-            const sh = (t.photo_h / CANVAS_H) * 62;
-            mc.fillStyle = 'rgba(255,255,255,0.1)';
-            mc.fillRect(sx, sy, sw, sh);
-            // Mini title zone
-            const ty = (t.title_y / CANVAS_H) * 62;
-            mc.fillStyle = t.title_color;
-            mc.fillRect(8, ty, 34, 3);
-            mc.fillRect(12, ty + 5, 26, 2);
-        });
-    });
-}
-
-function selectTemplatePreset(id) {
-    selectedTemplateId = id;
-    document.querySelectorAll('.tpl-item').forEach(el => {
-        el.classList.toggle('active', el.dataset.id === id);
-    });
-    const tpl = TEMPLATE_PRESETS.find(t => t.id === id);
-    if (tpl) {
-        document.getElementById('text-color').value = tpl.title_color;
-        document.getElementById('color-label').textContent = tpl.title_color.toUpperCase();
+function showToast(msg, type = 'info') {
+    let c = document.getElementById('toast-container');
+    if (!c) {
+        c = document.createElement('div');
+        c.id = 'toast-container';
+        c.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:9999;display:flex;flex-direction:column;gap:0.4rem;pointer-events:none;';
+        document.body.appendChild(c);
     }
-    renderCanvas();
-    showToast(`Template: ${tpl ? tpl.name : id}`, 'info');
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.textContent = msg;
+    t.style.cssText = 'pointer-events:auto;padding:12px 24px;background:#333;color:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.3);';
+    if (type === 'success') t.style.background = '#00F0FF';
+    if (type === 'success') t.style.color = '#000';
+
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
 }
-
-// ── Image Upload ──
-function handleBgUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => { bgImage = img; renderCanvas(); showToast('Background set ✅', 'success'); };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-}
-
-function handlePhotoUpload(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => { photoImage = img; renderCanvas(); showToast('Photo set ✅', 'success'); };
-        img.src = e.target.result;
-    };
-    reader.readAsDataURL(file);
-}
-
-// ── Export ──
-function exportCanvas() {
-    const canvas = document.getElementById('live-canvas');
-    const link = document.createElement('a');
-    link.download = `post_${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    showToast('Exported PNG ✅', 'success');
-}
-
-// ── Content List ──
-async function loadContentList() {
-    const q = document.getElementById('search-input').value.trim();
-    const status = document.getElementById('status-filter').value;
-    const params = new URLSearchParams({ limit: '50' });
-    if (q) params.set('q', q);
-    if (status) params.set('status', status);
-    try {
-        const data = await apiCall(`/api/content/list?${params}`);
-        renderContentList(data.content || []);
-    } catch (e) {
-        document.getElementById('content-list').innerHTML = '<div style="text-align:center;padding:2rem;opacity:0.4;"><i class="fa-solid fa-inbox" style="font-size:1.5rem;"></i><div style="font-size:0.8rem;margin-top:0.4rem;">Could not load</div></div>';
-    }
-}
-
-function renderContentList(items) {
-    const list = document.getElementById('content-list');
-    if (!items.length) {
-        list.innerHTML = '<div style="text-align:center;padding:2rem;opacity:0.4;"><i class="fa-solid fa-inbox" style="font-size:1.5rem;"></i><div style="font-size:0.8rem;margin-top:0.4rem;">No content</div></div>';
-        return;
-    }
-    list.innerHTML = items.map(item => `
-        <div class="list-item ${currentContent?.id === item.id ? 'active' : ''}"
-             onclick="selectContent('${item.id}')" style="cursor:pointer;">
-            <div style="font-weight:600;font-size:0.8rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                ${item.hook || item.generated_text?.substring(0, 35) || 'Untitled'}
-            </div>
-            <div class="muted" style="font-size:0.7rem;">
-                <span class="badge" style="font-size:0.6rem;">${item.status || '?'}</span>
-                ${formatTime(item.generated_at)}
-            </div>
-        </div>
-    `).join('');
-}
-
-// ── Content Selection ──
-async function selectContent(id) {
-    try {
-        const data = await apiCall(`/api/content/${id}`);
-        currentContent = data;
-        document.getElementById('content-id').textContent = `#${id.substring(0, 8)}`;
-        document.getElementById('hook-input').value = data.hook || '';
-        document.getElementById('text-input').value = data.generated_text || '';
-        document.getElementById('hashtags-input').value = Array.isArray(data.hashtags) ? data.hashtags.join(' ') : (data.hashtags || '');
-
-        // Highlight
-        document.querySelectorAll('#content-list .list-item').forEach(el => el.classList.remove('active'));
-        event?.currentTarget?.classList.add('active');
-
-        // Try loading content image as photo
-        try {
-            const res = await apiFetch(`/api/content/${id}/image`);
-            if (res.ok) {
-                const blob = await res.blob();
-                const url = URL.createObjectURL(blob);
-                const img = new Image();
-                img.onload = () => { photoImage = img; renderCanvas(); };
-                img.src = url;
-            }
-        } catch (_) { }
-
-        renderCanvas();
-    } catch (e) {
-        showToast(`Error: ${e.message}`, 'error');
-    }
-}
-
-// ── Actions ──
-async function saveContent() {
-    if (!currentContent) return showToast('Select content first', 'warning');
-    try {
-        await apiCall(`/api/content/${currentContent.id}`, 'PUT', {
-            generated_text: document.getElementById('text-input').value,
-            hashtags: document.getElementById('hashtags-input').value,
-            hook: document.getElementById('hook-input').value,
-        });
-        showToast('Saved ✅', 'success');
-    } catch (e) { showToast(`Failed: ${e.message}`, 'error'); }
-}
-
-async function approveContent() {
-    if (!currentContent) return showToast('Select content first', 'warning');
-    try {
-        await apiCall(`/api/content/${currentContent.id}/approve`, 'POST');
-        showToast('Approved ✅', 'success'); loadContentList();
-    } catch (e) { showToast(`Failed: ${e.message}`, 'error'); }
-}
-
-async function rejectContent() {
-    if (!currentContent) return showToast('Select content first', 'warning');
-    try {
-        await apiCall(`/api/content/${currentContent.id}/reject`, 'POST', { action: 'reject' });
-        showToast('Rejected', 'warning'); loadContentList();
-    } catch (e) { showToast(`Failed: ${e.message}`, 'error'); }
-}
-
-async function regenerateContent() {
-    if (!currentContent) return showToast('Select content first', 'warning');
-    try {
-        showToast('Regenerating... ⏳', 'info');
-        const data = await apiCall(`/api/content/${currentContent.id}/regenerate`, 'POST', { style: 'emotional' });
-        if (data.new_text) { document.getElementById('text-input').value = data.new_text; }
-        showToast(data.message || 'Done ✨', 'success');
-    } catch (e) { showToast(`Failed: ${e.message}`, 'error'); }
-}
-
-async function publishContent() {
-    if (!currentContent) return showToast('Select content first', 'warning');
-    try {
-        await apiCall('/api/actions/publish-content', 'POST', { content_id: currentContent.id });
-        showToast('Publishing... 🚀', 'success');
-    } catch (e) { showToast(`Failed: ${e.message}`, 'error'); }
-}
-
-// ── Helpers ──
-function formatTime(v) {
-    if (!v) return '--';
-    const d = new Date(v);
-    return isNaN(d) ? '--' : d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-}
-
-function debounce(fn, ms) {
-    let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
-}
-
-// Global scope
-window.selectContent = selectContent;
-window.selectTemplatePreset = selectTemplatePreset;
-window.handleBgUpload = handleBgUpload;
-window.handlePhotoUpload = handlePhotoUpload;
-window.exportCanvas = exportCanvas;
-window.saveContent = saveContent;
-window.approveContent = approveContent;
-window.rejectContent = rejectContent;
-window.regenerateContent = regenerateContent;
-window.publishContent = publishContent;
-window.renderCanvas = renderCanvas;
