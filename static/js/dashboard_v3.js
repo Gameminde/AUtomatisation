@@ -131,6 +131,18 @@ async function loadInsights() {
 
         if (!data.ready) {
             const t = window.i18n ? window.i18n.t.bind(window.i18n) : (k) => k;
+
+            // Distinct state: backend is Supabase — insights not available
+            if (data.note) {
+                box.innerHTML = `
+                    <div style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.5rem 0;">
+                        <i class="fa-solid fa-circle-info" style="color:var(--muted); font-size:1.2rem; margin-top:0.1rem; flex-shrink:0;"></i>
+                        <div class="muted" style="line-height:1.5;">${escapeHtml(t('insights_sqlite_only'))}</div>
+                    </div>`;
+                return;
+            }
+
+            // Normal state: not enough posts yet
             const countBadge = document.getElementById('insights-post-count');
             if (countBadge) {
                 countBadge.textContent = `${data.total_posts || 0} posts`;
