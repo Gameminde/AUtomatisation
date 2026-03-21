@@ -28,13 +28,23 @@ def get_recent_posts(hours: int = 24) -> List[Dict]:
         client = config.get_supabase_client()
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
 
-        # Posts publiés récemment
+        # Only consider rows where at least one platform succeeded
+        # (failure-only diagnostic rows must not block duplicate detection)
         result = (
             client.table("published_posts")
-            .select("id, content_id, published_at")
+            .select("id, content_id, published_at, facebook_post_id, instagram_post_id, facebook_status, instagram_status")
             .gte("published_at", cutoff)
             .execute()
         )
+        result.data = [
+            row for row in (result.data or [])
+            if (
+                row.get("facebook_post_id")
+                or row.get("instagram_post_id")
+                or row.get("facebook_status") == "published"
+                or row.get("instagram_status") == "published"
+            )
+        ]
 
         posts = []
         for post in result.data or []:

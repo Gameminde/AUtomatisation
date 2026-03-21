@@ -316,17 +316,23 @@ class PublicationTracker:
 
             client = config.get_supabase_client()
 
-            # Get only content that was actually published to Facebook
+            # Only consider rows where at least one platform actually succeeded.
+            # Failure-only rows (diagnostic telemetry) must not block similarity checks.
             published_response = (
                 client.table("published_posts")
-                .select("content_id")
+                .select("content_id, facebook_post_id, instagram_post_id, facebook_status, instagram_status")
                 .execute()
             )
 
             published_content_ids = [
                 row.get("content_id")
                 for row in (published_response.data or [])
-                if row.get("content_id")
+                if row.get("content_id") and (
+                    row.get("facebook_post_id")
+                    or row.get("instagram_post_id")
+                    or row.get("facebook_status") == "published"
+                    or row.get("instagram_status") == "published"
+                )
             ]
 
             if not published_content_ids:
