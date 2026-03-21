@@ -159,6 +159,11 @@ class SQLiteDB:
                 cursor.execute("ALTER TABLE scheduled_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'")
             except Exception:
                 pass
+            # Migration: add posting_times to managed_pages (smart defaults)
+            try:
+                cursor.execute("ALTER TABLE managed_pages ADD COLUMN posting_times TEXT DEFAULT NULL")
+            except Exception:
+                pass
             
             # managed_pages (Added for Content Factory v2.0 Dashboard)
             cursor.execute("""

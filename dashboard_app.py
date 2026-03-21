@@ -309,36 +309,39 @@ def get_insights():
                 "note": "Insights require SQLite mode"
             })
 
-        # ── Smart defaults (one-time, guarded by system_status) ────────
-        # Uses system_status table as a migration flag so this write
-        # only happens once — not on every GET request.
+        # ── Smart defaults: per-page, only NULL values ────────────────
+        # Runs on every request but only updates pages where preferences
+        # have never been configured (IS NULL). User choices are never
+        # overwritten — the WHERE clause guards against that.
+        # Defaults: 3 posts/day at 08:00, 13:00, 19:00 (morn/afternoon/eve).
+        DEFAULT_POSTS_PER_DAY = 3
+        DEFAULT_POSTING_TIMES = "08:00,13:00,19:00"
         smart_defaults_applied = False
         try:
-            flag_rows = db.execute(
-                "SELECT value FROM system_status WHERE key = 'smart_defaults_v1'"
+            uninitialized = db.execute(
+                """
+                SELECT page_id FROM managed_pages
+                WHERE posts_per_day IS NULL OR posting_times IS NULL
+                """
             )
-            if not flag_rows:
-                under_configured = db.execute(
-                    """
-                    SELECT page_id FROM managed_pages
-                    WHERE posts_per_day IS NULL OR posts_per_day < 3
-                    """
+            if uninitialized:
+                for row in uninitialized:
+                    db.execute(
+                        """
+                        UPDATE managed_pages
+                        SET posts_per_day   = COALESCE(posts_per_day, ?),
+                            posting_times   = COALESCE(posting_times, ?)
+                        WHERE page_id = ?
+                        """,
+                        (DEFAULT_POSTS_PER_DAY, DEFAULT_POSTING_TIMES, row["page_id"])
+                    )
+                smart_defaults_applied = True
+                logger.info(
+                    "Applied smart defaults to %d page(s): %d posts/day at %s",
+                    len(uninitialized), DEFAULT_POSTS_PER_DAY, DEFAULT_POSTING_TIMES
                 )
-                if under_configured:
-                    for row in under_configured:
-                        db.execute(
-                            "UPDATE managed_pages SET posts_per_day = 3 WHERE page_id = ?",
-                            (row["page_id"],)
-                        )
-                    smart_defaults_applied = True
-                db.execute(
-                    """
-                    INSERT OR REPLACE INTO system_status(key, value, updated_at)
-                    VALUES('smart_defaults_v1', '1', datetime('now'))
-                    """
-                )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Smart defaults could not be applied: %s", e)
 
         # ── Total successful published posts ───────────────────────────
         total_rows = db.execute(
