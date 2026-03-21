@@ -74,7 +74,7 @@ class PublicationTracker:
 
             response = (
                 client.table("published_posts")
-                .select("content_id, facebook_post_id, published_at")
+                .select("content_id, facebook_post_id, instagram_post_id, facebook_status, instagram_status, published_at")
                 .gte("published_at", cutoff)
                 .execute()
             )
@@ -82,7 +82,14 @@ class PublicationTracker:
             published_content_ids = set()
             for row in response.data or []:
                 content_id = row.get("content_id")
-                if content_id:
+                # Only count rows where at least one platform actually succeeded.
+                # Failure-only diagnostic rows must not pollute the hash set.
+                if content_id and (
+                    row.get("facebook_post_id")
+                    or row.get("instagram_post_id")
+                    or row.get("facebook_status") == "published"
+                    or row.get("instagram_status") == "published"
+                ):
                     published_content_ids.add(content_id)
 
             # Load content details for published posts
@@ -501,10 +508,24 @@ class PublicationTracker:
                 .execute()
             )
 
-            # Get published content IDs
-            published_response = client.table("published_posts").select("content_id").execute()
+            # Get successfully published content IDs only.
+            # Failure-only rows (diagnostic telemetry) must not prevent re-publishing.
+            published_response = (
+                client.table("published_posts")
+                .select("content_id, facebook_post_id, instagram_post_id, facebook_status, instagram_status")
+                .execute()
+            )
 
-            published_ids = {row.get("content_id") for row in published_response.data or []}
+            published_ids = {
+                row.get("content_id")
+                for row in (published_response.data or [])
+                if row.get("content_id") and (
+                    row.get("facebook_post_id")
+                    or row.get("instagram_post_id")
+                    or row.get("facebook_status") == "published"
+                    or row.get("instagram_status") == "published"
+                )
+            }
 
             # Filter to unpublished
             for content in content_response.data or []:
