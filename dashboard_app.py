@@ -2745,33 +2745,47 @@ def _init_smart_defaults() -> None:
     """
     DEFAULT_POSTS_PER_DAY = 3
     DEFAULT_POSTING_TIMES = "08:00,13:00,19:00"
+    # Legacy DB used posts_per_day DEFAULT 2 before this migration.
+    # Rows where posting_times IS NULL were never user-configured, so
+    # posts_per_day=2 there is a leftover schema default, not a user choice.
+    LEGACY_DEFAULT_PPD = 2
     try:
         from database import get_db, SQLiteDB
         db = get_db()
         if not isinstance(db, SQLiteDB):
             return
-        uninitialized = db.execute(
+
+        # Case 1: posting_times IS NULL → row was never configured by user.
+        #   Reset posts_per_day if it is NULL *or* still has the legacy default (2).
+        db.execute(
             """
-            SELECT page_id FROM managed_pages
-            WHERE posts_per_day IS NULL OR posting_times IS NULL
-            """
+            UPDATE managed_pages
+            SET posts_per_day = CASE
+                    WHEN posts_per_day IS NULL OR posts_per_day = ? THEN ?
+                    ELSE posts_per_day
+                END,
+                posting_times = ?
+            WHERE posting_times IS NULL
+            """,
+            (LEGACY_DEFAULT_PPD, DEFAULT_POSTS_PER_DAY, DEFAULT_POSTING_TIMES)
         )
-        if uninitialized:
-            for row in uninitialized:
-                db.execute(
-                    """
-                    UPDATE managed_pages
-                    SET posts_per_day = COALESCE(posts_per_day, ?),
-                        posting_times = COALESCE(posting_times, ?)
-                    WHERE page_id = ?
-                    """,
-                    (DEFAULT_POSTS_PER_DAY, DEFAULT_POSTING_TIMES, row["page_id"])
-                )
-            logger.info(
-                "Smart defaults applied to %d page(s) at startup: "
-                "%d posts/day at %s",
-                len(uninitialized), DEFAULT_POSTS_PER_DAY, DEFAULT_POSTING_TIMES
-            )
+
+        # Case 2: posting_times was already set by the user but posts_per_day
+        #   is still NULL (edge case). Fill in the default without touching
+        #   posting_times or overriding any explicit posts_per_day.
+        db.execute(
+            """
+            UPDATE managed_pages
+            SET posts_per_day = ?
+            WHERE posts_per_day IS NULL AND posting_times IS NOT NULL
+            """,
+            (DEFAULT_POSTS_PER_DAY,)
+        )
+
+        logger.info(
+            "Smart defaults initialised (ppd=%d, times=%s; legacy ppd=%d treated as unconfigured)",
+            DEFAULT_POSTS_PER_DAY, DEFAULT_POSTING_TIMES, LEGACY_DEFAULT_PPD
+        )
     except Exception as e:
         logger.warning("Smart defaults init failed: %s", e)
 
