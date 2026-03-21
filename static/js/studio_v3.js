@@ -855,6 +855,41 @@ window.exportCanvas = () => {
     showToast('Exported ✅', 'success');
 };
 
+window.publishContent = async () => {
+    const contentId = window.currentContentId || (typeof studioState !== 'undefined' && studioState.contentId);
+    if (!contentId) {
+        showToast('No content selected to publish. Select content from the queue first.', 'error');
+        return;
+    }
+    const platforms = [];
+    if (document.getElementById('pub-to-facebook')?.checked) platforms.push('facebook');
+    if (document.getElementById('pub-to-instagram')?.checked) platforms.push('instagram');
+    if (!platforms.length) {
+        showToast('Select at least one platform to publish to.', 'error');
+        return;
+    }
+    showToast('Publishing…', 'info');
+    try {
+        const res = await fetch('/api/actions/publish-content', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ content_id: contentId, platforms }),
+        });
+        const data = await res.json();
+        if (data.error) {
+            showToast('Publish failed: ' + data.error, 'error');
+        } else {
+            const labels = [];
+            if (data.platforms?.facebook?.success) labels.push('Facebook ✓');
+            if (data.platforms?.instagram?.success) labels.push('Instagram ✓');
+            showToast('Published: ' + (labels.join(' & ') || 'Done'), 'success');
+        }
+    } catch (e) {
+        showToast('Network error: ' + e.message, 'error');
+    }
+};
+
 
 // --- Utils ---
 

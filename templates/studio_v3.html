@@ -31,9 +31,17 @@
         <button class="btn btn-primary-outline btn-sm" onclick="exportCanvas()">
             ⬇️ PNG
         </button>
-        <button class="btn btn-primary btn-sm" onclick="publishContent()">
-            🚀 Publish
-        </button>
+        <div style="display:flex; align-items:center; gap:0.35rem;">
+            <label title="Publish to Facebook" style="cursor:pointer; display:flex; align-items:center; gap:0.2rem; font-size:0.82rem;">
+                <input type="checkbox" id="pub-to-facebook" checked> <i class="fa-brands fa-facebook-f" style="color:#1877F2;"></i>
+            </label>
+            <label title="Publish to Instagram" style="cursor:pointer; display:flex; align-items:center; gap:0.2rem; font-size:0.82rem;">
+                <input type="checkbox" id="pub-to-instagram"> <i class="fa-brands fa-instagram" style="color:#E1306C;"></i>
+            </label>
+            <button class="btn btn-primary btn-sm" onclick="publishContent()">
+                🚀 Publish
+            </button>
+        </div>
     </div>
 </div>
 

@@ -553,7 +553,7 @@ def get_published_content():
         
         result = (
             client.table('published_posts')
-            .select('id, content_id, facebook_post_id, published_at, likes, shares, comments, reach')
+            .select('id, content_id, facebook_post_id, instagram_post_id, platforms, published_at, likes, shares, comments, reach')
             .order('published_at', desc=True)
             .limit(limit)
             .execute()
@@ -1116,27 +1116,203 @@ def config_approval_mode():
     return jsonify({"success": True, "enabled": enabled})
 
 # ============================================
+# MEDIA SERVING - Public image URLs for Instagram
+# ============================================
+
+@web_bp.route('/media/public/<path:filename>')
+def serve_media_public(filename: str):
+    """
+    Serve a local generated/downloaded image publicly (no auth required).
+    Used by Instagram publishing which needs a public HTTPS image URL.
+    Only serves files from generated_images/ and downloaded_images/.
+    """
+    import re
+    from flask import abort
+    # Only allow safe filenames (no path traversal)
+    if not re.match(r'^[\w\-. ]+\.(jpg|jpeg|png|webp|gif)$', filename, re.IGNORECASE):
+        abort(400)
+    base_dir = Path(__file__).parent.resolve()
+    for allowed_dir in ['generated_images', 'downloaded_images']:
+        candidate = (base_dir / allowed_dir / filename).resolve()
+        if candidate.exists() and candidate.parent == (base_dir / allowed_dir).resolve():
+            return send_file(str(candidate))
+    abort(404)
+
+
+# ============================================
+# API ROUTES - Instagram
+# ============================================
+
+@api_bp.route('/api/instagram/status', methods=['GET'])
+@require_auth
+def get_instagram_status():
+    """Get Instagram Business Account connection status for the active Facebook Page."""
+    try:
+        from facebook_oauth import load_tokens, get_instagram_account_for_page
+        tokens = load_tokens()
+        if not tokens:
+            return jsonify({"connected": False, "reason": "No Facebook tokens saved"})
+
+        page_id = tokens.get("page_id")
+        page_token = tokens.get("page_token")
+        if not page_id or not page_token:
+            return jsonify({"connected": False, "reason": "Incomplete Facebook token data"})
+
+        ig_info = get_instagram_account_for_page(page_id, page_token)
+        if not ig_info:
+            return jsonify({
+                "connected": False,
+                "facebook_page_id": page_id,
+                "reason": "No Instagram Business Account linked to this Facebook Page. Connect your Instagram Business account in Facebook Page Settings.",
+            })
+
+        return jsonify({
+            "connected": True,
+            "instagram_account_id": ig_info["instagram_account_id"],
+            "username": ig_info.get("username", ""),
+            "facebook_page_id": page_id,
+        })
+    except Exception as e:
+        logger.error(f"Error checking Instagram status: {e}")
+        return jsonify({"connected": False, "reason": str(e)}), 500
+
+
+# ============================================
 # API ROUTES - Publish Specific Content
 # ============================================
 
 @api_bp.route('/api/actions/publish-content', methods=['POST'])
 @require_auth
 def publish_specific_content():
-    """Publish a specific content by ID."""
+    """
+    Publish a specific content by ID to one or more platforms.
+
+    Body:
+        content_id: str  (required)
+        platforms: list  (optional, default ["facebook"])
+                   Allowed values: "facebook", "instagram", or both.
+    """
     try:
         from publisher import publish_content_by_id
-        
-        content_id = request.json.get('content_id')
+
+        data = request.json or {}
+        content_id = data.get('content_id')
         if not content_id:
             return jsonify({"error": "content_id required"}), 400
-        
-        result = publish_content_by_id(content_id)
-        
-        return jsonify(result)
-        
+
+        platforms = data.get('platforms', ['facebook'])
+        if isinstance(platforms, str):
+            platforms = [platforms]
+
+        results: Dict = {"content_id": content_id, "platforms": {}}
+
+        # ── Facebook publish ──────────────────────────────────
+        if 'facebook' in platforms:
+            fb_result = publish_content_by_id(content_id)
+            results["platforms"]["facebook"] = fb_result
+            results["success"] = fb_result.get("success", False)
+            results["post_id"] = fb_result.get("post_id")
+
+        # ── Instagram publish ──────────────────────────────────
+        if 'instagram' in platforms:
+            ig_result = _publish_content_to_instagram(content_id)
+            results["platforms"]["instagram"] = ig_result
+            if ig_result.get("success"):
+                results["instagram_post_id"] = ig_result.get("post_id")
+
+        return jsonify(results)
+
     except Exception as e:
         logger.error(f"Error publishing content: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+def _publish_content_to_instagram(content_id: str) -> Dict:
+    """Internal helper: publish a content item to Instagram."""
+    try:
+        from facebook_oauth import load_tokens, get_instagram_account_for_page
+        from instagram_publisher import publish_photo_to_instagram, get_public_image_url, get_app_base_url
+
+        # Load Facebook tokens (page token is also valid for Instagram Graph API)
+        tokens = load_tokens()
+        if not tokens:
+            return {"success": False, "error": "No Facebook/Instagram tokens configured"}
+
+        page_id = tokens.get("page_id")
+        page_token = tokens.get("page_token")
+
+        # Get Instagram account ID
+        ig_info = get_instagram_account_for_page(page_id, page_token)
+        if not ig_info:
+            return {"success": False, "error": "No Instagram Business Account linked to this Facebook Page"}
+
+        ig_user_id = ig_info["instagram_account_id"]
+
+        # Fetch content
+        client = config.get_supabase_client()
+        result = client.table('processed_content').select('*').eq('id', content_id).single().execute()
+        if not result.data:
+            return {"success": False, "error": "Content not found"}
+
+        content = result.data
+
+        # Build caption
+        arabic_text = content.get("arabic_text", "")
+        hook = content.get("hook", "")
+        body = content.get("generated_text", "")
+        cta = content.get("call_to_action", "")
+        hashtags = " ".join(content.get("hashtags") or [])
+        caption = (arabic_text or f"{hook}\n\n{body}\n\n{cta}").strip()
+        if hashtags:
+            caption = f"{caption}\n\n{hashtags}"
+
+        # Build public image URL
+        image_path = content.get("image_path", "")
+        if not image_path:
+            return {"success": False, "error": "No image available — Instagram requires an image post"}
+
+        base_url = get_app_base_url()
+        image_url = get_public_image_url(image_path, base_url)
+        if not image_url:
+            return {"success": False, "error": f"Image file not found: {image_path}"}
+
+        # Publish
+        ig_post_id = publish_photo_to_instagram(ig_user_id, page_token, image_url, caption)
+
+        # Record Instagram post ID in published_posts
+        try:
+            pub_result = (
+                client.table('published_posts')
+                .select('id')
+                .eq('content_id', content_id)
+                .order('published_at', desc=True)
+                .limit(1)
+                .execute()
+            )
+            if pub_result.data:
+                pub_id = pub_result.data[0]['id']
+                client.table('published_posts').update({
+                    'instagram_post_id': ig_post_id,
+                    'platforms': 'facebook,instagram',
+                }).eq('id', pub_id).execute()
+            else:
+                # Instagram-only publish (no Facebook record exists)
+                import uuid
+                client.table('published_posts').insert({
+                    'id': str(uuid.uuid4()),
+                    'content_id': content_id,
+                    'instagram_post_id': ig_post_id,
+                    'platforms': 'instagram',
+                }).execute()
+        except Exception as db_err:
+            logger.warning("Could not save Instagram post ID to DB: %s", db_err)
+
+        logger.info("Instagram publish success: %s", ig_post_id)
+        return {"success": True, "post_id": ig_post_id, "instagram_url": f"https://www.instagram.com/p/{ig_post_id}/"}
+
+    except Exception as e:
+        logger.error("Instagram publish failed: %s", e)
+        return {"success": False, "error": str(e)}
 
 
 # ============================================

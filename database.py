@@ -130,6 +130,8 @@ class SQLiteDB:
                     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
                     content_id TEXT,
                     facebook_post_id TEXT UNIQUE,
+                    instagram_post_id TEXT,
+                    platforms TEXT DEFAULT 'facebook',
                     published_at TEXT DEFAULT (datetime('now')),
                     likes INTEGER DEFAULT 0,
                     shares INTEGER DEFAULT 0,
@@ -139,6 +141,15 @@ class SQLiteDB:
                     FOREIGN KEY (content_id) REFERENCES processed_content(id)
                 )
             """)
+            # Migration: add instagram_post_id and platforms columns if missing
+            try:
+                cursor.execute("ALTER TABLE published_posts ADD COLUMN instagram_post_id TEXT")
+            except Exception:
+                pass
+            try:
+                cursor.execute("ALTER TABLE published_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'")
+            except Exception:
+                pass
             
             # managed_pages (Added for Content Factory v2.0 Dashboard)
             cursor.execute("""

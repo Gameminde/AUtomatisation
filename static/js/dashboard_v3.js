@@ -160,12 +160,28 @@ function renderQueue(type, items, emptyIcon, emptyTitle, emptyHint) {
         list.innerHTML = renderEmptyState(emptyIcon, emptyTitle, emptyHint);
         return;
     }
-    list.innerHTML = items.map(item => `
+    list.innerHTML = items.map(item => {
+        const platformBadges = renderPlatformBadges(item);
+        return `
         <div class="list-item">
-            <div style="font-weight:600;">${item.hook || item.content_id || item.id}</div>
-            <div class="muted">${formatTime(item.generated_at || item.scheduled_time || item.published_at)}</div>
-        </div>
-    `).join('');
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.4rem;">
+                <div style="font-weight:600; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${item.hook || item.content_id || item.id}</div>
+                ${platformBadges}
+            </div>
+            <div class="muted" style="margin-top:0.2rem;">${formatTime(item.generated_at || item.scheduled_time || item.published_at)}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderPlatformBadges(item) {
+    if (!item.platforms && !item.facebook_post_id && !item.instagram_post_id) return '';
+    const platforms = (item.platforms || 'facebook').split(',').map(p => p.trim());
+    const icons = platforms.map(p => {
+        if (p === 'instagram') return '<i class="fa-brands fa-instagram" style="color:#E1306C;" title="Published to Instagram"></i>';
+        if (p === 'facebook') return '<i class="fa-brands fa-facebook-f" style="color:#1877F2;" title="Published to Facebook"></i>';
+        return '';
+    }).filter(Boolean).join(' ');
+    return icons ? `<span style="display:flex; gap:0.3rem; align-items:center; flex-shrink:0;">${icons}</span>` : '';
 }
 
 // ── Actions ─────────────────────────────────────────

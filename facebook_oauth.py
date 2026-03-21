@@ -463,6 +463,39 @@ def test_connection() -> Dict:
         return {"success": False, "error": str(e)}
 
 
+def get_instagram_account_for_page(page_id: str, page_access_token: str) -> Optional[Dict]:
+    """
+    Discover the Instagram Business Account linked to a Facebook Page.
+
+    Args:
+        page_id: Facebook Page ID
+        page_access_token: Page access token
+
+    Returns:
+        Dict with instagram_account_id and username, or None if not linked
+    """
+    url = f"https://graph.facebook.com/v19.0/{page_id}"
+    params = {
+        "fields": "instagram_business_account{id,username}",
+        "access_token": page_access_token,
+    }
+    try:
+        response = requests.get(url, params=params, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        ig_account = data.get("instagram_business_account")
+        if ig_account and ig_account.get("id"):
+            logger.info("Found Instagram Business Account: %s", ig_account.get("id"))
+            return {
+                "instagram_account_id": ig_account["id"],
+                "username": ig_account.get("username", ""),
+            }
+        return None
+    except Exception as e:
+        logger.error("Failed to get Instagram account for page %s: %s", page_id, e)
+        return None
+
+
 def is_configured() -> bool:
     """Check if Facebook OAuth is configured (App ID and Secret set)."""
     # Read dynamically to avoid issues with module import order
