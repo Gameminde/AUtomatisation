@@ -159,25 +159,30 @@ class SQLiteDB:
                 cursor.execute("ALTER TABLE scheduled_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'")
             except Exception:
                 pass
-            # Migration: add posting_times to managed_pages (smart defaults)
-            try:
-                cursor.execute("ALTER TABLE managed_pages ADD COLUMN posting_times TEXT DEFAULT NULL")
-            except Exception:
-                pass
-            
+
             # managed_pages (Added for Content Factory v2.0 Dashboard)
+            # posts_per_day and posting_times intentionally default to NULL
+            # so smart-default logic in /api/insights can detect unconfigured
+            # pages and apply 3/day + "08:00,13:00,19:00" on first access.
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS managed_pages (
                     page_id TEXT PRIMARY KEY,
                     page_name TEXT NOT NULL,
                     access_token TEXT NOT NULL,
                     user_id TEXT,
-                    posts_per_day INTEGER DEFAULT 2,
+                    posts_per_day INTEGER DEFAULT NULL,
+                    posting_times TEXT DEFAULT NULL,
                     language TEXT DEFAULT 'AR',
                     status TEXT DEFAULT 'active',
                     last_synced_at TEXT DEFAULT (datetime('now'))
                 )
             """)
+            # Migration: add posting_times to existing managed_pages tables
+            # (runs after CREATE so the table is guaranteed to exist)
+            try:
+                cursor.execute("ALTER TABLE managed_pages ADD COLUMN posting_times TEXT DEFAULT NULL")
+            except Exception:
+                pass  # Column already exists on this DB — safe to ignore
             
             # v2.1: System Status (Observability)
             cursor.execute("""
