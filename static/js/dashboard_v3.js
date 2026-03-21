@@ -145,7 +145,7 @@ async function loadInsights() {
             // Normal state: not enough posts yet
             const countBadge = document.getElementById('insights-post-count');
             if (countBadge) {
-                countBadge.textContent = `${data.total_posts || 0} posts`;
+                countBadge.textContent = t('insights_based_on').replace('{n}', data.total_posts || 0);
                 countBadge.style.display = '';
             }
             box.innerHTML = `
