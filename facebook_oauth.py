@@ -62,12 +62,14 @@ if FB_APP_ID:
 else:
     logger.warning("⚠️ Facebook OAuth NOT configured: FB_APP_ID is empty")
 
-# Permissions needed for posting
+# Permissions needed for posting (includes Instagram publishing scopes)
 FB_PERMISSIONS = [
-    "pages_show_list",       # List user's pages
-    "pages_read_engagement",  # Read page engagement
-    "pages_manage_posts",     # Create posts
-    "read_insights",          # Analytics support
+    "pages_show_list",             # List user's pages
+    "pages_read_engagement",       # Read page engagement
+    "pages_manage_posts",          # Create Facebook posts
+    "read_insights",               # Analytics support
+    "instagram_basic",             # Read Instagram Business Account info
+    "instagram_content_publish",   # Publish to Instagram via Graph API
 ]
 
 # Token storage

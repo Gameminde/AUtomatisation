@@ -141,13 +141,18 @@ class SQLiteDB:
                     FOREIGN KEY (content_id) REFERENCES processed_content(id)
                 )
             """)
-            # Migration: add instagram_post_id and platforms columns if missing
+            # Migration: add instagram_post_id and platforms to published_posts if missing
             try:
                 cursor.execute("ALTER TABLE published_posts ADD COLUMN instagram_post_id TEXT")
             except Exception:
                 pass
             try:
                 cursor.execute("ALTER TABLE published_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'")
+            except Exception:
+                pass
+            # Migration: add platforms to scheduled_posts if missing
+            try:
+                cursor.execute("ALTER TABLE scheduled_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'")
             except Exception:
                 pass
             

@@ -108,7 +108,7 @@ def fetch_due_posts(limit: int = 5):
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     response = (
         client.table("scheduled_posts")
-        .select("id,content_id,scheduled_time,status")
+        .select("id,content_id,scheduled_time,status,platforms")
         .lte("scheduled_time", now)
         .eq("status", "scheduled")
         .order("scheduled_time")
@@ -304,12 +304,20 @@ def publish_due_posts(limit: int = 5) -> int:
             mark_published(content["id"], post_id)
             record_publication(content["id"], post_id)  # Update tracker
             update_schedule_status(schedule_id, "published")
-            
+
             # v2.1: Update success status in error_handler
             error_handler.update_success_status(content["id"])
 
             published += 1
             logger.info("✅ Published %s -> FB: %s", content_id[:8], post_id)
+
+            # ── Instagram cross-post (if platforms includes 'instagram') ───
+            platforms_field = (item.get("platforms") or "facebook").lower()
+            if "instagram" in platforms_field:
+                try:
+                    _publish_to_instagram_if_configured(content, post_id)
+                except Exception as ig_exc:
+                    logger.warning("⚠️ Instagram cross-post failed for %s: %s", content_id[:8], ig_exc)
 
             # Rate limiting pause
             time.sleep(config.REQUEST_SLEEP_SECONDS)
@@ -459,6 +467,76 @@ def get_publication_status() -> Dict:
     """Get current publication status and stats."""
     tracker = get_tracker()
     return tracker.get_publication_stats()
+
+
+def _publish_to_instagram_if_configured(content: Dict, fb_post_id: str) -> None:
+    """
+    Attempt to publish content to Instagram after a successful Facebook publish.
+    Called by publish_due_posts when the schedule row's platforms field includes 'instagram'.
+    Failures are logged as warnings only — they do NOT abort the Facebook publish.
+
+    Args:
+        content: Content dict from processed_content
+        fb_post_id: Facebook post ID (already published — used for DB update)
+    """
+    from facebook_oauth import load_tokens, get_instagram_account_for_page
+    from instagram_publisher import publish_photo_to_instagram, get_public_image_url, get_app_base_url
+
+    tokens = load_tokens()
+    if not tokens:
+        logger.warning("Instagram cross-post skipped: no Facebook tokens")
+        return
+
+    page_id = tokens.get("page_id")
+    page_token = tokens.get("page_token")
+    ig_info = get_instagram_account_for_page(page_id, page_token)
+    if not ig_info:
+        logger.warning("Instagram cross-post skipped: no Instagram Business Account linked")
+        return
+
+    ig_user_id = ig_info["instagram_account_id"]
+    image_path = content.get("image_path", "")
+    if not image_path:
+        logger.warning("Instagram cross-post skipped: no image (Instagram requires an image)")
+        return
+
+    base_url = get_app_base_url()
+    image_url = get_public_image_url(image_path, base_url)
+    if not image_url:
+        logger.warning("Instagram cross-post skipped: image file missing (%s)", image_path)
+        return
+
+    # Build caption
+    arabic_text = content.get("arabic_text", "")
+    hook = content.get("hook", "")
+    body = content.get("generated_text", "")
+    cta = content.get("call_to_action", "")
+    hashtags = " ".join(content.get("hashtags") or [])
+    caption = (arabic_text or f"{hook}\n\n{body}\n\n{cta}").strip()
+    if hashtags:
+        caption = f"{caption}\n\n{hashtags}"
+
+    ig_post_id = publish_photo_to_instagram(ig_user_id, page_token, image_url, caption)
+    logger.info("✅ Instagram cross-post %s -> IG: %s", content["id"][:8], ig_post_id)
+
+    # Update published_posts row to record Instagram post ID + platforms
+    try:
+        client = config.get_supabase_client()
+        result = (
+            client.table("published_posts")
+            .select("id")
+            .eq("content_id", content["id"])
+            .eq("facebook_post_id", fb_post_id)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            client.table("published_posts").update({
+                "instagram_post_id": ig_post_id,
+                "platforms": "facebook,instagram",
+            }).eq("id", result.data[0]["id"]).execute()
+    except Exception as db_err:
+        logger.warning("Could not update published_posts with Instagram post ID: %s", db_err)
 
 
 if __name__ == "__main__":

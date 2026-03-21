@@ -870,23 +870,13 @@ window.publishContent = async () => {
     }
     showToast('Publishing…', 'info');
     try {
-        const res = await fetch('/api/actions/publish-content', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'same-origin',
-            body: JSON.stringify({ content_id: contentId, platforms }),
-        });
-        const data = await res.json();
-        if (data.error) {
-            showToast('Publish failed: ' + data.error, 'error');
-        } else {
-            const labels = [];
-            if (data.platforms?.facebook?.success) labels.push('Facebook ✓');
-            if (data.platforms?.instagram?.success) labels.push('Instagram ✓');
-            showToast('Published: ' + (labels.join(' & ') || 'Done'), 'success');
-        }
+        const data = await apiCall('/api/actions/publish-content', 'POST', { content_id: contentId, platforms });
+        const labels = [];
+        if (data.platforms?.facebook?.success) labels.push('Facebook ✓');
+        if (data.platforms?.instagram?.success) labels.push('Instagram ✓');
+        showToast('Published: ' + (labels.join(' & ') || 'Done'), 'success');
     } catch (e) {
-        showToast('Network error: ' + e.message, 'error');
+        showToast('Publish failed: ' + e.message, 'error');
     }
 };
 

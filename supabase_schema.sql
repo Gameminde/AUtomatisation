@@ -87,5 +87,41 @@ BEGIN
 END $$;
 
 -- ============================================
+-- SECTION 4: Instagram publishing support
+-- Add instagram_post_id and platforms to published_posts
+-- Add platforms to scheduled_posts
+-- ============================================
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'published_posts' AND column_name = 'instagram_post_id'
+    ) THEN
+        ALTER TABLE published_posts ADD COLUMN instagram_post_id TEXT;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'published_posts' AND column_name = 'platforms'
+    ) THEN
+        ALTER TABLE published_posts ADD COLUMN platforms TEXT DEFAULT 'facebook';
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'scheduled_posts' AND column_name = 'platforms'
+    ) THEN
+        ALTER TABLE scheduled_posts ADD COLUMN platforms TEXT DEFAULT 'facebook';
+    END IF;
+END $$;
+
+-- ============================================
 -- Done! All tables ready.
 -- ============================================
