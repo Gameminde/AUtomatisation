@@ -173,10 +173,12 @@ async function loadInsights() {
         }
 
         const insightColors = {
-            post_type: '#f59e0b',
-            best_time:  '#10b981',
-            trend:      '#6366f1',
-            top_post:   '#ec4899'
+            post_type:   '#f59e0b',
+            best_time:   '#10b981',
+            virality:    '#3b82f6',
+            trend:       '#6366f1',
+            top_post:    '#ec4899',
+            consistency: '#8b5cf6'
         };
 
         if (!data.insights || !data.insights.length) {

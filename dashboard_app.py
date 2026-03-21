@@ -471,9 +471,9 @@ def get_insights():
                     "metric": f"Down {abs(change_pct):.0f}% vs last week"
                 })
 
-        # ── Fallback: top performer when fewer than 2 insights found ──
-        # Guarantees ready=true always returns at least 2 insights when
-        # there is engagement data, so the card never looks sparse.
+        # ── Fallback A: top performer when fewer than 2 insights found ──
+        # Attempts to add a concrete "best post" callout when primary
+        # aggregations are sparse.  Can add at most one insight.
         if len(insights) < 2:
             top_rows = db.execute(
                 f"""
@@ -496,6 +496,38 @@ def get_insights():
                     "message": f"Your best post so far got {total_eng} interactions — keep that style going.",
                     "metric": f'"{hook_preview}{"..." if len(hook_text) > 40 else ""}"'
                 })
+
+        # ── Fallback B: posting frequency (always computable) ─────────
+        # Deterministic second fallback: always fires when we still have
+        # fewer than 2 insights after fallback A.  Uses published_posts
+        # count and date range — no engagement data required, so it can
+        # never be empty as long as total_posts >= MIN_POSTS.
+        if len(insights) < 2:
+            freq_rows = db.execute(
+                f"""
+                SELECT
+                    COUNT(*) AS cnt,
+                    MIN(published_at) AS first_post,
+                    MAX(published_at) AS last_post
+                FROM published_posts
+                WHERE ({PUBLISHED_FILTER})
+                  AND published_at >= datetime('now', '-30 days')
+                """
+            )
+            if freq_rows:
+                freq = freq_rows[0]
+                cnt = freq.get("cnt") or 0
+                if cnt > 0:
+                    posts_per_week = round(cnt / 4.3, 1)  # ~4.3 weeks in 30 days
+                    insights.append({
+                        "type": "consistency",
+                        "icon": "fa-calendar-check",
+                        "message": (
+                            f"You published {cnt} posts in the last 30 days — "
+                            "consistency builds audience trust."
+                        ),
+                        "metric": f"~{posts_per_week} posts/week"
+                    })
 
         return jsonify({
             "ready": True,
