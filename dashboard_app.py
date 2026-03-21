@@ -295,25 +295,48 @@ def get_insights():
         "OR facebook_status = 'published' OR instagram_status = 'published'"
     )
     try:
-        from database import get_db
+        from database import get_db, SQLiteDB
         db = get_db()
 
-        # ── Smart defaults: ensure managed pages have ≥3 posts/day ────
+        # ── Guard: this endpoint requires SQLite (uses raw SQL) ────────
+        if not isinstance(db, SQLiteDB):
+            return jsonify({
+                "ready": False,
+                "min_posts_needed": MIN_POSTS,
+                "total_posts": 0,
+                "smart_defaults_applied": False,
+                "insights": [],
+                "note": "Insights require SQLite mode"
+            })
+
+        # ── Smart defaults (one-time, guarded by system_status) ────────
+        # Uses system_status table as a migration flag so this write
+        # only happens once — not on every GET request.
         smart_defaults_applied = False
         try:
-            under_configured = db.execute(
-                """
-                SELECT page_id FROM managed_pages
-                WHERE posts_per_day IS NULL OR posts_per_day < 3
-                """
+            flag_rows = db.execute(
+                "SELECT value FROM system_status WHERE key = 'smart_defaults_v1'"
             )
-            if under_configured:
-                for row in under_configured:
-                    db.execute(
-                        "UPDATE managed_pages SET posts_per_day = 3 WHERE page_id = ?",
-                        (row["page_id"],)
-                    )
-                smart_defaults_applied = True
+            if not flag_rows:
+                under_configured = db.execute(
+                    """
+                    SELECT page_id FROM managed_pages
+                    WHERE posts_per_day IS NULL OR posts_per_day < 3
+                    """
+                )
+                if under_configured:
+                    for row in under_configured:
+                        db.execute(
+                            "UPDATE managed_pages SET posts_per_day = 3 WHERE page_id = ?",
+                            (row["page_id"],)
+                        )
+                    smart_defaults_applied = True
+                db.execute(
+                    """
+                    INSERT OR REPLACE INTO system_status(key, value, updated_at)
+                    VALUES('smart_defaults_v1', '1', datetime('now'))
+                    """
+                )
         except Exception:
             pass
 

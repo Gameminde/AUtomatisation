@@ -107,6 +107,17 @@ function setKPI(id, value) {
     }
 }
 
+// ── HTML escaping (prevents XSS from DB-sourced text) ───────────
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 // ── What's Working Insights ──────────────────────────
 async function loadInsights() {
     const box = document.getElementById('insights-box');
@@ -162,14 +173,17 @@ async function loadInsights() {
 
         box.innerHTML = data.insights.map(ins => {
             const color = insightColors[ins.type] || 'var(--accent)';
+            const safeIcon = escapeHtml(ins.icon);
+            const safeMsg  = escapeHtml(ins.message);
+            const safeMet  = escapeHtml(ins.metric);
             return `
-            <div style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.6rem 0; border-bottom:1px solid var(--border); last-of-type:border-bottom:none;">
+            <div style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.6rem 0; border-bottom:1px solid var(--border);">
                 <div style="width:2rem; height:2rem; border-radius:50%; background:${color}22; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-                    <i class="fa-solid ${ins.icon}" style="color:${color}; font-size:0.8rem;"></i>
+                    <i class="fa-solid ${safeIcon}" style="color:${color}; font-size:0.8rem;"></i>
                 </div>
                 <div style="flex:1; min-width:0;">
-                    <div style="font-weight:600; line-height:1.4;">${ins.message}</div>
-                    ${ins.metric ? `<div class="muted" style="font-size:0.78rem; margin-top:0.15rem;">${ins.metric}</div>` : ''}
+                    <div style="font-weight:600; line-height:1.4;">${safeMsg}</div>
+                    ${safeMet ? `<div class="muted" style="font-size:0.78rem; margin-top:0.15rem;">${safeMet}</div>` : ''}
                 </div>
             </div>`;
         }).join('');
