@@ -14,10 +14,22 @@ CREATE TABLE IF NOT EXISTS managed_pages (
     page_name TEXT DEFAULT 'My Page',
     access_token TEXT NOT NULL,
     posts_per_day INTEGER DEFAULT 3 CHECK (posts_per_day BETWEEN 1 AND 5),
+    posting_times TEXT DEFAULT '08:00,13:00,19:00',
     language TEXT DEFAULT 'ar',
     status TEXT DEFAULT 'active',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Migration: add posting_times to existing managed_pages (run if column missing)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'managed_pages' AND column_name = 'posting_times'
+    ) THEN
+        ALTER TABLE managed_pages ADD COLUMN posting_times TEXT DEFAULT '08:00,13:00,19:00';
+    END IF;
+END $$;
 
 -- ============================================
 -- SECTION 2: Add missing columns to existing tables
