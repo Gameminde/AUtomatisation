@@ -246,7 +246,12 @@ class PublicationTracker:
 
     def is_content_already_published(self, content_id: str) -> Tuple[bool, str]:
         """
-        Check if content has already been published.
+        Check if content has already been successfully published to at least one platform.
+
+        A row in published_posts is only treated as "already published" when at least one
+        platform succeeded — determined by a non-null facebook_post_id, a non-null
+        instagram_post_id, or facebook_status/instagram_status == 'published'.
+        Failure-only rows (inserted for diagnostic telemetry) do NOT block re-publishing.
 
         Args:
             content_id: Content ID to check
@@ -259,16 +264,26 @@ class PublicationTracker:
 
             response = (
                 client.table("published_posts")
-                .select("id, facebook_post_id, published_at")
+                .select("id, facebook_post_id, instagram_post_id, facebook_status, instagram_status, published_at")
                 .eq("content_id", content_id)
                 .execute()
             )
 
             if response.data:
-                post = response.data[0]
-                published_at = post.get("published_at", "")
-                fb_id = post.get("facebook_post_id", "")
-                return True, f"Already published at {published_at} (FB: {fb_id[:15]}...)"
+                for post in response.data:
+                    fb_id = post.get("facebook_post_id") or ""
+                    ig_id = post.get("instagram_post_id") or ""
+                    fb_status = post.get("facebook_status") or ""
+                    ig_status = post.get("instagram_status") or ""
+                    # Treat as published only when at least one platform actually succeeded
+                    if fb_id or ig_id or fb_status == "published" or ig_status == "published":
+                        published_at = post.get("published_at", "")
+                        platform_hint = ""
+                        if fb_id:
+                            platform_hint = f"FB: {fb_id[:15]}"
+                        elif ig_id:
+                            platform_hint = f"IG: {ig_id[:15]}"
+                        return True, f"Already published at {published_at} ({platform_hint})"
 
         except Exception as e:
             logger.warning("Publication check failed: %s", e)
