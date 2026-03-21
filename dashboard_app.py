@@ -274,30 +274,52 @@ def get_insights():
     Generate 2-3 plain-language 'What's Working' insights from engagement data.
     Works entirely from SQLite — no Supabase required.
 
+    Signals used:
+    - published_posts: engagement metrics (likes, comments, shares, reach) and publish time
+    - processed_content: post_type (format A/B signal) and hook text
+    - raw_articles: virality_score (pre-publication quality signal)
+    - managed_pages: posts_per_day preference (smart-default enforcement)
+
     Returns:
         {
-          "ready": bool,           # False when not enough data yet
-          "min_posts_needed": int, # Threshold for insights
+          "ready": bool,
+          "min_posts_needed": int,
           "total_posts": int,
-          "insights": [
-            {"type": str, "icon": str, "message": str, "metric": str}
-          ]
+          "smart_defaults_applied": bool,
+          "insights": [{"type", "icon", "message", "metric"}]
         }
     """
     MIN_POSTS = 5
+    PUBLISHED_FILTER = (
+        "facebook_post_id IS NOT NULL OR instagram_post_id IS NOT NULL "
+        "OR facebook_status = 'published' OR instagram_status = 'published'"
+    )
     try:
         from database import get_db
         db = get_db()
 
+        # ── Smart defaults: ensure managed pages have ≥3 posts/day ────
+        smart_defaults_applied = False
+        try:
+            under_configured = db.execute(
+                """
+                SELECT page_id FROM managed_pages
+                WHERE posts_per_day IS NULL OR posts_per_day < 3
+                """
+            )
+            if under_configured:
+                for row in under_configured:
+                    db.execute(
+                        "UPDATE managed_pages SET posts_per_day = 3 WHERE page_id = ?",
+                        (row["page_id"],)
+                    )
+                smart_defaults_applied = True
+        except Exception:
+            pass
+
         # ── Total successful published posts ───────────────────────────
         total_rows = db.execute(
-            """
-            SELECT COUNT(*) AS n FROM published_posts
-            WHERE facebook_post_id IS NOT NULL
-               OR instagram_post_id IS NOT NULL
-               OR facebook_status = 'published'
-               OR instagram_status = 'published'
-            """
+            f"SELECT COUNT(*) AS n FROM published_posts WHERE {PUBLISHED_FILTER}"
         )
         total_posts = total_rows[0]["n"] if total_rows else 0
 
@@ -306,15 +328,17 @@ def get_insights():
                 "ready": False,
                 "min_posts_needed": MIN_POSTS,
                 "total_posts": total_posts,
+                "smart_defaults_applied": smart_defaults_applied,
                 "insights": []
             })
 
         insights = []
 
-        # ── Insight 1: Best post type by engagement ────────────────────
-        # Join published_posts → processed_content to group by post_type
+        # ── Insight 1: Format A/B comparison by engagement score ───────
+        # post_type in processed_content serves as the format variant;
+        # engagement score = likes + 2*comments + 3*shares (weighted reach proxy)
         type_rows = db.execute(
-            """
+            f"""
             SELECT
                 pc.post_type,
                 COUNT(*) AS cnt,
@@ -323,8 +347,7 @@ def get_insights():
             FROM published_posts pp
             JOIN processed_content pc ON pc.id = pp.content_id
             WHERE pp.published_at >= datetime('now', '-30 days')
-              AND (pp.facebook_post_id IS NOT NULL OR pp.instagram_post_id IS NOT NULL
-                   OR pp.facebook_status = 'published' OR pp.instagram_status = 'published')
+              AND ({PUBLISHED_FILTER})
             GROUP BY pc.post_type
             HAVING cnt >= 2
             ORDER BY avg_eng DESC
@@ -335,15 +358,15 @@ def get_insights():
             worst = type_rows[-1]
             best_type = (best["post_type"] or "hook").replace("_", " ").title()
             worst_type = (worst["post_type"] or "other").replace("_", " ").title()
-            ratio = (best["avg_eng"] / worst["avg_eng"]) if worst["avg_eng"] and worst["avg_eng"] > 0 else 0
+            ratio = (best["avg_eng"] / worst["avg_eng"]) if (worst["avg_eng"] or 0) > 0 else 0
             if ratio >= 1.3:
                 insights.append({
                     "type": "post_type",
                     "icon": "fa-fire",
                     "message": f"{best_type} posts are getting {ratio:.1f}× more engagement than {worst_type} posts this month.",
-                    "metric": f"Avg engagement score: {best['avg_eng']:.0f} vs {worst['avg_eng']:.0f}"
+                    "metric": f"Engagement score: {best['avg_eng']:.0f} vs {worst['avg_eng']:.0f}"
                 })
-            elif best["avg_reach"] > 0:
+            elif (best["avg_reach"] or 0) > 0:
                 insights.append({
                     "type": "post_type",
                     "icon": "fa-chart-line",
@@ -351,15 +374,18 @@ def get_insights():
                     "metric": f"Avg reach: {best['avg_reach']:.0f} people"
                 })
 
-        # ── Insight 2: Best posting time (morning / afternoon / evening) ──
+        # ── Insight 2: Best posting time by average reach ─────────────
         time_rows = db.execute(
-            """
+            f"""
             SELECT
                 CASE
-                    WHEN CAST(strftime('%H', pp.published_at) AS INTEGER) BETWEEN 5 AND 11 THEN 'morning (6–11 AM)'
-                    WHEN CAST(strftime('%H', pp.published_at) AS INTEGER) BETWEEN 12 AND 16 THEN 'afternoon (12–4 PM)'
-                    WHEN CAST(strftime('%H', pp.published_at) AS INTEGER) BETWEEN 17 AND 21 THEN 'evening (5–9 PM)'
-                    ELSE 'night (10 PM–5 AM)'
+                    WHEN CAST(strftime('%H', pp.published_at) AS INTEGER) BETWEEN 5 AND 11
+                        THEN 'morning (6-11 AM)'
+                    WHEN CAST(strftime('%H', pp.published_at) AS INTEGER) BETWEEN 12 AND 16
+                        THEN 'afternoon (12-4 PM)'
+                    WHEN CAST(strftime('%H', pp.published_at) AS INTEGER) BETWEEN 17 AND 21
+                        THEN 'evening (5-9 PM)'
+                    ELSE 'night (10 PM-5 AM)'
                 END AS time_slot,
                 COUNT(*) AS cnt,
                 AVG(COALESCE(pp.reach, 0)) AS avg_reach,
@@ -367,8 +393,7 @@ def get_insights():
             FROM published_posts pp
             WHERE pp.published_at >= datetime('now', '-30 days')
               AND pp.reach > 0
-              AND (pp.facebook_post_id IS NOT NULL OR pp.instagram_post_id IS NOT NULL
-                   OR pp.facebook_status = 'published' OR pp.instagram_status = 'published')
+              AND ({PUBLISHED_FILTER})
             GROUP BY time_slot
             HAVING cnt >= 2
             ORDER BY avg_reach DESC
@@ -376,7 +401,7 @@ def get_insights():
         )
         if time_rows:
             best_slot = time_rows[0]
-            reach = best_slot["avg_reach"]
+            reach = best_slot["avg_reach"] or 0
             if reach > 0:
                 insights.append({
                     "type": "best_time",
@@ -385,9 +410,41 @@ def get_insights():
                     "metric": f"Avg reach: {reach:.0f} people per post"
                 })
 
-        # ── Insight 3: Recent engagement trend (last 7d vs prior 7d) ───
-        trend_rows = db.execute(
+        # ── Insight 3: Virality signal (raw_articles.virality_score) ──
+        # Compares engagement of high-virality source articles vs low-virality.
+        # raw_articles.virality_score is computed before publication (ML signal);
+        # here we surface whether it correlates with actual post performance.
+        virality_rows = db.execute(
+            f"""
+            SELECT
+                CASE WHEN ra.virality_score >= 70 THEN 'high' ELSE 'lower' END AS bucket,
+                COUNT(*) AS cnt,
+                AVG(COALESCE(pp.likes,0) + COALESCE(pp.comments,0) + COALESCE(pp.shares,0)) AS avg_eng
+            FROM published_posts pp
+            JOIN processed_content pc ON pc.id = pp.content_id
+            JOIN raw_articles ra ON ra.id = pc.article_id
+            WHERE ({PUBLISHED_FILTER})
+              AND ra.virality_score IS NOT NULL
+            GROUP BY bucket
+            HAVING cnt >= 2
             """
+        )
+        virality_map = {r["bucket"]: r for r in virality_rows}
+        high_v = virality_map.get("high")
+        low_v = virality_map.get("lower")
+        if high_v and low_v and (low_v["avg_eng"] or 0) > 0:
+            v_ratio = high_v["avg_eng"] / low_v["avg_eng"]
+            if v_ratio >= 1.2:
+                insights.append({
+                    "type": "virality",
+                    "icon": "fa-bolt",
+                    "message": f"Posts from trending topics get {v_ratio:.1f}x more interactions on average.",
+                    "metric": f"High-virality source avg: {high_v['avg_eng']:.0f} interactions"
+                })
+
+        # ── Insight 4: Weekly engagement trend (last 7d vs prior 7d) ──
+        trend_rows = db.execute(
+            f"""
             SELECT
                 CASE
                     WHEN published_at >= datetime('now', '-7 days') THEN 'recent'
@@ -397,61 +454,63 @@ def get_insights():
                 AVG(COALESCE(likes,0) + COALESCE(comments,0) + COALESCE(shares,0)) AS avg_eng
             FROM published_posts
             WHERE published_at >= datetime('now', '-14 days')
-              AND (facebook_post_id IS NOT NULL OR instagram_post_id IS NOT NULL
-                   OR facebook_status = 'published' OR instagram_status = 'published')
+              AND ({PUBLISHED_FILTER})
             GROUP BY period
             """
         )
         trend_map = {r["period"]: r for r in trend_rows}
-        recent = trend_map.get("recent")
-        prior = trend_map.get("prior")
-        if recent and prior and prior["avg_eng"] and prior["avg_eng"] > 0 and recent["cnt"] >= 2 and prior["cnt"] >= 2:
-            change_pct = ((recent["avg_eng"] - prior["avg_eng"]) / prior["avg_eng"]) * 100
+        recent_p = trend_map.get("recent")
+        prior_p = trend_map.get("prior")
+        if (recent_p and prior_p
+                and (prior_p["avg_eng"] or 0) > 0
+                and (recent_p["cnt"] or 0) >= 2
+                and (prior_p["cnt"] or 0) >= 2):
+            change_pct = ((recent_p["avg_eng"] - prior_p["avg_eng"]) / prior_p["avg_eng"]) * 100
             if change_pct >= 10:
                 insights.append({
                     "type": "trend",
                     "icon": "fa-arrow-trend-up",
                     "message": f"Engagement is up {change_pct:.0f}% this week compared to last week.",
-                    "metric": f"This week avg: {recent['avg_eng']:.1f} interactions/post"
+                    "metric": f"This week avg: {recent_p['avg_eng']:.1f} interactions/post"
                 })
             elif change_pct <= -10:
                 insights.append({
                     "type": "trend",
                     "icon": "fa-arrow-trend-down",
-                    "message": "Engagement dipped this week — try posting at a different time or switching up your format.",
+                    "message": "Engagement dipped this week — try a different posting time or format.",
                     "metric": f"Down {abs(change_pct):.0f}% vs last week"
                 })
 
-        # ── Fallback insight when data exists but no pattern found ─────
+        # ── Fallback: top performer when no pattern is clear ──────────
         if not insights:
-            # Show a simple top performer insight as a fallback
             top_rows = db.execute(
-                """
+                f"""
                 SELECT pp.likes, pp.shares, pp.comments, pp.reach, pc.hook
                 FROM published_posts pp
                 LEFT JOIN processed_content pc ON pc.id = pp.content_id
-                WHERE (pp.facebook_post_id IS NOT NULL OR pp.instagram_post_id IS NOT NULL
-                       OR pp.facebook_status = 'published' OR pp.instagram_status = 'published')
+                WHERE ({PUBLISHED_FILTER})
                 ORDER BY (COALESCE(pp.likes,0) + COALESCE(pp.comments,0)*2 + COALESCE(pp.shares,0)*3) DESC
                 LIMIT 1
                 """
             )
             if top_rows:
                 top = top_rows[0]
-                hook_preview = (top["hook"] or "Your top post")[:40]
-                total_eng = (top["likes"] or 0) + (top["comments"] or 0) + (top["shares"] or 0)
+                hook_text = top.get("hook") or ""  # safe None guard
+                hook_preview = hook_text[:40]
+                total_eng = (top.get("likes") or 0) + (top.get("comments") or 0) + (top.get("shares") or 0)
                 insights.append({
                     "type": "top_post",
                     "icon": "fa-trophy",
                     "message": f"Your best post so far got {total_eng} interactions — keep that style going.",
-                    "metric": f'"{hook_preview}{"..." if len(top.get("hook","")) > 40 else ""}"'
+                    "metric": f'"{hook_preview}{"..." if len(hook_text) > 40 else ""}"'
                 })
 
         return jsonify({
             "ready": True,
             "min_posts_needed": MIN_POSTS,
             "total_posts": total_posts,
-            "insights": insights[:3]  # Cap at 3
+            "smart_defaults_applied": smart_defaults_applied,
+            "insights": insights[:3]
         })
 
     except Exception as e:
@@ -460,6 +519,7 @@ def get_insights():
             "ready": False,
             "min_posts_needed": MIN_POSTS,
             "total_posts": 0,
+            "smart_defaults_applied": False,
             "insights": [],
             "error": str(e)
         })
