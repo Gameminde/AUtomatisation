@@ -553,7 +553,7 @@ def get_published_content():
         
         result = (
             client.table('published_posts')
-            .select('id, content_id, facebook_post_id, instagram_post_id, platforms, published_at, likes, shares, comments, reach')
+            .select('id, content_id, facebook_post_id, facebook_status, instagram_post_id, instagram_status, platforms, published_at, likes, shares, comments, reach')
             .order('published_at', desc=True)
             .limit(limit)
             .execute()
@@ -1323,6 +1323,7 @@ def _publish_content_to_instagram(content_id: str) -> Dict:
                 pub_id = pub_result.data[0]['id']
                 client.table('published_posts').update({
                     'instagram_post_id': ig_post_id,
+                    'instagram_status': 'published',
                     'platforms': 'facebook,instagram',
                 }).eq('id', pub_id).execute()
             else:
@@ -1332,6 +1333,7 @@ def _publish_content_to_instagram(content_id: str) -> Dict:
                     'id': str(uuid.uuid4()),
                     'content_id': content_id,
                     'instagram_post_id': ig_post_id,
+                    'instagram_status': 'published',
                     'platforms': 'instagram',
                 }).execute()
                 # Mark content as published in processed_content (mirrors mark_published behaviour)

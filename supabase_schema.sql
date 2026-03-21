@@ -116,6 +116,26 @@ DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'published_posts' AND column_name = 'facebook_status'
+    ) THEN
+        ALTER TABLE published_posts ADD COLUMN facebook_status TEXT;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'published_posts' AND column_name = 'instagram_status'
+    ) THEN
+        ALTER TABLE published_posts ADD COLUMN instagram_status TEXT;
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
         WHERE table_name = 'scheduled_posts' AND column_name = 'platforms'
     ) THEN
         ALTER TABLE scheduled_posts ADD COLUMN platforms TEXT DEFAULT 'facebook';

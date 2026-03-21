@@ -130,7 +130,9 @@ class SQLiteDB:
                     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
                     content_id TEXT,
                     facebook_post_id TEXT UNIQUE,
+                    facebook_status TEXT DEFAULT NULL,
                     instagram_post_id TEXT,
+                    instagram_status TEXT DEFAULT NULL,
                     platforms TEXT DEFAULT 'facebook',
                     published_at TEXT DEFAULT (datetime('now')),
                     likes INTEGER DEFAULT 0,
@@ -141,15 +143,17 @@ class SQLiteDB:
                     FOREIGN KEY (content_id) REFERENCES processed_content(id)
                 )
             """)
-            # Migration: add instagram_post_id and platforms to published_posts if missing
-            try:
-                cursor.execute("ALTER TABLE published_posts ADD COLUMN instagram_post_id TEXT")
-            except Exception:
-                pass
-            try:
-                cursor.execute("ALTER TABLE published_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'")
-            except Exception:
-                pass
+            # Migration: add new columns to published_posts if missing
+            for col_sql in [
+                "ALTER TABLE published_posts ADD COLUMN instagram_post_id TEXT",
+                "ALTER TABLE published_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'",
+                "ALTER TABLE published_posts ADD COLUMN facebook_status TEXT DEFAULT NULL",
+                "ALTER TABLE published_posts ADD COLUMN instagram_status TEXT DEFAULT NULL",
+            ]:
+                try:
+                    cursor.execute(col_sql)
+                except Exception:
+                    pass
             # Migration: add platforms to scheduled_posts if missing
             try:
                 cursor.execute("ALTER TABLE scheduled_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'")

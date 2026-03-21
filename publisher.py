@@ -132,14 +132,16 @@ def fetch_content(content_id: str) -> Optional[Dict]:
 
 def mark_published(content_id: str, post_id: str) -> None:
     client = config.get_supabase_client()
-    # Insert into published_posts
+    # Insert into published_posts with explicit per-platform status
     client.table("published_posts").insert(
         {
             "content_id": content_id,
             "facebook_post_id": post_id,
+            "facebook_status": "published",
+            "platforms": "facebook",
         }
     ).execute()
-    
+
     # v2.1.1: Also save fb_post_id to processed_content (anti double-publish)
     client.table("processed_content").update({
         "fb_post_id": post_id,
@@ -256,31 +258,34 @@ def publish_due_posts(limit: int = 5) -> int:
             skipped += 1
             continue
 
-        try:
-            # ── Determine platform targets for this scheduled row ──────────
-            platforms_field = (item.get("platforms") or "facebook").lower()
-            publish_to_facebook = "facebook" in platforms_field
-            publish_to_instagram = "instagram" in platforms_field
+        # ── Determine platform targets for this scheduled row ──────────
+        platforms_field = (item.get("platforms") or "facebook").lower()
+        publish_to_facebook = "facebook" in platforms_field
+        publish_to_instagram = "instagram" in platforms_field
 
-            # ── Build message text (shared across platforms) ───────────────
-            arabic_text = content.get("arabic_text", "")
-            image_path = content.get("image_path", "")
-            hashtags = content.get("hashtags", [])
-            hashtag_str = " ".join(hashtags) if hashtags else ""
+        # ── Build message text (shared across platforms) ───────────────
+        arabic_text = content.get("arabic_text", "")
+        image_path = content.get("image_path", "")
+        hashtags = content.get("hashtags", [])
+        hashtag_str = " ".join(hashtags) if hashtags else ""
 
-            if arabic_text and image_path and os.path.exists(image_path):
-                cta_ar = "ما رأيكم؟ شاركونا في التعليقات! 💬"
-                message = f"{arabic_text}\n\n{cta_ar}\n\n{hashtag_str}".strip()
-            else:
-                hook = content.get("hook", "")
-                body = content.get("generated_text", "")
-                cta = content.get("call_to_action", "")
-                message = f"{hook}\n\n{body}\n\n{cta}\n\n{hashtag_str}".strip()
+        if arabic_text and image_path and os.path.exists(image_path):
+            cta_ar = "ما رأيكم؟ شاركونا في التعليقات! 💬"
+            message = f"{arabic_text}\n\n{cta_ar}\n\n{hashtag_str}".strip()
+        else:
+            hook = content.get("hook", "")
+            body = content.get("generated_text", "")
+            cta = content.get("call_to_action", "")
+            message = f"{hook}\n\n{body}\n\n{cta}\n\n{hashtag_str}".strip()
 
-            fb_post_id: str = ""
+        # ── Per-platform results (tracked independently) ───────────────
+        fb_post_id: str = ""
+        fb_ok: bool = False
+        ig_ok: bool = False
 
-            # ── Facebook publish (only when requested) ─────────────────────
-            if publish_to_facebook:
+        # ── Facebook publish (isolated try — does NOT block IG) ────────
+        if publish_to_facebook:
+            try:
                 if image_path and os.path.exists(image_path):
                     logger.info("📷 Publishing to Facebook with image: %s", image_path)
                     fb_post_id = publish_photo_post(message, image_path)
@@ -290,20 +295,29 @@ def publish_due_posts(limit: int = 5) -> int:
 
                 mark_published(content["id"], fb_post_id)
                 record_publication(content["id"], fb_post_id)
+                fb_ok = True
                 logger.info("✅ Published %s -> FB: %s", content_id[:8], fb_post_id)
+            except Exception as fb_exc:
+                logger.error("❌ Facebook publish failed for %s: %s", content_id[:8], fb_exc)
+                action, error_code = error_handler.classify_error(fb_exc)
+                retry_count = content.get("retry_count", 0)
+                error_handler.execute_action(action, content_id, error_code, retry_count)
 
-            # ── Instagram publish (only when requested) ────────────────────
-            if publish_to_instagram:
-                try:
-                    ig_fb_ref = fb_post_id if publish_to_facebook else None
-                    _publish_to_instagram_if_configured(content, ig_fb_ref or "")
-                    logger.info("✅ Published %s -> IG", content_id[:8])
-                except Exception as ig_exc:
-                    logger.warning("⚠️ Instagram publish failed for %s: %s", content_id[:8], ig_exc)
+        # ── Instagram publish (isolated try — does NOT depend on FB) ───
+        if publish_to_instagram:
+            try:
+                _publish_to_instagram_if_configured(content, fb_post_id)
+                ig_ok = True
+                logger.info("✅ Published %s -> IG", content_id[:8])
+            except Exception as ig_exc:
+                logger.warning("⚠️ Instagram publish failed for %s: %s", content_id[:8], ig_exc)
 
-            # ── Instagram-only: update processed_content status ───────────
+        # ── Update content status & schedule row based on outcomes ─────
+        any_ok = fb_ok or ig_ok
+        if any_ok:
+            # At least one platform succeeded — mark as published
             if publish_to_instagram and not publish_to_facebook:
-                # Facebook path calls mark_published which sets status; mirror it here
+                # IG-only: mirror mark_published lifecycle
                 try:
                     config.get_supabase_client().table("processed_content").update(
                         {"status": "published"}
@@ -311,23 +325,26 @@ def publish_due_posts(limit: int = 5) -> int:
                 except Exception as state_err:
                     logger.warning("Could not update content status for IG-only post: %s", state_err)
 
-            update_schedule_status(schedule_id, "published")
+            # Partial failure still counts as published (at least one succeeded)
+            final_status = "published"
             error_handler.update_success_status(content["id"])
             published += 1
+            logger.info(
+                "📊 %s: FB=%s IG=%s → schedule=%s",
+                content_id[:8],
+                "✓" if fb_ok else ("skip" if not publish_to_facebook else "✗"),
+                "✓" if ig_ok else ("skip" if not publish_to_instagram else "✗"),
+                final_status,
+            )
+        else:
+            # All selected platforms failed — mark as failed
+            final_status = "failed"
+            logger.error("❌ All platforms failed for %s", content_id[:8])
 
-            # Rate limiting pause
-            time.sleep(config.REQUEST_SLEEP_SECONDS)
+        update_schedule_status(schedule_id, final_status)
 
-        except Exception as exc:
-            logger.error("❌ Publish failed for %s: %s", schedule_id, exc)
-            
-            # v2.1: Smart error handling
-            action, error_code = error_handler.classify_error(exc)
-            retry_count = content.get("retry_count", 0) if content else 0
-            should_retry = error_handler.execute_action(action, content_id, error_code, retry_count)
-            
-            if not should_retry:
-                update_schedule_status(schedule_id, "failed")
+        # Rate limiting pause
+        time.sleep(config.REQUEST_SLEEP_SECONDS)
 
     logger.info("📊 Publishing complete: %d published, %d skipped", published, skipped)
     return published
@@ -515,22 +532,37 @@ def _publish_to_instagram_if_configured(content: Dict, fb_post_id: str) -> None:
     ig_post_id = publish_photo_to_instagram(ig_user_id, page_token, image_url, caption)
     logger.info("✅ Instagram cross-post %s -> IG: %s", content["id"][:8], ig_post_id)
 
-    # Update published_posts row to record Instagram post ID + platforms
+    # Update/create published_posts row with IG post ID + per-platform status
     try:
         client = config.get_supabase_client()
-        result = (
-            client.table("published_posts")
-            .select("id")
-            .eq("content_id", content["id"])
-            .eq("facebook_post_id", fb_post_id)
-            .limit(1)
-            .execute()
-        )
-        if result.data:
-            client.table("published_posts").update({
+        if fb_post_id:
+            # Cross-post: update existing FB row
+            result = (
+                client.table("published_posts")
+                .select("id, platforms")
+                .eq("content_id", content["id"])
+                .eq("facebook_post_id", fb_post_id)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                existing_platforms = result.data[0].get("platforms", "facebook")
+                combined = "facebook,instagram" if "facebook" in existing_platforms else "instagram"
+                client.table("published_posts").update({
+                    "instagram_post_id": ig_post_id,
+                    "instagram_status": "published",
+                    "platforms": combined,
+                }).eq("id", result.data[0]["id"]).execute()
+        else:
+            # IG-only: insert new row
+            import uuid as _uuid
+            client.table("published_posts").insert({
+                "id": str(_uuid.uuid4()),
+                "content_id": content["id"],
                 "instagram_post_id": ig_post_id,
-                "platforms": "facebook,instagram",
-            }).eq("id", result.data[0]["id"]).execute()
+                "instagram_status": "published",
+                "platforms": "instagram",
+            }).execute()
     except Exception as db_err:
         logger.warning("Could not update published_posts with Instagram post ID: %s", db_err)
 
