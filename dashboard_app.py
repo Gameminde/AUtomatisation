@@ -529,13 +529,13 @@ def get_scheduled_content():
         
         result = (
             client.table('scheduled_posts')
-            .select('id, content_id, scheduled_time, timezone, status')
+            .select('id, content_id, scheduled_time, timezone, status, platforms')
             .eq('status', 'scheduled')
             .order('scheduled_time')
             .limit(limit)
             .execute()
         )
-        
+
         return jsonify({"scheduled": result.data or []})
         
     except Exception as e:
@@ -1309,7 +1309,7 @@ def _publish_content_to_instagram(content_id: str) -> Dict:
         # Publish
         ig_post_id = publish_photo_to_instagram(ig_user_id, page_token, image_url, caption)
 
-        # Record Instagram post ID in published_posts
+        # Record Instagram post ID in published_posts and update content lifecycle state
         try:
             pub_result = (
                 client.table('published_posts')
@@ -1334,6 +1334,19 @@ def _publish_content_to_instagram(content_id: str) -> Dict:
                     'instagram_post_id': ig_post_id,
                     'platforms': 'instagram',
                 }).execute()
+                # Mark content as published in processed_content (mirrors mark_published behaviour)
+                try:
+                    client.table('processed_content').update(
+                        {"status": "published"}
+                    ).eq("id", content_id).execute()
+                except Exception:
+                    pass
+                # Update publication tracker so duplicate-detection is aware
+                try:
+                    from publisher import record_publication
+                    record_publication(content_id, ig_post_id)
+                except Exception:
+                    pass
         except Exception as db_err:
             logger.warning("Could not save Instagram post ID to DB: %s", db_err)
 

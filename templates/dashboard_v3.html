@@ -45,9 +45,22 @@
         <div class="list" id="list-waiting" style="margin-top:0.75rem;"></div>
     </div>
     <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3 data-i18n="queue_scheduled">Scheduled</h3>
-            <span class="badge" id="count-scheduled">0</span>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <h3 data-i18n="queue_scheduled">Scheduled</h3>
+                <span class="badge" id="count-scheduled">0</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <label title="Schedule to Facebook" style="cursor:pointer; display:flex; align-items:center; gap:0.2rem; font-size:0.82rem;">
+                    <input type="checkbox" id="sched-to-facebook" checked> <i class="fa-brands fa-facebook-f" style="color:#1877F2;"></i>
+                </label>
+                <label title="Schedule to Instagram" style="cursor:pointer; display:flex; align-items:center; gap:0.2rem; font-size:0.82rem;">
+                    <input type="checkbox" id="sched-to-instagram"> <i class="fa-brands fa-instagram" style="color:#E1306C;"></i>
+                </label>
+                <button class="btn btn-ghost btn-xs" onclick="runScheduleNow()" title="Schedule the next 7 days of content">
+                    <i class="fa-solid fa-calendar-plus"></i> Schedule
+                </button>
+            </div>
         </div>
         <div class="list" id="list-scheduled" style="margin-top:0.75rem;"></div>
     </div>

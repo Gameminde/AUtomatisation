@@ -257,67 +257,63 @@ def publish_due_posts(limit: int = 5) -> int:
             continue
 
         try:
-            if content["post_type"] == "text":
-                # Check if we have Arabic text (preferred for Arab audience)
-                arabic_text = content.get("arabic_text", "")
-                image_path = content.get("image_path", "")
-                hashtags = content.get("hashtags", [])
-                hashtag_str = " ".join(hashtags) if hashtags else ""
+            # ── Determine platform targets for this scheduled row ──────────
+            platforms_field = (item.get("platforms") or "facebook").lower()
+            publish_to_facebook = "facebook" in platforms_field
+            publish_to_instagram = "instagram" in platforms_field
 
-                # Use Arabic text when available (matches image text)
-                if arabic_text and image_path and os.path.exists(image_path):
-                    # Arabic post with image - use Arabic text as main message
-                    cta_ar = "ما رأيكم؟ شاركونا في التعليقات! 💬"
-                    message = f"{arabic_text}\n\n{cta_ar}\n\n{hashtag_str}".strip()
-                    logger.info("📷🇸🇦 Publishing ARABIC post with image")
-                    post_id = publish_photo_post(message, image_path)
-                else:
-                    # Fallback to English content
-                    hook = content.get("hook", "")
-                    body = content.get("generated_text", "")
-                    cta = content.get("call_to_action", "")
-                    message = f"{hook}\n\n{body}\n\n{cta}\n\n{hashtag_str}".strip()
+            # ── Build message text (shared across platforms) ───────────────
+            arabic_text = content.get("arabic_text", "")
+            image_path = content.get("image_path", "")
+            hashtags = content.get("hashtags", [])
+            hashtag_str = " ".join(hashtags) if hashtags else ""
 
-                    if image_path and os.path.exists(image_path):
-                        logger.info("📷 Publishing with image: %s", image_path)
-                        post_id = publish_photo_post(message, image_path)
-                    else:
-                        logger.info("📝 Publishing text-only post")
-                        post_id = publish_text_post(message)
+            if arabic_text and image_path and os.path.exists(image_path):
+                cta_ar = "ما رأيكم؟ شاركونا في التعليقات! 💬"
+                message = f"{arabic_text}\n\n{cta_ar}\n\n{hashtag_str}".strip()
             else:
-                # v2.0: All content is photo posts (Reels removed for simplicity)
-                logger.warning("Unknown post type - treating as text post")
                 hook = content.get("hook", "")
                 body = content.get("generated_text", "")
                 cta = content.get("call_to_action", "")
-                hashtags = content.get("hashtags", [])
-                hashtag_str = " ".join(hashtags) if hashtags else ""
                 message = f"{hook}\n\n{body}\n\n{cta}\n\n{hashtag_str}".strip()
-                
-                image_path = content.get("image_path", "")
+
+            fb_post_id: str = ""
+
+            # ── Facebook publish (only when requested) ─────────────────────
+            if publish_to_facebook:
                 if image_path and os.path.exists(image_path):
-                    post_id = publish_photo_post(message, image_path)
+                    logger.info("📷 Publishing to Facebook with image: %s", image_path)
+                    fb_post_id = publish_photo_post(message, image_path)
                 else:
-                    post_id = publish_text_post(message)
+                    logger.info("📝 Publishing text-only to Facebook")
+                    fb_post_id = publish_text_post(message)
 
-            # Record successful publication
-            mark_published(content["id"], post_id)
-            record_publication(content["id"], post_id)  # Update tracker
-            update_schedule_status(schedule_id, "published")
+                mark_published(content["id"], fb_post_id)
+                record_publication(content["id"], fb_post_id)
+                logger.info("✅ Published %s -> FB: %s", content_id[:8], fb_post_id)
 
-            # v2.1: Update success status in error_handler
-            error_handler.update_success_status(content["id"])
-
-            published += 1
-            logger.info("✅ Published %s -> FB: %s", content_id[:8], post_id)
-
-            # ── Instagram cross-post (if platforms includes 'instagram') ───
-            platforms_field = (item.get("platforms") or "facebook").lower()
-            if "instagram" in platforms_field:
+            # ── Instagram publish (only when requested) ────────────────────
+            if publish_to_instagram:
                 try:
-                    _publish_to_instagram_if_configured(content, post_id)
+                    ig_fb_ref = fb_post_id if publish_to_facebook else None
+                    _publish_to_instagram_if_configured(content, ig_fb_ref or "")
+                    logger.info("✅ Published %s -> IG", content_id[:8])
                 except Exception as ig_exc:
-                    logger.warning("⚠️ Instagram cross-post failed for %s: %s", content_id[:8], ig_exc)
+                    logger.warning("⚠️ Instagram publish failed for %s: %s", content_id[:8], ig_exc)
+
+            # ── Instagram-only: update processed_content status ───────────
+            if publish_to_instagram and not publish_to_facebook:
+                # Facebook path calls mark_published which sets status; mirror it here
+                try:
+                    config.get_supabase_client().table("processed_content").update(
+                        {"status": "published"}
+                    ).eq("id", content["id"]).execute()
+                except Exception as state_err:
+                    logger.warning("Could not update content status for IG-only post: %s", state_err)
+
+            update_schedule_status(schedule_id, "published")
+            error_handler.update_success_status(content["id"])
+            published += 1
 
             # Rate limiting pause
             time.sleep(config.REQUEST_SLEEP_SECONDS)

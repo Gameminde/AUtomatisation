@@ -138,9 +138,13 @@ async function loadQueues() {
         if (pipeline) {
             const sched = scheduled.scheduled || [];
             pipeline.innerHTML = sched.length
-                ? sched.map(item => (
-                    `<div class="list-item">#${item.id.slice(0, 6)} • ${formatTime(item.scheduled_time)}</div>`
-                )).join('')
+                ? sched.map(item => {
+                    const badges = renderPlatformBadges(item);
+                    return `<div class="list-item" style="display:flex; justify-content:space-between; align-items:center;">
+                        <span>#${item.id.slice(0, 6)} • ${formatTime(item.scheduled_time)}</span>
+                        ${badges}
+                    </div>`;
+                }).join('')
                 : renderEmptyState('fa-route', 'Pipeline empty', 'Schedule content to see it in the pipeline.');
         }
     } catch (e) {
@@ -225,5 +229,24 @@ function formatTime(value) {
     return d.toLocaleString();
 }
 
+async function runScheduleNow() {
+    try {
+        const platforms = [];
+        if (document.getElementById('sched-to-facebook')?.checked) platforms.push('facebook');
+        if (document.getElementById('sched-to-instagram')?.checked) platforms.push('instagram');
+        if (!platforms.length) {
+            showToast('Select at least one platform to schedule for.', 'error');
+            return;
+        }
+        showToast('Scheduling posts...', 'info');
+        const result = await apiCall('/api/actions/schedule', 'POST', { days: 7, platforms });
+        showToast(`Scheduled ${result.scheduled_count || 0} posts for ${result.platforms || 'facebook'}`, 'success');
+        await loadData();
+    } catch (e) {
+        showToast(`Schedule failed: ${e.message}`, 'error');
+    }
+}
+
 window.runNow = runNow;
 window.pauseSystem = pauseSystem;
+window.runScheduleNow = runScheduleNow;
