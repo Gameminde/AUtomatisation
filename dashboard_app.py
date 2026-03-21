@@ -1294,18 +1294,18 @@ def publish_specific_content():
         except Exception as persist_err:
             logger.warning("Could not persist manual publish failure status: %s", persist_err)
 
-        # 200 = all success, 207 = partial, 422 = all failed (not a server error, expected failure)
+        # 200 = all success or all failed (caller reads results.success + results.platforms)
+        # 207 = partial success when multiple platforms were attempted
+        if any_success and not all_failed and len(per_platform) > 1:
+            status_code = 207
+        else:
+            status_code = 200
         if all_failed:
-            status_code = 422
             results["error"] = "; ".join(
                 f"{p}: {v.get('error', 'failed')}"
                 for p, v in per_platform.items()
                 if not v.get("success")
             )
-        elif any_success and len(per_platform) > 1:
-            status_code = 207
-        else:
-            status_code = 200
 
         return jsonify(results), status_code
 
