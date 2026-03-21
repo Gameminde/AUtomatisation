@@ -871,10 +871,20 @@ window.publishContent = async () => {
     showToast('Publishing…', 'info');
     try {
         const data = await apiCall('/api/actions/publish-content', 'POST', { content_id: contentId, platforms });
-        const labels = [];
-        if (data.platforms?.facebook?.success) labels.push('Facebook ✓');
-        if (data.platforms?.instagram?.success) labels.push('Instagram ✓');
-        showToast('Published: ' + (labels.join(' & ') || 'Done'), 'success');
+        const ok = [];
+        const failed = [];
+        for (const [platform, result] of Object.entries(data.platforms || {})) {
+            const label = platform.charAt(0).toUpperCase() + platform.slice(1);
+            if (result.success) ok.push(label);
+            else failed.push(`${label} (${result.error || 'failed'})`);
+        }
+        if (failed.length && ok.length) {
+            showToast(`Partial: ${ok.join(', ')} ✓ | ${failed.join(', ')} ✗`, 'error');
+        } else if (failed.length && !ok.length) {
+            showToast('Publish failed: ' + failed.join(', '), 'error');
+        } else {
+            showToast('Published: ' + (ok.join(' & ') || 'Done') + ' ✓', 'success');
+        }
     } catch (e) {
         showToast('Publish failed: ' + e.message, 'error');
     }

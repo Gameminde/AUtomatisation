@@ -162,6 +162,7 @@ function renderQueue(type, items, emptyIcon, emptyTitle, emptyHint) {
     }
     list.innerHTML = items.map(item => {
         const platformBadges = renderPlatformBadges(item);
+        const postLinks = renderPostLinks(item);
         return `
         <div class="list-item">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:0.4rem;">
@@ -169,6 +170,7 @@ function renderQueue(type, items, emptyIcon, emptyTitle, emptyHint) {
                 ${platformBadges}
             </div>
             <div class="muted" style="margin-top:0.2rem;">${formatTime(item.generated_at || item.scheduled_time || item.published_at)}</div>
+            ${postLinks ? `<div style="margin-top:0.25rem; font-size:0.74rem;">${postLinks}</div>` : ''}
         </div>`;
     }).join('');
 }
@@ -182,6 +184,18 @@ function renderPlatformBadges(item) {
         return '';
     }).filter(Boolean).join(' ');
     return icons ? `<span style="display:flex; gap:0.3rem; align-items:center; flex-shrink:0;">${icons}</span>` : '';
+}
+
+function renderPostLinks(item) {
+    const parts = [];
+    if (item.facebook_post_id) {
+        parts.push(`<span class="muted"><i class="fa-brands fa-facebook-f" style="color:#1877F2;"></i> ID: <code style="font-size:0.74rem;">${item.facebook_post_id}</code></span>`);
+    }
+    if (item.instagram_post_id) {
+        const igUrl = `https://www.instagram.com/p/${item.instagram_post_id}/`;
+        parts.push(`<a href="${igUrl}" target="_blank" rel="noopener" style="color:#E1306C; text-decoration:none;"><i class="fa-brands fa-instagram"></i> ${item.instagram_post_id}</a>`);
+    }
+    return parts.join(' &nbsp; ');
 }
 
 // ── Actions ─────────────────────────────────────────

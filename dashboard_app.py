@@ -1158,6 +1158,19 @@ def get_instagram_status():
         if not page_id or not page_token:
             return jsonify({"connected": False, "reason": "Incomplete Facebook token data"})
 
+        # Use stored IG account ID first (persisted during page selection / save_tokens)
+        stored_ig_id = tokens.get("instagram_account_id", "")
+        stored_ig_username = tokens.get("instagram_username", "")
+
+        if stored_ig_id:
+            return jsonify({
+                "connected": True,
+                "instagram_account_id": stored_ig_id,
+                "username": stored_ig_username,
+                "facebook_page_id": page_id,
+            })
+
+        # Fallback: live discovery (also refreshes stored value via save_tokens side-effect)
         ig_info = get_instagram_account_for_page(page_id, page_token)
         if not ig_info:
             return jsonify({
@@ -1204,23 +1217,40 @@ def publish_specific_content():
         if isinstance(platforms, str):
             platforms = [platforms]
 
-        results: Dict = {"content_id": content_id, "platforms": {}}
+        per_platform: Dict = {}
 
         # ── Facebook publish ──────────────────────────────────
         if 'facebook' in platforms:
             fb_result = publish_content_by_id(content_id)
-            results["platforms"]["facebook"] = fb_result
-            results["success"] = fb_result.get("success", False)
-            results["post_id"] = fb_result.get("post_id")
+            per_platform["facebook"] = fb_result
 
         # ── Instagram publish ──────────────────────────────────
         if 'instagram' in platforms:
             ig_result = _publish_content_to_instagram(content_id)
-            results["platforms"]["instagram"] = ig_result
-            if ig_result.get("success"):
-                results["instagram_post_id"] = ig_result.get("post_id")
+            per_platform["instagram"] = ig_result
 
-        return jsonify(results)
+        # Determine overall success — at least one platform must succeed
+        any_success = any(v.get("success") for v in per_platform.values())
+        all_failed = all(not v.get("success") for v in per_platform.values()) if per_platform else True
+
+        results: Dict = {
+            "content_id": content_id,
+            "platforms": per_platform,
+            "success": any_success,
+        }
+
+        # Convenience fields for callers that only check top-level
+        if per_platform.get("facebook", {}).get("success"):
+            results["post_id"] = per_platform["facebook"].get("post_id")
+        if per_platform.get("instagram", {}).get("success"):
+            results["instagram_post_id"] = per_platform["instagram"].get("post_id")
+
+        # Return 207 Multi-Status when some platforms failed so callers can distinguish partial from total failure
+        status_code = 200 if not all_failed else 500
+        if any_success and not all_failed and len(per_platform) > 1:
+            status_code = 207
+
+        return jsonify(results), status_code
 
     except Exception as e:
         logger.error(f"Error publishing content: {e}")
@@ -1552,15 +1582,31 @@ def regenerate_content_by_id(content_id: str):
 @api_bp.route('/api/actions/schedule', methods=['POST'])
 @require_auth
 def run_scheduler():
-    """Run the scheduler."""
+    """
+    Run the scheduler.
+
+    Body (all optional):
+        days: int   — how many days to fill (default 7)
+        platforms: str or list — "facebook", "instagram", or "facebook,instagram" / ["facebook","instagram"]
+                                 Defaults to "facebook".
+    """
     try:
         from scheduler import schedule_posts
-        
-        days = int(request.json.get('days', 7))
-        scheduled = schedule_posts(days=days)
-        
-        return jsonify({"success": True, "scheduled_count": scheduled})
-        
+
+        data = request.json or {}
+        days = int(data.get('days', 7))
+
+        # Normalise platforms to a comma-separated string
+        platforms_raw = data.get('platforms', 'facebook')
+        if isinstance(platforms_raw, list):
+            platforms_str = ','.join(p.strip() for p in platforms_raw if p.strip())
+        else:
+            platforms_str = str(platforms_raw).strip() or 'facebook'
+
+        scheduled = schedule_posts(days=days, platforms=platforms_str)
+
+        return jsonify({"success": True, "scheduled_count": scheduled, "platforms": platforms_str})
+
     except Exception as e:
         logger.error(f"Error scheduling: {e}")
         return jsonify({"error": str(e)}), 500

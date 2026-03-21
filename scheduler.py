@@ -164,14 +164,15 @@ def fetch_content_pool(limit: int = 100):
     return response.data or []
 
 
-def schedule_posts(days: int = 7, max_per_day: int = 5) -> int:
+def schedule_posts(days: int = 7, max_per_day: int = 5, platforms: str = "facebook") -> int:
     """
     Schedule posts for the next N days.
-    
+
     Args:
         days: Number of days to schedule
         max_per_day: Maximum posts per day (configurable 1-5 for Gumroad users)
-    
+        platforms: Comma-separated platforms to publish to, e.g. "facebook" or "facebook,instagram"
+
     Returns:
         Number of posts scheduled
     """
@@ -190,7 +191,7 @@ def schedule_posts(days: int = 7, max_per_day: int = 5) -> int:
     for offset in range(days):
         day = start_day + timedelta(days=offset)
         slots = build_slots_for_day(day)
-        
+
         # Limit slots to max_per_day
         slots = slots[:max_per_day]
 
@@ -207,11 +208,12 @@ def schedule_posts(days: int = 7, max_per_day: int = 5) -> int:
                 "timezone": slot["timezone"],
                 "priority": 5,
                 "status": "scheduled",
+                "platforms": platforms,
             }
             client.table("scheduled_posts").insert(payload).execute()
             scheduled += 1
 
-    logger.info("Scheduled %s posts over %s days (max %s/day)", scheduled, days, max_per_day)
+    logger.info("Scheduled %s posts over %s days (max %s/day, platforms=%s)", scheduled, days, max_per_day, platforms)
     return scheduled
 
 

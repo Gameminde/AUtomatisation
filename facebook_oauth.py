@@ -314,17 +314,37 @@ def handle_callback(code: str) -> Dict:
     return result
 
 
-def save_tokens(page_id: str, page_name: str, page_token: str, user_token: str, expires_at: str) -> None:
+def save_tokens(
+    page_id: str,
+    page_name: str,
+    page_token: str,
+    user_token: str,
+    expires_at: str,
+    instagram_account_id: str = "",
+    instagram_username: str = "",
+) -> None:
     """
-    Save tokens securely to file.
-    
+    Save tokens securely to file, including any linked Instagram Business Account info.
+
     Args:
         page_id: Selected page ID
         page_name: Page name for display
         page_token: Page access token
         user_token: User's long-lived token
         expires_at: Token expiry date ISO string
+        instagram_account_id: Optional IG Business Account ID (discovered during page selection)
+        instagram_username: Optional IG username
     """
+    # Auto-discover Instagram account if not explicitly provided
+    if not instagram_account_id:
+        try:
+            ig_info = get_instagram_account_for_page(page_id, page_token)
+            if ig_info:
+                instagram_account_id = ig_info.get("instagram_account_id", "")
+                instagram_username = ig_info.get("username", "")
+        except Exception as e:
+            logger.warning("Could not auto-discover Instagram account during save_tokens: %s", e)
+
     data = {
         "page_id": page_id,
         "page_name": page_name,
@@ -332,19 +352,27 @@ def save_tokens(page_id: str, page_name: str, page_token: str, user_token: str, 
         "user_token": _encrypt_token(user_token),
         "expires_at": expires_at,
         "saved_at": datetime.now().isoformat(),
+        "instagram_account_id": instagram_account_id,
+        "instagram_username": instagram_username,
     }
-    
+
     with open(TOKEN_FILE, "w") as f:
         json.dump(data, f, indent=2)
-    
+
     # Also update .env for backward compatibility
     env_file = Path(__file__).parent / ".env"
-    _update_env_file(env_file, {
+    env_updates = {
         "FACEBOOK_ACCESS_TOKEN": page_token,
         "FACEBOOK_PAGE_ID": page_id,
-    })
-    
-    logger.info(f"✅ Saved tokens for page: {page_name}")
+    }
+    if instagram_account_id:
+        env_updates["INSTAGRAM_ACCOUNT_ID"] = instagram_account_id
+    _update_env_file(env_file, env_updates)
+
+    if instagram_account_id:
+        logger.info("✅ Saved tokens for page: %s (IG: @%s)", page_name, instagram_username or instagram_account_id)
+    else:
+        logger.info("✅ Saved tokens for page: %s (no Instagram linked)", page_name)
 
 
 def load_tokens() -> Optional[Dict]:
