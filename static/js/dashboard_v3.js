@@ -206,8 +206,7 @@ function renderPostLinks(item) {
         parts.push(`<span class="muted"><i class="fa-brands fa-facebook-f" style="color:#1877F2;"></i> ID: <code style="font-size:0.74rem;">${item.facebook_post_id}</code></span>`);
     }
     if (item.instagram_post_id) {
-        const igUrl = `https://www.instagram.com/p/${item.instagram_post_id}/`;
-        parts.push(`<a href="${igUrl}" target="_blank" rel="noopener" style="color:#E1306C; text-decoration:none;"><i class="fa-brands fa-instagram"></i> ${item.instagram_post_id}</a>`);
+        parts.push(`<span class="muted"><i class="fa-brands fa-instagram" style="color:#E1306C;"></i> ID: <code style="font-size:0.74rem;">${item.instagram_post_id}</code></span>`);
     }
     return parts.join(' &nbsp; ');
 }

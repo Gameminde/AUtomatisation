@@ -1240,15 +1240,72 @@ def publish_specific_content():
         }
 
         # Convenience fields for callers that only check top-level
-        if per_platform.get("facebook", {}).get("success"):
-            results["post_id"] = per_platform["facebook"].get("post_id")
-        if per_platform.get("instagram", {}).get("success"):
-            results["instagram_post_id"] = per_platform["instagram"].get("post_id")
+        fb_result_data = per_platform.get("facebook", {})
+        ig_result_data = per_platform.get("instagram", {})
+        if fb_result_data.get("success"):
+            results["post_id"] = fb_result_data.get("post_id")
+        if ig_result_data.get("success"):
+            results["instagram_post_id"] = ig_result_data.get("post_id")
 
-        # Return 207 Multi-Status when some platforms failed so callers can distinguish partial from total failure
-        status_code = 200 if not all_failed else 500
-        if any_success and not all_failed and len(per_platform) > 1:
+        # ── Persist platform failure statuses so the dashboard shows accurate state ──
+        try:
+            client = config.get_supabase_client()
+            fb_post_id_manual = fb_result_data.get("post_id", "")
+            if 'facebook' in platforms and not fb_result_data.get("success"):
+                # FB failed in manual publish — write failure row if no FB row exists yet
+                existing = (
+                    client.table('published_posts')
+                    .select('id')
+                    .eq('content_id', content_id)
+                    .execute()
+                )
+                if not existing.data:
+                    import uuid as _uuid
+                    client.table('published_posts').insert({
+                        'id': str(_uuid.uuid4()),
+                        'content_id': content_id,
+                        'facebook_status': 'failed',
+                        'platforms': ','.join(platforms),
+                    }).execute()
+                else:
+                    client.table('published_posts').update(
+                        {'facebook_status': 'failed'}
+                    ).eq('content_id', content_id).execute()
+            if 'instagram' in platforms and not ig_result_data.get("success"):
+                # IG failed — stamp instagram_status='failed' on any existing row
+                existing_ig = (
+                    client.table('published_posts')
+                    .select('id')
+                    .eq('content_id', content_id)
+                    .execute()
+                )
+                if existing_ig.data:
+                    client.table('published_posts').update(
+                        {'instagram_status': 'failed'}
+                    ).eq('content_id', content_id).execute()
+                else:
+                    import uuid as _uuid2
+                    client.table('published_posts').insert({
+                        'id': str(_uuid2.uuid4()),
+                        'content_id': content_id,
+                        'instagram_status': 'failed',
+                        'platforms': ','.join(platforms),
+                    }).execute()
+        except Exception as persist_err:
+            logger.warning("Could not persist manual publish failure status: %s", persist_err)
+
+        # 200 = all success, 207 = partial, 422 = all failed (not a server error, expected failure)
+        if all_failed:
+            status_code = 422
+            results["error"] = "; ".join(
+                f"{p}: {v.get('error', 'failed')}"
+                for p, v in per_platform.items()
+                if not v.get("success")
+            )
+        elif any_success and len(per_platform) > 1:
             status_code = 207
+        else:
+            status_code = 200
 
         return jsonify(results), status_code
 
@@ -1353,7 +1410,7 @@ def _publish_content_to_instagram(content_id: str) -> Dict:
             logger.warning("Could not save Instagram post ID to DB: %s", db_err)
 
         logger.info("Instagram publish success: %s", ig_post_id)
-        return {"success": True, "post_id": ig_post_id, "instagram_url": f"https://www.instagram.com/p/{ig_post_id}/"}
+        return {"success": True, "post_id": ig_post_id}
 
     except Exception as e:
         logger.error("Instagram publish failed: %s", e)
