@@ -123,6 +123,7 @@ def add_page():
             "page_name": data.get("page_name", "Unnamed Page"),
             "access_token": data.get("access_token"),
             "posts_per_day": int(data.get("posts_per_day", 3)),
+            "posting_times": data.get("posting_times", "08:00,13:00,19:00"),
             "language": data.get("language", "ar"),
             "status": "active",
             "created_at": datetime.now(timezone.utc).isoformat()
