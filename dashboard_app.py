@@ -286,7 +286,6 @@ def get_insights():
           "ready": bool,
           "min_posts_needed": int,
           "total_posts": int,
-          "smart_defaults_applied": bool,
           "insights": [{"type", "icon", "message", "metric"}]
         }
     """
@@ -305,44 +304,9 @@ def get_insights():
                 "ready": False,
                 "min_posts_needed": MIN_POSTS,
                 "total_posts": 0,
-                "smart_defaults_applied": False,
                 "insights": [],
                 "note": "Insights require SQLite mode"
             })
-
-        # ── Smart defaults: per-page, only NULL values ────────────────
-        # Runs on every request but only updates pages where preferences
-        # have never been configured (IS NULL). User choices are never
-        # overwritten — the WHERE clause guards against that.
-        # Defaults: 3 posts/day at 08:00, 13:00, 19:00 (morn/afternoon/eve).
-        DEFAULT_POSTS_PER_DAY = 3
-        DEFAULT_POSTING_TIMES = "08:00,13:00,19:00"
-        smart_defaults_applied = False
-        try:
-            uninitialized = db.execute(
-                """
-                SELECT page_id FROM managed_pages
-                WHERE posts_per_day IS NULL OR posting_times IS NULL
-                """
-            )
-            if uninitialized:
-                for row in uninitialized:
-                    db.execute(
-                        """
-                        UPDATE managed_pages
-                        SET posts_per_day   = COALESCE(posts_per_day, ?),
-                            posting_times   = COALESCE(posting_times, ?)
-                        WHERE page_id = ?
-                        """,
-                        (DEFAULT_POSTS_PER_DAY, DEFAULT_POSTING_TIMES, row["page_id"])
-                    )
-                smart_defaults_applied = True
-                logger.info(
-                    "Applied smart defaults to %d page(s): %d posts/day at %s",
-                    len(uninitialized), DEFAULT_POSTS_PER_DAY, DEFAULT_POSTING_TIMES
-                )
-        except Exception as e:
-            logger.warning("Smart defaults could not be applied: %s", e)
 
         # ── Total successful published posts ───────────────────────────
         total_rows = db.execute(
@@ -355,7 +319,6 @@ def get_insights():
                 "ready": False,
                 "min_posts_needed": MIN_POSTS,
                 "total_posts": total_posts,
-                "smart_defaults_applied": smart_defaults_applied,
                 "insights": []
             })
 
@@ -536,7 +499,6 @@ def get_insights():
             "ready": True,
             "min_posts_needed": MIN_POSTS,
             "total_posts": total_posts,
-            "smart_defaults_applied": smart_defaults_applied,
             "insights": insights[:3]
         })
 
@@ -546,7 +508,6 @@ def get_insights():
             "ready": False,
             "min_posts_needed": MIN_POSTS,
             "total_posts": 0,
-            "smart_defaults_applied": False,
             "insights": [],
             "error": str(e)
         })
@@ -2771,12 +2732,54 @@ app.register_blueprint(web_bp)
 app.register_blueprint(api_bp)
 
 
+def _init_smart_defaults() -> None:
+    """
+    Apply smart scheduling defaults to any managed_pages rows that have
+    never been configured (posts_per_day IS NULL or posting_times IS NULL).
+
+    Runs once at app startup so /api/insights stays a read-only endpoint.
+    COALESCE ensures existing user choices are never overwritten.
+    """
+    DEFAULT_POSTS_PER_DAY = 3
+    DEFAULT_POSTING_TIMES = "08:00,13:00,19:00"
+    try:
+        from database import get_db, SQLiteDB
+        db = get_db()
+        if not isinstance(db, SQLiteDB):
+            return
+        uninitialized = db.execute(
+            """
+            SELECT page_id FROM managed_pages
+            WHERE posts_per_day IS NULL OR posting_times IS NULL
+            """
+        )
+        if uninitialized:
+            for row in uninitialized:
+                db.execute(
+                    """
+                    UPDATE managed_pages
+                    SET posts_per_day = COALESCE(posts_per_day, ?),
+                        posting_times = COALESCE(posting_times, ?)
+                    WHERE page_id = ?
+                    """,
+                    (DEFAULT_POSTS_PER_DAY, DEFAULT_POSTING_TIMES, row["page_id"])
+                )
+            logger.info(
+                "Smart defaults applied to %d page(s) at startup: "
+                "%d posts/day at %s",
+                len(uninitialized), DEFAULT_POSTS_PER_DAY, DEFAULT_POSTING_TIMES
+            )
+    except Exception as e:
+        logger.warning("Smart defaults init failed: %s", e)
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀 Content Factory Dashboard")
     print("=" * 60)
     
     create_tables_if_not_exist()
+    _init_smart_defaults()
     
     port = int(os.getenv("DASHBOARD_PORT", 5000))
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
