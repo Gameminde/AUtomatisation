@@ -33,6 +33,10 @@ See `.env.example` / `env.example` for required variables:
 - `DASHBOARD_API_KEY` - Optional API key for dashboard auth
 - `FLASK_SECRET_KEY` - Flask session key (auto-generated if not set)
 
+## Key Features
+- **Instagram Publishing**: Two-step Graph API publisher in `instagram_publisher.py`; outcomes persisted via `_persist_publish_outcome()` in `publisher.py`; per-platform badges shown in dashboard
+- **What's Working Card** (`/api/insights`): Pure SQLite intelligence card on the dashboard showing 2-3 plain-language insights — best post type by engagement, best posting time by reach, and weekly trend. Falls back to a "keep posting" + smart-defaults state when fewer than 5 posts exist. No Supabase required. Card rendered by `loadInsights()` in `static/js/dashboard_v3.js`.
+
 ## Deployment
 - Production server: gunicorn via `gunicorn --bind=0.0.0.0:5000 --reuse-port dashboard_app:app`
 - Deployment target: autoscale

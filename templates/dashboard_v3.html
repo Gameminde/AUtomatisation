@@ -73,17 +73,23 @@
     </div>
 </div>
 
-<div class="grid-2" style="margin-top:1rem;">
-    <div class="card">
-        <h3 data-i18n="insights_title">Insights</h3>
-        <div class="muted" data-i18n="insights_hint">Auto insights from recent posts.</div>
-        <div id="insights-box" class="list" style="margin-top:0.75rem;"></div>
+<div style="margin-top:1rem;">
+    <div class="card" id="whats-working-card" style="border-left: 3px solid var(--accent); background: linear-gradient(135deg, var(--card-bg) 0%, rgba(var(--accent-rgb, 99,102,241), 0.04) 100%);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem;">
+                <i class="fa-solid fa-lightbulb" style="color:var(--accent);"></i>
+                <h3 style="margin:0;" data-i18n="insights_title">What's Working</h3>
+            </div>
+            <span class="badge" id="insights-post-count" style="display:none;"></span>
+        </div>
+        <div id="insights-box"></div>
     </div>
-    <div class="card">
-        <h3 data-i18n="pipeline_title">Pipeline</h3>
-        <div class="muted" data-i18n="pipeline_hint">Upcoming scheduled content.</div>
-        <div id="pipeline-box" class="list" style="margin-top:0.75rem;"></div>
-    </div>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+    <h3 data-i18n="pipeline_title">Pipeline</h3>
+    <div class="muted" data-i18n="pipeline_hint">Upcoming scheduled content.</div>
+    <div id="pipeline-box" class="list" style="margin-top:0.75rem;"></div>
 </div>
 {% endblock %}
 

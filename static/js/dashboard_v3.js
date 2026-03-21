@@ -64,7 +64,8 @@ async function loadDashboard() {
     await Promise.all([
         loadSystemSnapshot(),
         loadAnalytics(),
-        loadQueues()
+        loadQueues(),
+        loadInsights()
     ]);
     clearSkeletons();
 }
@@ -92,7 +93,6 @@ async function loadAnalytics() {
         setKPI('kpi-reach', data.total_reach);
         setKPI('kpi-likes', data.total_likes);
         setKPI('kpi-engagement', `${data.engagement_rate || 0}%`);
-        renderInsights(data);
     } catch (e) {
         ['kpi-posts', 'kpi-reach', 'kpi-likes'].forEach(id => setKPI(id, '--'));
         setKPI('kpi-engagement', '--%');
@@ -107,20 +107,76 @@ function setKPI(id, value) {
     }
 }
 
-function renderInsights(data) {
+// ── What's Working Insights ──────────────────────────
+async function loadInsights() {
     const box = document.getElementById('insights-box');
     if (!box) return;
-    const avg = data.avg_per_post;
-    if (!avg || (!avg.likes && !avg.shares && !avg.comments)) {
-        box.innerHTML = renderEmptyState('fa-lightbulb', 'No insights yet', 'Publish a few posts and insights will appear here.');
-        return;
+
+    // Skeleton while loading
+    box.innerHTML = `<div class="skeleton" style="height:3.5rem; border-radius:0.5rem; margin-bottom:0.5rem;">&nbsp;</div>
+                     <div class="skeleton" style="height:3.5rem; border-radius:0.5rem;">&nbsp;</div>`;
+    try {
+        const data = await apiCall('/api/insights');
+
+        if (!data.ready) {
+            const postsLeft = (data.min_posts_needed || 5) - (data.total_posts || 0);
+            const countBadge = document.getElementById('insights-post-count');
+            if (countBadge) {
+                countBadge.textContent = `${data.total_posts || 0} posts`;
+                countBadge.style.display = '';
+            }
+            box.innerHTML = `
+                <div style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.5rem 0;">
+                    <i class="fa-solid fa-seedling" style="color:var(--accent); font-size:1.4rem; margin-top:0.1rem; flex-shrink:0;"></i>
+                    <div>
+                        <div style="font-weight:600; margin-bottom:0.2rem;">Keep posting — insights are on the way!</div>
+                        <div class="muted" style="line-height:1.5;">
+                            Publish ${postsLeft > 0 ? postsLeft + ' more post' + (postsLeft !== 1 ? 's' : '') : 'more posts'} and you'll see what's working for your audience.
+                        </div>
+                        <div style="margin-top:0.75rem; padding:0.6rem 0.8rem; border-radius:0.5rem; background:rgba(var(--accent-rgb,99,102,241),0.07); font-size:0.82rem;">
+                            <strong>Smart default schedule:</strong> 3 posts/day — morning, afternoon, and evening — is a great starting point for most pages.
+                        </div>
+                    </div>
+                </div>`;
+            return;
+        }
+
+        // Show post count badge
+        const countBadge = document.getElementById('insights-post-count');
+        if (countBadge) {
+            countBadge.textContent = `Based on ${data.total_posts} posts`;
+            countBadge.style.display = '';
+        }
+
+        const insightColors = {
+            post_type: '#f59e0b',
+            best_time:  '#10b981',
+            trend:      '#6366f1',
+            top_post:   '#ec4899'
+        };
+
+        if (!data.insights || !data.insights.length) {
+            box.innerHTML = renderEmptyState('fa-lightbulb', 'No patterns yet', 'Check back after a few more posts have engagement data.');
+            return;
+        }
+
+        box.innerHTML = data.insights.map(ins => {
+            const color = insightColors[ins.type] || 'var(--accent)';
+            return `
+            <div style="display:flex; align-items:flex-start; gap:0.75rem; padding:0.6rem 0; border-bottom:1px solid var(--border); last-of-type:border-bottom:none;">
+                <div style="width:2rem; height:2rem; border-radius:50%; background:${color}22; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                    <i class="fa-solid ${ins.icon}" style="color:${color}; font-size:0.8rem;"></i>
+                </div>
+                <div style="flex:1; min-width:0;">
+                    <div style="font-weight:600; line-height:1.4;">${ins.message}</div>
+                    ${ins.metric ? `<div class="muted" style="font-size:0.78rem; margin-top:0.15rem;">${ins.metric}</div>` : ''}
+                </div>
+            </div>`;
+        }).join('');
+
+    } catch (e) {
+        box.innerHTML = renderEmptyState('fa-lightbulb', 'Insights unavailable', 'Check back after posting some content.');
     }
-    const items = [
-        `Avg likes/post: ${avg.likes ?? 0}`,
-        `Avg shares/post: ${avg.shares ?? 0}`,
-        `Avg comments/post: ${avg.comments ?? 0}`
-    ];
-    box.innerHTML = items.map(i => `<div class="list-item">${i}</div>`).join('');
 }
 
 async function loadQueues() {

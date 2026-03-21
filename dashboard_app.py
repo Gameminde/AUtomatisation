@@ -267,6 +267,204 @@ def get_analytics_overview():
         return jsonify({"error": str(e)}), 500
 
 
+@api_bp.route('/api/insights', methods=['GET'])
+@require_auth
+def get_insights():
+    """
+    Generate 2-3 plain-language 'What's Working' insights from engagement data.
+    Works entirely from SQLite — no Supabase required.
+
+    Returns:
+        {
+          "ready": bool,           # False when not enough data yet
+          "min_posts_needed": int, # Threshold for insights
+          "total_posts": int,
+          "insights": [
+            {"type": str, "icon": str, "message": str, "metric": str}
+          ]
+        }
+    """
+    MIN_POSTS = 5
+    try:
+        from database import get_db
+        db = get_db()
+
+        # ── Total successful published posts ───────────────────────────
+        total_rows = db.execute(
+            """
+            SELECT COUNT(*) AS n FROM published_posts
+            WHERE facebook_post_id IS NOT NULL
+               OR instagram_post_id IS NOT NULL
+               OR facebook_status = 'published'
+               OR instagram_status = 'published'
+            """
+        )
+        total_posts = total_rows[0]["n"] if total_rows else 0
+
+        if total_posts < MIN_POSTS:
+            return jsonify({
+                "ready": False,
+                "min_posts_needed": MIN_POSTS,
+                "total_posts": total_posts,
+                "insights": []
+            })
+
+        insights = []
+
+        # ── Insight 1: Best post type by engagement ────────────────────
+        # Join published_posts → processed_content to group by post_type
+        type_rows = db.execute(
+            """
+            SELECT
+                pc.post_type,
+                COUNT(*) AS cnt,
+                AVG(COALESCE(pp.likes,0) + COALESCE(pp.comments,0)*2 + COALESCE(pp.shares,0)*3) AS avg_eng,
+                AVG(COALESCE(pp.reach,0)) AS avg_reach
+            FROM published_posts pp
+            JOIN processed_content pc ON pc.id = pp.content_id
+            WHERE pp.published_at >= datetime('now', '-30 days')
+              AND (pp.facebook_post_id IS NOT NULL OR pp.instagram_post_id IS NOT NULL
+                   OR pp.facebook_status = 'published' OR pp.instagram_status = 'published')
+            GROUP BY pc.post_type
+            HAVING cnt >= 2
+            ORDER BY avg_eng DESC
+            """
+        )
+        if len(type_rows) >= 2:
+            best = type_rows[0]
+            worst = type_rows[-1]
+            best_type = (best["post_type"] or "hook").replace("_", " ").title()
+            worst_type = (worst["post_type"] or "other").replace("_", " ").title()
+            ratio = (best["avg_eng"] / worst["avg_eng"]) if worst["avg_eng"] and worst["avg_eng"] > 0 else 0
+            if ratio >= 1.3:
+                insights.append({
+                    "type": "post_type",
+                    "icon": "fa-fire",
+                    "message": f"{best_type} posts are getting {ratio:.1f}× more engagement than {worst_type} posts this month.",
+                    "metric": f"Avg engagement score: {best['avg_eng']:.0f} vs {worst['avg_eng']:.0f}"
+                })
+            elif best["avg_reach"] > 0:
+                insights.append({
+                    "type": "post_type",
+                    "icon": "fa-chart-line",
+                    "message": f"{best_type} posts are your strongest format right now.",
+                    "metric": f"Avg reach: {best['avg_reach']:.0f} people"
+                })
+
+        # ── Insight 2: Best posting time (morning / afternoon / evening) ──
+        time_rows = db.execute(
+            """
+            SELECT
+                CASE
+                    WHEN CAST(strftime('%H', pp.published_at) AS INTEGER) BETWEEN 5 AND 11 THEN 'morning (6–11 AM)'
+                    WHEN CAST(strftime('%H', pp.published_at) AS INTEGER) BETWEEN 12 AND 16 THEN 'afternoon (12–4 PM)'
+                    WHEN CAST(strftime('%H', pp.published_at) AS INTEGER) BETWEEN 17 AND 21 THEN 'evening (5–9 PM)'
+                    ELSE 'night (10 PM–5 AM)'
+                END AS time_slot,
+                COUNT(*) AS cnt,
+                AVG(COALESCE(pp.reach, 0)) AS avg_reach,
+                AVG(COALESCE(pp.likes,0) + COALESCE(pp.comments,0) + COALESCE(pp.shares,0)) AS avg_interactions
+            FROM published_posts pp
+            WHERE pp.published_at >= datetime('now', '-30 days')
+              AND pp.reach > 0
+              AND (pp.facebook_post_id IS NOT NULL OR pp.instagram_post_id IS NOT NULL
+                   OR pp.facebook_status = 'published' OR pp.instagram_status = 'published')
+            GROUP BY time_slot
+            HAVING cnt >= 2
+            ORDER BY avg_reach DESC
+            """
+        )
+        if time_rows:
+            best_slot = time_rows[0]
+            reach = best_slot["avg_reach"]
+            if reach > 0:
+                insights.append({
+                    "type": "best_time",
+                    "icon": "fa-clock",
+                    "message": f"Posts in the {best_slot['time_slot']} reach the most people.",
+                    "metric": f"Avg reach: {reach:.0f} people per post"
+                })
+
+        # ── Insight 3: Recent engagement trend (last 7d vs prior 7d) ───
+        trend_rows = db.execute(
+            """
+            SELECT
+                CASE
+                    WHEN published_at >= datetime('now', '-7 days') THEN 'recent'
+                    ELSE 'prior'
+                END AS period,
+                COUNT(*) AS cnt,
+                AVG(COALESCE(likes,0) + COALESCE(comments,0) + COALESCE(shares,0)) AS avg_eng
+            FROM published_posts
+            WHERE published_at >= datetime('now', '-14 days')
+              AND (facebook_post_id IS NOT NULL OR instagram_post_id IS NOT NULL
+                   OR facebook_status = 'published' OR instagram_status = 'published')
+            GROUP BY period
+            """
+        )
+        trend_map = {r["period"]: r for r in trend_rows}
+        recent = trend_map.get("recent")
+        prior = trend_map.get("prior")
+        if recent and prior and prior["avg_eng"] and prior["avg_eng"] > 0 and recent["cnt"] >= 2 and prior["cnt"] >= 2:
+            change_pct = ((recent["avg_eng"] - prior["avg_eng"]) / prior["avg_eng"]) * 100
+            if change_pct >= 10:
+                insights.append({
+                    "type": "trend",
+                    "icon": "fa-arrow-trend-up",
+                    "message": f"Engagement is up {change_pct:.0f}% this week compared to last week.",
+                    "metric": f"This week avg: {recent['avg_eng']:.1f} interactions/post"
+                })
+            elif change_pct <= -10:
+                insights.append({
+                    "type": "trend",
+                    "icon": "fa-arrow-trend-down",
+                    "message": "Engagement dipped this week — try posting at a different time or switching up your format.",
+                    "metric": f"Down {abs(change_pct):.0f}% vs last week"
+                })
+
+        # ── Fallback insight when data exists but no pattern found ─────
+        if not insights:
+            # Show a simple top performer insight as a fallback
+            top_rows = db.execute(
+                """
+                SELECT pp.likes, pp.shares, pp.comments, pp.reach, pc.hook
+                FROM published_posts pp
+                LEFT JOIN processed_content pc ON pc.id = pp.content_id
+                WHERE (pp.facebook_post_id IS NOT NULL OR pp.instagram_post_id IS NOT NULL
+                       OR pp.facebook_status = 'published' OR pp.instagram_status = 'published')
+                ORDER BY (COALESCE(pp.likes,0) + COALESCE(pp.comments,0)*2 + COALESCE(pp.shares,0)*3) DESC
+                LIMIT 1
+                """
+            )
+            if top_rows:
+                top = top_rows[0]
+                hook_preview = (top["hook"] or "Your top post")[:40]
+                total_eng = (top["likes"] or 0) + (top["comments"] or 0) + (top["shares"] or 0)
+                insights.append({
+                    "type": "top_post",
+                    "icon": "fa-trophy",
+                    "message": f"Your best post so far got {total_eng} interactions — keep that style going.",
+                    "metric": f'"{hook_preview}{"..." if len(top.get("hook","")) > 40 else ""}"'
+                })
+
+        return jsonify({
+            "ready": True,
+            "min_posts_needed": MIN_POSTS,
+            "total_posts": total_posts,
+            "insights": insights[:3]  # Cap at 3
+        })
+
+    except Exception as e:
+        logger.error("Error generating insights: %s", e)
+        return jsonify({
+            "ready": False,
+            "min_posts_needed": MIN_POSTS,
+            "total_posts": 0,
+            "insights": [],
+            "error": str(e)
+        })
+
+
 @api_bp.route('/api/analytics/daily', methods=['GET'])
 @require_auth
 def get_daily_analytics():
