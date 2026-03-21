@@ -1,0 +1,72 @@
+Phase 1 — now
+Multi-platform publishing
+You're Facebook-only. The biggest immediate jump is adding Instagram (same Graph API) and Threads. One piece of content, three platforms, zero extra work for the user.
+
+Instagram
+Stories + feed posts
+Threads
+Text + media
+Cross-post scheduler
+One queue, all platforms
+Per-platform variants
+AI rewrites per channel
+Phase 1 — now
+Content intelligence
+The current pipeline generates content but doesn't learn from what works. Add a feedback loop so the AI improves its own prompts based on real engagement data.
+
+Prompt evolution
+Auto-improve from results
+Optimal timing AI
+Per-audience predictions
+Topic clustering
+Avoid content fatigue
+Virality predictor
+Score before publishing
+Phase 2 — growth
+Visual content engine
+Images already exist via Pillow + Pexels. The leap is going from static templates to fully AI-generated, on-brand visuals — and adding video.
+
+AI image gen
+DALL-E / Stable Diffusion
+Auto Reels
+ffmpeg slideshows
+AI voiceover
+ElevenLabs integration
+Canvas editor
+Edit before publishing
+Phase 2 — growth
+Audience & engagement
+Right now the pipeline publishes and forgets. Add a response layer — monitor comments, auto-reply to common questions, and track audience growth over time.
+
+Comment AI
+Auto-reply + moderation
+Follower analytics
+Track growth curves
+Top content patterns
+Learn what wins
+Competitor monitor
+Watch rival pages
+Phase 3 — scale
+Multi-tenant SaaS
+Your ROADMAP already plans this. The key architecture decisions are workspace isolation, per-tenant billing, and white-label mode for agencies selling to their clients.
+
+Workspace isolation
+RLS in Supabase
+Stripe billing
+Plans + usage metering
+White-label mode
+Agency reselling
+Client reports
+Auto PDF reports
+Phase 3 — scale
+Workflow automation
+Move beyond a script that runs on a schedule. Build a proper event-driven workflow engine with webhooks, triggers, and conditional logic — like n8n but for social media.
+
+Event triggers
+If engagement > X, then...
+Zapier / Make
+Connect any tool
+Mobile approvals
+Approve posts on phone
+Campaign mode
+Multi-week sequences
