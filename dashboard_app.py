@@ -1250,43 +1250,46 @@ def publish_specific_content():
         # ── Persist platform failure statuses so the dashboard shows accurate state ──
         try:
             client = config.get_supabase_client()
+            import uuid as _uuid_m
             fb_post_id_manual = fb_result_data.get("post_id", "")
+            ig_post_id_manual = ig_result_data.get("post_id", "")
+
+            # Fetch latest published_posts row for this content (most-recent attempt)
+            latest_rows = (
+                client.table('published_posts')
+                .select('id, facebook_post_id, instagram_post_id, facebook_status, instagram_status')
+                .eq('content_id', content_id)
+                .order('published_at', desc=True)
+                .limit(1)
+                .execute()
+            )
+            latest_row = latest_rows.data[0] if latest_rows.data else None
+            latest_row_id = latest_row['id'] if latest_row else None
+
             if 'facebook' in platforms and not fb_result_data.get("success"):
-                # FB failed in manual publish — write failure row if no FB row exists yet
-                existing = (
-                    client.table('published_posts')
-                    .select('id')
-                    .eq('content_id', content_id)
-                    .execute()
-                )
-                if not existing.data:
-                    import uuid as _uuid
+                if latest_row_id:
+                    # Only stamp failed on the specific row — never overwrite a prior success
+                    if not latest_row.get("facebook_post_id") and latest_row.get("facebook_status") != "published":
+                        client.table('published_posts').update(
+                            {'facebook_status': 'failed'}
+                        ).eq('id', latest_row_id).execute()
+                else:
                     client.table('published_posts').insert({
-                        'id': str(_uuid.uuid4()),
+                        'id': str(_uuid_m.uuid4()),
                         'content_id': content_id,
                         'facebook_status': 'failed',
                         'platforms': ','.join(platforms),
                     }).execute()
-                else:
-                    client.table('published_posts').update(
-                        {'facebook_status': 'failed'}
-                    ).eq('content_id', content_id).execute()
+
             if 'instagram' in platforms and not ig_result_data.get("success"):
-                # IG failed — stamp instagram_status='failed' on any existing row
-                existing_ig = (
-                    client.table('published_posts')
-                    .select('id')
-                    .eq('content_id', content_id)
-                    .execute()
-                )
-                if existing_ig.data:
-                    client.table('published_posts').update(
-                        {'instagram_status': 'failed'}
-                    ).eq('content_id', content_id).execute()
+                if latest_row_id:
+                    if not latest_row.get("instagram_post_id") and latest_row.get("instagram_status") != "published":
+                        client.table('published_posts').update(
+                            {'instagram_status': 'failed'}
+                        ).eq('id', latest_row_id).execute()
                 else:
-                    import uuid as _uuid2
                     client.table('published_posts').insert({
-                        'id': str(_uuid2.uuid4()),
+                        'id': str(_uuid_m.uuid4()),
                         'content_id': content_id,
                         'instagram_status': 'failed',
                         'platforms': ','.join(platforms),
