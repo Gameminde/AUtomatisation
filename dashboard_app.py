@@ -471,8 +471,10 @@ def get_insights():
                     "metric": f"Down {abs(change_pct):.0f}% vs last week"
                 })
 
-        # ── Fallback: top performer when no pattern is clear ──────────
-        if not insights:
+        # ── Fallback: top performer when fewer than 2 insights found ──
+        # Guarantees ready=true always returns at least 2 insights when
+        # there is engagement data, so the card never looks sparse.
+        if len(insights) < 2:
             top_rows = db.execute(
                 f"""
                 SELECT pp.likes, pp.shares, pp.comments, pp.reach, pc.hook

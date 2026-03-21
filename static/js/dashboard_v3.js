@@ -167,7 +167,8 @@ async function loadInsights() {
         // Show post count badge
         const countBadge = document.getElementById('insights-post-count');
         if (countBadge) {
-            countBadge.textContent = `Based on ${data.total_posts} posts`;
+            const t2 = window.i18n ? window.i18n.t.bind(window.i18n) : (k) => k;
+            countBadge.textContent = t2('insights_based_on').replace('{n}', data.total_posts);
             countBadge.style.display = '';
         }
 

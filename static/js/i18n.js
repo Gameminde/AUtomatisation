@@ -31,6 +31,7 @@ const translations = {
         'insights_no_patterns': 'لا أنماط بعد',
         'insights_no_patterns_hint': 'ارجع بعد المزيد من المنشورات ذات بيانات التفاعل.',
         'insights_sqlite_only': 'الرؤى متاحة في الوضع المحلي (SQLite) فقط.',
+        'insights_based_on': 'بناءً على {n} منشورات',
         'pipeline_title': 'خط الإنتاج',
         'pipeline_hint': 'المنشورات القادمة',
 
@@ -107,6 +108,7 @@ const translations = {
         'insights_no_patterns': 'Pas encore de tendance',
         'insights_no_patterns_hint': 'Revenez après quelques posts avec des données.',
         'insights_sqlite_only': 'Les insights sont disponibles en mode local (SQLite).',
+        'insights_based_on': 'Basé sur {n} posts',
         'pipeline_title': 'Pipeline',
         'pipeline_hint': 'Prochaines publications',
 
@@ -183,6 +185,7 @@ const translations = {
         'insights_no_patterns': 'No patterns yet',
         'insights_no_patterns_hint': 'Check back after a few more posts have engagement data.',
         'insights_sqlite_only': 'Insights are available in local (SQLite) mode.',
+        'insights_based_on': 'Based on {n} posts',
         'pipeline_title': 'Pipeline',
         'pipeline_hint': 'Upcoming posts',
 
