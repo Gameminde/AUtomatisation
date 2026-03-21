@@ -131,10 +131,6 @@ async function loadInsights() {
 
         if (!data.ready) {
             const t = window.i18n ? window.i18n.t.bind(window.i18n) : (k) => k;
-            const postsLeft = (data.min_posts_needed || 5) - (data.total_posts || 0);
-            const postsLeftText = postsLeft > 0
-                ? postsLeft + ' more post' + (postsLeft !== 1 ? 's' : '')
-                : 'more posts';
             const countBadge = document.getElementById('insights-post-count');
             if (countBadge) {
                 countBadge.textContent = `${data.total_posts || 0} posts`;
@@ -146,7 +142,7 @@ async function loadInsights() {
                     <div>
                         <div style="font-weight:600; margin-bottom:0.2rem;">${escapeHtml(t('insights_placeholder_title'))}</div>
                         <div class="muted" style="line-height:1.5;">
-                            Publish ${escapeHtml(postsLeftText)} and ${escapeHtml(t('insights_placeholder_body'))}
+                            ${escapeHtml(t('insights_placeholder_body'))}
                         </div>
                         <div style="margin-top:0.75rem; padding:0.6rem 0.8rem; border-radius:0.5rem; background:rgba(var(--accent-rgb,99,102,241),0.07); font-size:0.82rem;">
                             ${escapeHtml(t('insights_default_schedule'))}

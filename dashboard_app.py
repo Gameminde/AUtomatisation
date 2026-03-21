@@ -2731,6 +2731,9 @@ def test_ai_provider():
 app.register_blueprint(web_bp)
 app.register_blueprint(api_bp)
 
+# ── Run smart-defaults backfill at module load time so it executes under
+# both `python dashboard_app.py` and Gunicorn (`gunicorn dashboard_app:app`).
+# Wrapped in app context so db helpers resolve correctly. ─────────────────
 
 def _init_smart_defaults() -> None:
     """
@@ -2773,14 +2776,18 @@ def _init_smart_defaults() -> None:
         logger.warning("Smart defaults init failed: %s", e)
 
 
+# Module-level call: runs under both `python dashboard_app.py` and Gunicorn.
+with app.app_context():
+    _init_smart_defaults()
+
+
 if __name__ == '__main__':
     print("=" * 60)
     print("🚀 Content Factory Dashboard")
     print("=" * 60)
-    
+
     create_tables_if_not_exist()
-    _init_smart_defaults()
-    
+
     port = int(os.getenv("DASHBOARD_PORT", 5000))
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
     
