@@ -46,3 +46,17 @@ pyinstaller>=6.0.0          # Create .exe (for building only)
 #    - PEXELS_API_KEY: pexels.com/api (free, 200 req/hour)
 #    - Works without it (fallback images)
 # ==============================================
+arabic-reshaper
+cryptography
+feedparser
+flask
+flask-cors
+pandas
+Pillow
+python-bidi
+python-dotenv
+pytrends
+requests
+streamlit
+supabase
+gunicorn
