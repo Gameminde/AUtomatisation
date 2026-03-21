@@ -282,6 +282,9 @@ def publish_due_posts(limit: int = 5) -> int:
         fb_post_id: str = ""
         fb_ok: bool = False
         ig_ok: bool = False
+        ig_post_id: str = ""
+        fb_error: str = ""
+        ig_error: str = ""
 
         # ── Facebook publish (isolated try — does NOT block IG) ────────
         if publish_to_facebook:
@@ -298,56 +301,49 @@ def publish_due_posts(limit: int = 5) -> int:
                 fb_ok = True
                 logger.info("✅ Published %s -> FB: %s", content_id[:8], fb_post_id)
             except Exception as fb_exc:
+                fb_error = str(fb_exc)
                 logger.error("❌ Facebook publish failed for %s: %s", content_id[:8], fb_exc)
                 action, error_code = error_handler.classify_error(fb_exc)
                 retry_count = content.get("retry_count", 0)
                 error_handler.execute_action(action, content_id, error_code, retry_count)
-                # Persist facebook_status='failed' so the UI can show it
-                try:
-                    from database import get_db
-                    db = get_db()
-                    with db.get_connection() as conn:
-                        conn.execute(
-                            "INSERT INTO published_posts (content_id, facebook_status, platforms)"
-                            " VALUES (?, 'failed', 'facebook')",
-                            (content["id"],),
-                        )
-                except Exception:
-                    pass
 
         # ── Instagram publish (isolated — does NOT depend on FB) ─────
-        ig_error: str = ""
         if publish_to_instagram:
             ig_result = _publish_to_instagram_if_configured(content, fb_post_id)
             ig_ok = ig_result["success"]
             ig_error = ig_result.get("error") or ""
+            ig_post_id = ig_result.get("post_id") or ""
             if not ig_ok:
                 logger.warning("⚠️ Instagram publish failed for %s: %s", content_id[:8], ig_error)
-            # Persist instagram_status='failed' when IG was selected but failed
-            if not ig_ok and ig_error:
-                try:
-                    client = config.get_supabase_client()
-                    if fb_post_id:
-                        client.table("published_posts").update(
-                            {"instagram_status": "failed"}
-                        ).eq("content_id", content["id"]).eq(
-                            "facebook_post_id", fb_post_id
-                        ).execute()
-                except Exception:
-                    pass
+
+        # ── Persist outcome row for ALL selected platforms to Supabase ─
+        # This is the single authoritative write — handles all combinations:
+        # FB-only, IG-only, both succeed, partial fail, all fail.
+        _persist_publish_outcome(
+            content_id=content["id"],
+            platforms_field=platforms_field,
+            publish_to_facebook=publish_to_facebook,
+            fb_ok=fb_ok,
+            fb_post_id=fb_post_id,
+            publish_to_instagram=publish_to_instagram,
+            ig_ok=ig_ok,
+            ig_post_id=ig_post_id,
+        )
 
         # ── Update content status & schedule row based on outcomes ─────
         any_ok = fb_ok or ig_ok
         if any_ok:
-            # At least one platform succeeded — mark as published
-            if publish_to_instagram and not publish_to_facebook:
-                # IG-only: mirror mark_published lifecycle
-                try:
-                    config.get_supabase_client().table("processed_content").update(
-                        {"status": "published"}
-                    ).eq("id", content["id"]).execute()
-                except Exception as state_err:
-                    logger.warning("Could not update content status for IG-only post: %s", state_err)
+            # At least one platform succeeded — mark processed_content as published
+            if not publish_to_facebook or (publish_to_instagram and not fb_ok):
+                # IG-only or FB failed but IG succeeded: processed_content was not updated by
+                # mark_published(), so update it here.
+                if not fb_ok:
+                    try:
+                        config.get_supabase_client().table("processed_content").update(
+                            {"status": "published"}
+                        ).eq("id", content["id"]).execute()
+                    except Exception as state_err:
+                        logger.warning("Could not update content status: %s", state_err)
 
             # Partial failure still counts as published (at least one succeeded)
             final_status = "published"
@@ -504,6 +500,94 @@ def get_publication_status() -> Dict:
     """Get current publication status and stats."""
     tracker = get_tracker()
     return tracker.get_publication_stats()
+
+
+def _persist_publish_outcome(
+    *,
+    content_id: str,
+    platforms_field: str,
+    publish_to_facebook: bool,
+    fb_ok: bool,
+    fb_post_id: str,
+    publish_to_instagram: bool,
+    ig_ok: bool,
+    ig_post_id: str,
+) -> None:
+    """
+    Write a single, authoritative published_posts row to Supabase for this attempt.
+
+    Design:
+    - If Facebook succeeded, mark_published() already inserted the FB row.
+      Update that row with IG outcome (if IG was selected).
+    - If Facebook failed but Instagram succeeded, _publish_to_instagram_if_configured
+      already inserted an IG-only row. Update that row with fb_status='failed'.
+    - If both failed, insert a failure-only row (no post IDs) so the outcome is visible.
+    - If Facebook failed and Instagram was also selected but failed, insert a combined
+      failure row showing both attempts.
+
+    All writes go to Supabase (the DB layer the dashboard API reads from).
+    """
+    try:
+        client = config.get_supabase_client()
+
+        if fb_ok and not publish_to_instagram:
+            # FB-only success — already inserted by mark_published(); nothing to do.
+            return
+
+        if fb_ok and publish_to_instagram:
+            # FB succeeded; IG was attempted. _publish_to_instagram_if_configured already
+            # updated the row on IG success. If IG failed, we need to stamp instagram_status.
+            if not ig_ok:
+                client.table("published_posts").update(
+                    {"instagram_status": "failed"}
+                ).eq("content_id", content_id).eq(
+                    "facebook_post_id", fb_post_id
+                ).execute()
+            # If IG succeeded the row was already updated inside _publish_to_instagram_if_configured.
+            return
+
+        if not fb_ok and ig_ok and not publish_to_facebook:
+            # Pure IG-only success. Row already inserted inside _publish_to_instagram_if_configured.
+            return
+
+        if not fb_ok and ig_ok and publish_to_facebook:
+            # FB failed, IG succeeded. IG helper inserted an IG-only row.
+            # Stamp facebook_status='failed' on that row so the dashboard shows the full picture.
+            result = (
+                client.table("published_posts")
+                .select("id")
+                .eq("content_id", content_id)
+                .eq("instagram_post_id", ig_post_id)
+                .limit(1)
+                .execute()
+            )
+            if result.data:
+                client.table("published_posts").update({
+                    "facebook_status": "failed",
+                    "platforms": platforms_field,
+                }).eq("id", result.data[0]["id"]).execute()
+            return
+
+        # All selected platforms failed — insert a diagnostic failure row.
+        import uuid as _uuid
+        platforms_attempted = []
+        if publish_to_facebook:
+            platforms_attempted.append("facebook")
+        if publish_to_instagram:
+            platforms_attempted.append("instagram")
+        row: Dict = {
+            "id": str(_uuid.uuid4()),
+            "content_id": content_id,
+            "platforms": ",".join(platforms_attempted),
+        }
+        if publish_to_facebook:
+            row["facebook_status"] = "failed"
+        if publish_to_instagram:
+            row["instagram_status"] = "failed"
+        client.table("published_posts").insert(row).execute()
+
+    except Exception as err:
+        logger.warning("_persist_publish_outcome: DB write failed: %s", err)
 
 
 def _publish_to_instagram_if_configured(content: Dict, fb_post_id: str) -> Dict:
