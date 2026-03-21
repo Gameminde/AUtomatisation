@@ -302,15 +302,39 @@ def publish_due_posts(limit: int = 5) -> int:
                 action, error_code = error_handler.classify_error(fb_exc)
                 retry_count = content.get("retry_count", 0)
                 error_handler.execute_action(action, content_id, error_code, retry_count)
+                # Persist facebook_status='failed' so the UI can show it
+                try:
+                    from database import get_db
+                    db = get_db()
+                    with db.get_connection() as conn:
+                        conn.execute(
+                            "INSERT INTO published_posts (content_id, facebook_status, platforms)"
+                            " VALUES (?, 'failed', 'facebook')",
+                            (content["id"],),
+                        )
+                except Exception:
+                    pass
 
-        # ── Instagram publish (isolated try — does NOT depend on FB) ───
+        # ── Instagram publish (isolated — does NOT depend on FB) ─────
+        ig_error: str = ""
         if publish_to_instagram:
-            try:
-                _publish_to_instagram_if_configured(content, fb_post_id)
-                ig_ok = True
-                logger.info("✅ Published %s -> IG", content_id[:8])
-            except Exception as ig_exc:
-                logger.warning("⚠️ Instagram publish failed for %s: %s", content_id[:8], ig_exc)
+            ig_result = _publish_to_instagram_if_configured(content, fb_post_id)
+            ig_ok = ig_result["success"]
+            ig_error = ig_result.get("error") or ""
+            if not ig_ok:
+                logger.warning("⚠️ Instagram publish failed for %s: %s", content_id[:8], ig_error)
+            # Persist instagram_status='failed' when IG was selected but failed
+            if not ig_ok and ig_error:
+                try:
+                    client = config.get_supabase_client()
+                    if fb_post_id:
+                        client.table("published_posts").update(
+                            {"instagram_status": "failed"}
+                        ).eq("content_id", content["id"]).eq(
+                            "facebook_post_id", fb_post_id
+                        ).execute()
+                except Exception:
+                    pass
 
         # ── Update content status & schedule row based on outcomes ─────
         any_ok = fb_ok or ig_ok
@@ -482,42 +506,44 @@ def get_publication_status() -> Dict:
     return tracker.get_publication_stats()
 
 
-def _publish_to_instagram_if_configured(content: Dict, fb_post_id: str) -> None:
+def _publish_to_instagram_if_configured(content: Dict, fb_post_id: str) -> Dict:
     """
-    Attempt to publish content to Instagram after a successful Facebook publish.
-    Called by publish_due_posts when the schedule row's platforms field includes 'instagram'.
-    Failures are logged as warnings only — they do NOT abort the Facebook publish.
+    Attempt to publish content to Instagram.
+    Always returns a structured result dict — never raises.
 
-    Args:
-        content: Content dict from processed_content
-        fb_post_id: Facebook post ID (already published — used for DB update)
+    Returns:
+        {"success": bool, "post_id": str|None, "error": str|None}
     """
     from facebook_oauth import load_tokens, get_instagram_account_for_page
     from instagram_publisher import publish_photo_to_instagram, get_public_image_url, get_app_base_url
 
+    def _fail(reason: str) -> Dict:
+        logger.warning("Instagram publish skipped/failed: %s", reason)
+        return {"success": False, "post_id": None, "error": reason}
+
     tokens = load_tokens()
     if not tokens:
-        logger.warning("Instagram cross-post skipped: no Facebook tokens")
-        return
+        return _fail("no Facebook tokens configured")
 
     page_id = tokens.get("page_id")
     page_token = tokens.get("page_token")
-    ig_info = get_instagram_account_for_page(page_id, page_token)
-    if not ig_info:
-        logger.warning("Instagram cross-post skipped: no Instagram Business Account linked")
-        return
 
-    ig_user_id = ig_info["instagram_account_id"]
+    # Use stored IG account ID first, fall back to live discovery
+    ig_user_id = tokens.get("instagram_account_id", "")
+    if not ig_user_id:
+        ig_info = get_instagram_account_for_page(page_id, page_token)
+        if not ig_info:
+            return _fail("no Instagram Business Account linked to this Facebook Page")
+        ig_user_id = ig_info["instagram_account_id"]
+
     image_path = content.get("image_path", "")
     if not image_path:
-        logger.warning("Instagram cross-post skipped: no image (Instagram requires an image)")
-        return
+        return _fail("no image available (Instagram requires an image)")
 
     base_url = get_app_base_url()
     image_url = get_public_image_url(image_path, base_url)
     if not image_url:
-        logger.warning("Instagram cross-post skipped: image file missing (%s)", image_path)
-        return
+        return _fail(f"image file missing: {image_path}")
 
     # Build caption
     arabic_text = content.get("arabic_text", "")
@@ -529,15 +555,19 @@ def _publish_to_instagram_if_configured(content: Dict, fb_post_id: str) -> None:
     if hashtags:
         caption = f"{caption}\n\n{hashtags}"
 
-    ig_post_id = publish_photo_to_instagram(ig_user_id, page_token, image_url, caption)
-    logger.info("✅ Instagram cross-post %s -> IG: %s", content["id"][:8], ig_post_id)
+    try:
+        ig_post_id = publish_photo_to_instagram(ig_user_id, page_token, image_url, caption)
+    except Exception as api_err:
+        return _fail(str(api_err))
+
+    logger.info("✅ Instagram publish %s -> IG: %s", content["id"][:8], ig_post_id)
 
     # Update/create published_posts row with IG post ID + per-platform status
     try:
         client = config.get_supabase_client()
         if fb_post_id:
             # Cross-post: update existing FB row
-            result = (
+            row = (
                 client.table("published_posts")
                 .select("id, platforms")
                 .eq("content_id", content["id"])
@@ -545,14 +575,14 @@ def _publish_to_instagram_if_configured(content: Dict, fb_post_id: str) -> None:
                 .limit(1)
                 .execute()
             )
-            if result.data:
-                existing_platforms = result.data[0].get("platforms", "facebook")
+            if row.data:
+                existing_platforms = row.data[0].get("platforms", "facebook")
                 combined = "facebook,instagram" if "facebook" in existing_platforms else "instagram"
                 client.table("published_posts").update({
                     "instagram_post_id": ig_post_id,
                     "instagram_status": "published",
                     "platforms": combined,
-                }).eq("id", result.data[0]["id"]).execute()
+                }).eq("id", row.data[0]["id"]).execute()
         else:
             # IG-only: insert new row
             import uuid as _uuid
@@ -565,6 +595,8 @@ def _publish_to_instagram_if_configured(content: Dict, fb_post_id: str) -> None:
             }).execute()
     except Exception as db_err:
         logger.warning("Could not update published_posts with Instagram post ID: %s", db_err)
+
+    return {"success": True, "post_id": ig_post_id, "error": None}
 
 
 if __name__ == "__main__":

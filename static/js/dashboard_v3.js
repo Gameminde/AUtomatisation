@@ -251,7 +251,7 @@ async function runScheduleNow() {
         showToast('Scheduling posts...', 'info');
         const result = await apiCall('/api/actions/schedule', 'POST', { days: 7, platforms });
         showToast(`Scheduled ${result.scheduled_count || 0} posts for ${result.platforms || 'facebook'}`, 'success');
-        await loadData();
+        await loadDashboard();
     } catch (e) {
         showToast(`Schedule failed: ${e.message}`, 'error');
     }
