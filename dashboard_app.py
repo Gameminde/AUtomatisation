@@ -497,11 +497,11 @@ def get_insights():
                     "metric": f'"{hook_preview}{"..." if len(hook_text) > 40 else ""}"'
                 })
 
-        # ── Fallback B: posting frequency (always computable) ─────────
-        # Deterministic second fallback: always fires when we still have
-        # fewer than 2 insights after fallback A.  Uses published_posts
-        # count and date range — no engagement data required, so it can
-        # never be empty as long as total_posts >= MIN_POSTS.
+        # ── Fallback B: posting consistency (always computable) ───────
+        # Deterministic second fallback guaranteed to produce an insight
+        # because we already know total_posts >= MIN_POSTS (checked above).
+        # Uses ALL-time published posts — no 30-day window — so it cannot
+        # be empty once ready=True is reached.
         if len(insights) < 2:
             freq_rows = db.execute(
                 f"""
@@ -511,22 +511,31 @@ def get_insights():
                     MAX(published_at) AS last_post
                 FROM published_posts
                 WHERE ({PUBLISHED_FILTER})
-                  AND published_at >= datetime('now', '-30 days')
                 """
             )
             if freq_rows:
                 freq = freq_rows[0]
-                cnt = freq.get("cnt") or 0
+                cnt = freq.get("cnt") or total_posts  # total_posts already confirmed >= MIN_POSTS
+                first_post = freq.get("first_post") or ""
                 if cnt > 0:
-                    posts_per_week = round(cnt / 4.3, 1)  # ~4.3 weeks in 30 days
+                    # Compute weeks since first post; floor at 1 to avoid division issues
+                    try:
+                        import datetime as _dt
+                        first_dt = _dt.datetime.fromisoformat(first_post[:19])
+                        days_active = max(1, (_dt.datetime.utcnow() - first_dt).days)
+                        weeks = max(1, days_active / 7)
+                        posts_per_week = round(cnt / weeks, 1)
+                    except Exception:
+                        weeks = 4
+                        posts_per_week = round(cnt / weeks, 1)
                     insights.append({
                         "type": "consistency",
                         "icon": "fa-calendar-check",
                         "message": (
-                            f"You published {cnt} posts in the last 30 days — "
-                            "consistency builds audience trust."
+                            f"You've published {cnt} posts so far — "
+                            "consistency is the fastest way to grow your audience."
                         ),
-                        "metric": f"~{posts_per_week} posts/week"
+                        "metric": f"~{posts_per_week} posts/week on average"
                     })
 
         return jsonify({
