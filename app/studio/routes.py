@@ -599,7 +599,7 @@ def publish_now():
     try:
         from publisher import publish_due_posts
         limit = int((request.json or {}).get("limit", 1))
-        published = publish_due_posts(limit=limit)
+        published = publish_due_posts(limit=limit, user_id=current_user.id)
         return jsonify({"success": True, "published_count": published})
     except Exception as e:
         logger.error("Error publishing: %s", e)

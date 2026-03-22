@@ -103,18 +103,21 @@ def publish_photo_post(message: str, image_path: str) -> str:
 # Focus on photo posts with Arabic text for maximum engagement
 
 
-def fetch_due_posts(limit: int = 5):
+def fetch_due_posts(limit: int = 5, user_id: Optional[str] = None):
+    """Return scheduled posts that are due, optionally scoped to a single tenant."""
     client = config.get_supabase_client()
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
-    response = (
+    query = (
         client.table("scheduled_posts")
-        .select("id,content_id,scheduled_time,status,platforms")
+        .select("id,content_id,scheduled_time,status,platforms,user_id")
         .lte("scheduled_time", now)
         .eq("status", "scheduled")
         .order("scheduled_time")
         .limit(limit)
-        .execute()
     )
+    if user_id:
+        query = query.eq("user_id", user_id)
+    response = query.execute()
     return response.data or []
 
 
@@ -153,45 +156,44 @@ def mark_published(content_id: str, post_id: str, user_id: Optional[str] = None)
     update_query.execute()
 
 
-def update_schedule_status(schedule_id: str, status: str) -> None:
+def update_schedule_status(schedule_id: str, status: str, user_id: Optional[str] = None) -> None:
     client = config.get_supabase_client()
-    client.table("scheduled_posts").update({"status": status}).eq("id", schedule_id).execute()
+    query = client.table("scheduled_posts").update({"status": status}).eq("id", schedule_id)
+    if user_id:
+        query = query.eq("user_id", user_id)
+    query.execute()
 
 
-def cas_update_content_status(content_id: str, expected_status: str, new_status: str) -> bool:
+def cas_update_content_status(content_id: str, expected_status: str, new_status: str,
+                              user_id: Optional[str] = None) -> bool:
     """
     v2.1.1: Compare-And-Swap update for thread-safe state transitions.
-    
+    Optionally scoped to a tenant (user_id) for multi-tenant safety.
     Only updates if current status matches expected_status.
     Returns True if update was successful, False if someone else changed the status.
     """
     client = config.get_supabase_client()
-    
-    result = client.table("processed_content").update({
+    query = client.table("processed_content").update({
         "status": new_status
-    }).eq("id", content_id).eq("status", expected_status).execute()
-    
-    # If no rows were updated, someone else changed the status
+    }).eq("id", content_id).eq("status", expected_status)
+    if user_id:
+        query = query.eq("user_id", user_id)
+    result = query.execute()
     if not result.data:
         logger.debug("CAS failed for %s: expected=%s, new=%s", content_id[:8], expected_status, new_status)
         return False
-    
     return True
 
 
-def publish_due_posts(limit: int = 5) -> int:
+def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
     """
     Publish scheduled posts that are due.
 
-    Features:
-    - Checks for duplicates before publishing
-    - Records publications to prevent re-publishing
-    - Handles failures gracefully
-    - Adaptive rate limiting based on page maturity
-    - Auto-pause on shadowban detection
-
     Args:
         limit: Maximum posts to publish in this run
+        user_id: Tenant ID — only publish this user's scheduled posts.
+                 When None the function is unsafe for multi-tenant use; always
+                 pass current_user.id from the request context.
 
     Returns:
         Number of posts successfully published
@@ -207,57 +209,58 @@ def publish_due_posts(limit: int = 5) -> int:
     if should_pause_automation():
         logger.warning("🛑 Automation paused due to shadowban detection")
         return 0
-    
+
     # v2.1: Check for cooldown mode
     if error_handler.is_in_cooldown():
         logger.warning("🛑 System in cooldown mode - skipping publish")
         return 0
-    
+
     # Check rate limits
     can_post, reason = can_post_now()
     if not can_post:
         logger.warning(f"⏸️ Rate limit: {reason}")
         return 0
-    
-    due_posts = fetch_due_posts(limit=limit)
+
+    due_posts = fetch_due_posts(limit=limit, user_id=user_id)
     published = 0
     skipped = 0
 
     for item in due_posts:
         schedule_id = item["id"]
         content_id = item["content_id"]
+        # Use the user_id embedded in the scheduled row as the tenant scope
+        row_user_id = item.get("user_id") or user_id
 
         # Check if content can be published (duplicate check)
         can_publish, reason = can_publish_content(content_id)
         if not can_publish:
             logger.warning("⏭️ Skipping %s: %s", content_id[:8], reason)
-            update_schedule_status(schedule_id, "failed")  # Use 'failed' as 'skipped' is not in DB constraint
+            update_schedule_status(schedule_id, "failed", user_id=row_user_id)
             skipped += 1
             continue
 
-        content = fetch_content(content_id)
+        content = fetch_content(content_id, user_id=row_user_id)
         if not content:
             logger.error("Content not found: %s", content_id)
-            update_schedule_status(schedule_id, "failed")
+            update_schedule_status(schedule_id, "failed", user_id=row_user_id)
             continue
-        
+
         # v2.1.1: Anti Double-Publish - skip API if already posted
         existing_fb_post_id = content.get("fb_post_id")
         if existing_fb_post_id:
             logger.warning("⏭️ Skipping %s: already posted as %s (anti double-publish)", content_id[:8], existing_fb_post_id)
-            update_schedule_status(schedule_id, "published")
+            update_schedule_status(schedule_id, "published", user_id=row_user_id)
             published += 1
             continue
-        
+
         # v2.1.1: CAS transition to 'publishing' (thread-safe)
-        # Accept both 'scheduled' and 'media_ready' statuses (process_retries may have just updated)
         content_status = content.get("status", "")
         if content_status not in ["scheduled", "media_ready", "retry_scheduled"]:
             logger.warning("⏭️ Skipping %s: status is '%s' (not schedulable)", content_id[:8], content_status)
             skipped += 1
             continue
-        
-        if not cas_update_content_status(content_id, content_status, "publishing"):
+
+        if not cas_update_content_status(content_id, content_status, "publishing", user_id=row_user_id):
             logger.warning("⏭️ Skipping %s: CAS failed (another process may have claimed it)", content_id[:8])
             skipped += 1
             continue
@@ -300,7 +303,7 @@ def publish_due_posts(limit: int = 5) -> int:
                     logger.info("📝 Publishing text-only to Facebook")
                     fb_post_id = publish_text_post(message)
 
-                mark_published(content["id"], fb_post_id)
+                mark_published(content["id"], fb_post_id, user_id=row_user_id)
                 record_publication(content["id"], fb_post_id)
                 fb_ok = True
                 logger.info("✅ Published %s -> FB: %s", content_id[:8], fb_post_id)
@@ -343,9 +346,12 @@ def publish_due_posts(limit: int = 5) -> int:
                 # mark_published(), so update it here.
                 if not fb_ok:
                     try:
-                        config.get_supabase_client().table("processed_content").update(
+                        uq = config.get_supabase_client().table("processed_content").update(
                             {"status": "published"}
-                        ).eq("id", content["id"]).execute()
+                        ).eq("id", content["id"])
+                        if row_user_id:
+                            uq = uq.eq("user_id", row_user_id)
+                        uq.execute()
                     except Exception as state_err:
                         logger.warning("Could not update content status: %s", state_err)
 
@@ -365,7 +371,7 @@ def publish_due_posts(limit: int = 5) -> int:
             final_status = "failed"
             logger.error("❌ All platforms failed for %s", content_id[:8])
 
-        update_schedule_status(schedule_id, final_status)
+        update_schedule_status(schedule_id, final_status, user_id=row_user_id)
 
         # Rate limiting pause
         time.sleep(config.REQUEST_SLEEP_SECONDS)

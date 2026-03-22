@@ -22,3 +22,5 @@ from engine.publisher import (  # noqa: F401 – explicit re-export for static a
     publish_with_duplicate_check,
     get_publication_status,
 )
+# Backward-compat alias (used by older scripts)
+publish_posts = publish_due_posts  # noqa: F401
