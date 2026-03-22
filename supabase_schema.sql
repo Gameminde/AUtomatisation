@@ -292,12 +292,36 @@ CREATE POLICY articles_owner ON raw_articles
     USING (user_id = auth.uid())
     WITH CHECK (user_id = auth.uid());
 
--- activation_codes: anon users can INSERT to activate, but cannot SELECT others
--- (service key handles all backend reads/writes; no policy needed for backend)
-ALTER TABLE activation_codes ENABLE ROW LEVEL SECURITY;
+-- ============================================
+-- IMPORTANT — Auth Model & RLS Strategy
+-- ============================================
+-- This app uses TWO layers of tenant isolation:
+--
+-- Layer 1 (Server-side, primary): The Flask backend always uses the Supabase
+--   SERVICE ROLE key (SUPABASE_KEY env var must be the service_role secret).
+--   The service_role has BYPASS RLS privilege in PostgreSQL, so all server-side
+--   queries bypass RLS.  Python code enforces tenant isolation by always adding
+--   .eq("user_id", user_id) to every Supabase query.
+--
+-- Layer 2 (Schema-level, defense-in-depth): The auth.uid() RLS policies below
+--   protect against accidental anon-key leakage.  If the anon key were ever
+--   used directly (e.g., from the browser), no user could read another user's
+--   data.  These policies also prepare the schema for future phases where
+--   Supabase Auth JWT will be used for client-side SDK access.
+--
+-- TL;DR: Set SUPABASE_KEY to your service_role key.  Never expose it to the
+--   frontend.  The anon key (safe for browsers) is NOT used by the Flask app.
+-- ============================================
 
--- NOTE: Service role (used by the Flask backend) bypasses ALL RLS policies.
--- Application-level user_id filtering in Python provides the primary isolation.
+-- activation_codes: server (service_role) handles all reads/writes via RLS bypass.
+-- Deny ALL for anon/authenticated roles so codes cannot be enumerated from the browser.
+ALTER TABLE activation_codes ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS activation_codes_deny_anon ON activation_codes;
+CREATE POLICY activation_codes_deny_anon ON activation_codes
+    FOR ALL
+    USING (false)
+    WITH CHECK (false);
+-- (service_role bypasses this policy and can still INSERT/SELECT/UPDATE freely)
 
 
 -- ============================================
