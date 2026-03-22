@@ -99,10 +99,39 @@
         </main>
     </div>
 
+    <!-- Mobile bottom navigation -->
+    <nav class="bottom-nav" aria-label="Mobile navigation">
+        <div class="bottom-nav-inner">
+            <a href="/" class="bnav-item {% if active_page == 'dashboard' %}active{% endif %}" onclick="haptic()">
+                <i class="fa-solid fa-gauge-high"></i>
+                <span data-i18n="nav_dashboard">Dashboard</span>
+            </a>
+            <a href="/studio" class="bnav-item {% if active_page == 'studio' %}active{% endif %}" onclick="haptic()">
+                <i class="fa-solid fa-layer-group"></i>
+                <span data-i18n="nav_studio">Studio</span>
+            </a>
+            <a href="/templates" class="bnav-item {% if active_page == 'templates' %}active{% endif %}" onclick="haptic()">
+                <i class="fa-solid fa-swatchbook"></i>
+                <span data-i18n="nav_templates">Templates</span>
+            </a>
+            <a href="/settings" class="bnav-item {% if active_page == 'settings' %}active{% endif %}" onclick="haptic()">
+                <i class="fa-solid fa-gear"></i>
+                <span data-i18n="nav_settings">Settings</span>
+            </a>
+            <a href="/health" class="bnav-item {% if active_page == 'health' %}active{% endif %}" onclick="haptic()">
+                <i class="fa-solid fa-heart-pulse"></i>
+                <span data-i18n="nav_health">Health</span>
+            </a>
+        </div>
+    </nav>
+
     <script src="{{ url_for('static', filename='js/api.js') }}"></script>
     <script src="{{ url_for('static', filename='js/theme.js') }}"></script>
     <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script src="{{ url_for('static', filename='js/shell.js') }}"></script>
+    <script>
+    function haptic() { if (navigator.vibrate) navigator.vibrate(10); }
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 

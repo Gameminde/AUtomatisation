@@ -939,15 +939,180 @@ input:checked+.slider:before {
 }
 
 /* ══════════════════════════════════════════════════
+   PHASE 5 — LOGICAL PROPERTIES (RTL-safe)
+   ══════════════════════════════════════════════════ */
+
+.sidebar {
+    border-inline-end: 1px solid var(--border);
+    border-right: none;
+}
+
+#toast-container {
+    inset-inline-end: 1.5rem;
+    inset-block-start: 1.5rem;
+    right: auto;
+    top: auto;
+}
+
+.magic-fab {
+    inset-block-end: 10px;
+    inset-inline-end: 10px;
+    right: auto;
+    bottom: auto;
+}
+
+.studio-controls {
+    padding-inline-end: 3px;
+    padding-right: 0;
+}
+
+/* ── Fluid Type Scale ──────────────────────────── */
+:root {
+    --text-xs:   clamp(0.7rem,  1.8vw, 0.78rem);
+    --text-sm:   clamp(0.82rem, 2vw,   0.9rem);
+    --text-base: clamp(0.9rem,  2.3vw, 1rem);
+    --text-lg:   clamp(1rem,    2.5vw, 1.15rem);
+    --text-xl:   clamp(1.2rem,  3vw,   1.5rem);
+    --text-2xl:  clamp(1.5rem,  4vw,   2rem);
+    --text-3xl:  clamp(1.8rem,  5vw,   2.6rem);
+}
+
+body { font-size: var(--text-base); }
+
+body[dir="rtl"] {
+    font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+    line-height: 1.8;
+}
+
+.page-title h1 { font-size: var(--text-2xl); }
+.muted         { font-size: var(--text-sm);  }
+
+/* Ensure all tap targets meet 44px minimum */
+.btn, .nav-item, .icon-btn, select, .input {
+    min-height: 44px;
+}
+.btn-xs, .btn-sm { min-height: 32px; }
+
+/* ── CSS 3D Card Hover ─────────────────────────── */
+.card {
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    transform-style: preserve-3d;
+}
+.card:hover {
+    box-shadow: 0 20px 50px rgba(0,0,0,0.35), var(--shadow);
+}
+
+/* ── @starting-style Page Fade-in ─────────────── */
+@starting-style {
+    .main { opacity: 0; transform: translateY(12px); }
+}
+.main {
+    transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+/* ── Pulse / Glow for Insights Card ───────────── */
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(249,199,79,0); }
+    50%       { box-shadow: 0 0 0 8px rgba(249,199,79,0.14); }
+}
+.insights-pulse {
+    animation: pulse-glow 2.5s ease-in-out 3;
+}
+
+/* ── Skeleton Blocks for Dashboard KPIs ───────── */
+.skeleton-kpi {
+    height: 2.2rem;
+    width: 70%;
+    border-radius: 8px;
+}
+.skeleton-row {
+    height: 0.9rem;
+    border-radius: 6px;
+    margin-block-end: 0.5rem;
+}
+.skeleton-row:last-child { width: 55%; }
+
+/* ── Bottom Navigation Bar (mobile) ──────────── */
+.bottom-nav {
+    display: none;
+    position: fixed;
+    inset-block-end: 0;
+    inset-inline: 0;
+    z-index: 200;
+    background: rgba(12, 15, 20, 0.95);
+    backdrop-filter: blur(20px);
+    border-block-start: 1px solid var(--border);
+    padding-block: 0.35rem;
+    padding-inline: 0.25rem;
+    padding-bottom: env(safe-area-inset-bottom, 0.35rem);
+}
+
+.bottom-nav-inner {
+    display: flex;
+    justify-content: space-around;
+    align-items: stretch;
+    max-width: 480px;
+    margin-inline: auto;
+}
+
+.bnav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    padding: 0.5rem 0.6rem;
+    border-radius: 12px;
+    text-decoration: none;
+    color: var(--text-dim);
+    font-size: 0.6rem;
+    font-weight: 600;
+    flex: 1;
+    transition: color 0.2s ease;
+    position: relative;
+    min-height: 54px;
+    justify-content: center;
+}
+
+.bnav-item i {
+    font-size: 1.2rem;
+    transition: transform 0.2s ease;
+}
+
+.bnav-item.active {
+    color: var(--primary);
+}
+
+.bnav-item.active::after {
+    content: '';
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline: 20%;
+    height: 2px;
+    border-radius: 0 0 3px 3px;
+    background: var(--primary);
+}
+
+.bnav-item.active i { transform: scale(1.15); }
+
+/* ══════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════ */
-@media (max-width: 900px) {
+@media (max-width: 768px) {
     .app-shell {
         grid-template-columns: 1fr;
     }
 
     .sidebar {
         display: none;
+    }
+
+    .bottom-nav {
+        display: block;
+    }
+
+    .main {
+        padding: 1.25rem;
+        padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
     }
 
     .grid-2,
@@ -973,5 +1138,38 @@ input:checked+.slider:before {
     .top-actions {
         width: 100%;
         justify-content: flex-end;
+    }
+
+    .page-title h1 { font-size: var(--text-xl); }
+}
+
+@media (min-width: 769px) and (max-width: 900px) {
+    .app-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .sidebar {
+        display: none;
+    }
+
+    .bottom-nav {
+        display: block;
+    }
+
+    .main {
+        padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+    }
+
+    .grid-2 { grid-template-columns: repeat(2, 1fr); }
+
+    .grid-3,
+    .grid-4 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .split,
+    .studio-layout {
+        grid-template-columns: 1fr;
+        height: auto;
     }
 }

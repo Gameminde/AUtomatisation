@@ -191,6 +191,13 @@ async function loadInsights() {
             return;
         }
 
+        const card = document.getElementById('whats-working-card');
+        if (card) {
+            card.classList.remove('insights-pulse');
+            void card.offsetWidth;
+            card.classList.add('insights-pulse');
+        }
+
         box.innerHTML = data.insights.map(ins => {
             const color = insightColors[ins.type] || 'var(--accent)';
             const safeIcon = escapeHtml(ins.icon);
