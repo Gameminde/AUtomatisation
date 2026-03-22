@@ -1,17 +1,38 @@
+"""Authentication routes — login, register (via Gumroad code), logout.
+
+Auth ALWAYS uses Supabase directly (service key) rather than config.get_supabase_client()
+which may return a SQLite client in single-tenant mode.  The `users` and
+`activation_codes` tables only exist in Supabase.
+"""
+
+import os
 from datetime import datetime, timezone
-from flask import Blueprint, render_template, redirect, url_for, request, flash
-from flask_login import login_user, logout_user, login_required, current_user
+
 import bcrypt
+from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask_login import current_user, login_required, login_user, logout_user
 
 import config
-from models import User
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
+logger = config.get_logger("auth")
 
-def _get_db():
-    return config.get_supabase_client()
 
+def _get_supabase():
+    """Always return the Supabase REST client (never SQLite)."""
+    from supabase import create_client
+    url = os.getenv("SUPABASE_URL", "")
+    key = os.getenv("SUPABASE_KEY", "")
+    if not url or not key:
+        raise RuntimeError(
+            "SUPABASE_URL and SUPABASE_KEY must be set. "
+            "Auth requires Supabase — SQLite does not have a users table."
+        )
+    return create_client(url, key)
+
+
+# ── Login ──────────────────────────────────────────────────────────────────
 
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
@@ -24,7 +45,7 @@ def login():
         password = request.form.get("password") or ""
 
         try:
-            client = _get_db()
+            client = _get_supabase()
             result = (
                 client.table("users")
                 .select("id, email, password_hash, is_active")
@@ -38,17 +59,20 @@ def login():
                     password.encode("utf-8"),
                     user_data["password_hash"].encode("utf-8"),
                 ):
+                    from models import User
                     user = User(user_data["id"], user_data["email"])
                     login_user(user, remember=True)
                     next_page = request.args.get("next")
                     return redirect(next_page or url_for("web.page_dashboard"))
         except Exception as exc:
-            config.get_logger("auth").error("Login error: %s", exc)
+            logger.error("Login error: %s", exc)
 
         error = "invalid_credentials"
 
     return render_template("auth/login.html", error=error)
 
+
+# ── Register ───────────────────────────────────────────────────────────────
 
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
@@ -70,8 +94,9 @@ def register():
             return render_template("auth/register.html", error=error)
 
         try:
-            client = _get_db()
+            client = _get_supabase()
 
+            # Validate activation code
             code_result = (
                 client.table("activation_codes")
                 .select("id, code, used")
@@ -83,13 +108,13 @@ def register():
                 error = "invalid_code"
                 return render_template("auth/register.html", error=error)
 
-            existing = (
-                client.table("users").select("id").eq("email", email).execute()
-            )
+            # Check email uniqueness
+            existing = client.table("users").select("id").eq("email", email).execute()
             if existing.data:
                 error = "email_exists"
                 return render_template("auth/register.html", error=error)
 
+            # Create user
             password_hash = bcrypt.hashpw(
                 password.encode("utf-8"), bcrypt.gensalt()
             ).decode("utf-8")
@@ -106,22 +131,29 @@ def register():
 
             new_user = user_result.data[0]
 
+            # Mark activation code as used
             client.table("activation_codes").update({
                 "used": True,
                 "used_by": new_user["id"],
                 "used_at": datetime.now(timezone.utc).isoformat(),
             }).eq("code", code).execute()
 
+            from models import User
             user = User(new_user["id"], new_user["email"])
             login_user(user, remember=True)
             return redirect(url_for("web.page_dashboard"))
 
+        except RuntimeError as exc:
+            logger.error("Registration config error: %s", exc)
+            error = "supabase_not_configured"
         except Exception as exc:
-            config.get_logger("auth").error("Registration error: %s", exc)
+            logger.error("Registration error: %s", exc)
             error = "server_error"
 
     return render_template("auth/register.html", error=error)
 
+
+# ── Logout ─────────────────────────────────────────────────────────────────
 
 @auth_bp.route("/logout")
 @login_required

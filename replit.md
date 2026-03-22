@@ -11,20 +11,39 @@ A multi-tenant SaaS web application for Arabic-speaking content creators. Automa
 - **AI:** Google Gemini (primary) or OpenRouter/Claude (fallback)
 - **Entry Points:** `python dashboard_app.py` (dev) or `gunicorn wsgi:app` (prod)
 
-## Key Files
-- `dashboard_app.py` — Main Flask app with `create_app()` factory; all routes protected
-- `wsgi.py` — Gunicorn entry point
-- `models.py` — `User(UserMixin)` class for Flask-Login
-- `app/auth/routes.py` — Auth blueprint: `/auth/login`, `/auth/register`, `/auth/logout`
-- `config.py` — Centralized configuration and environment variable handling
-- `database.py` — Database abstraction layer (SQLite/Supabase)
-- `supabase_schema.sql` — Full schema including `users`, `activation_codes`, `user_id` FKs
-- `templates/auth/` — Login and register pages
-- `templates/layout_v3.html` — Sidebar layout with user email + sign out button
-- `ai_generator.py` — AI content generation
-- `scraper.py` — News/RSS scraping
-- `publisher.py` — Facebook/Instagram Graph API publishing
-- `scheduler.py` — Post scheduling
+## Application Structure (Phase 1)
+
+```
+dashboard_app.py          Thin entry point: load_dotenv + create_app() + app.run()
+wsgi.py                   Gunicorn entry point
+app/
+  __init__.py             create_app() factory — registers all 6 blueprints
+  utils.py                api_login_required decorator, env file helpers
+  auth/routes.py          auth_bp: /auth/login, /auth/register, /auth/logout
+                          (always uses Supabase directly — never SQLite)
+  dashboard/routes.py     web_bp: 6 HTML pages + media serving + Facebook OAuth
+  api/routes.py           api_bp: analytics, insights, status, health, agent,
+                          facebook, instagram, AI, license, logs
+  pages/routes.py         pages_bp: /api/pages/* CRUD (user_id scoped)
+  studio/routes.py        studio_bp: /api/content/*, /api/actions/*,
+                          /api/brand/*, /api/ab-tests/*, /api/virality/*
+  settings/routes.py      settings_bp: /api/config/*, /api/settings/*,
+                          /api/setup/*, /api/version, /api/providers
+engine/__init__.py        engine package — lazy imports for pipeline modules
+database/__init__.py      database package — re-exports from database.py via importlib
+database.py               Database abstraction layer (SQLite/Supabase)
+models.py                 User(UserMixin) for Flask-Login
+config.py                 Centralized env var handling
+supabase_schema.sql       Full schema: users, activation_codes, tenant tables,
+                          RLS policies (USING/WITH CHECK auth.uid())
+```
+
+## Key Security Properties
+- All web routes: `@login_required` (302 redirect on unauthenticated)
+- All API routes: `@api_login_required` (401 JSON on unauthenticated)
+- Public exceptions: `/media/public/<filename>`, `/api/license/activate`,
+  `/auth/login`, `/auth/register`, `/auth/logout`
+- All Supabase queries on tenant tables scoped to `current_user.id`
 
 ## Auth Flow
 1. Unauthenticated users hitting any web route → redirect to `/auth/login`
