@@ -32,7 +32,7 @@ def run_pipeline(user_id: Optional[str] = None) -> Dict:
         Pipeline result(s).
     """
     from tasks.runner import run_all_users, _run_pipeline_for_user
-    from user_config import UserConfig
+    from engine.user_config import UserConfig
 
     if user_id:
         return _run_pipeline_for_user(UserConfig.from_db(user_id))

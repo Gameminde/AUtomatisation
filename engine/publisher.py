@@ -300,9 +300,12 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
             cta = content.get("call_to_action", "")
             message = f"{hook}\n\n{body}\n\n{cta}\n\n{hashtag_str}".strip()
 
-        # ── Load per-user Facebook tokens (multi-tenant) ──────────────
+        # ── Load per-user Facebook tokens (multi-tenant, fail-closed) ──
+        # In tenant mode we NEVER fall back to global env credentials —
+        # that would publish one user's content with another page's token.
         row_fb_token: str = ""
         row_fb_page_id: str = ""
+        _token_load_failed: bool = False
         if row_user_id:
             try:
                 from app.utils import load_tokens_for_user as _ltu
@@ -310,7 +313,26 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
                 row_fb_token = _toks.get("page_token", "")
                 row_fb_page_id = _toks.get("page_id", "")
             except Exception as _tok_exc:
-                logger.warning("Could not load per-user tokens (user=%s): %s", row_user_id[:8] if row_user_id else "?", _tok_exc)
+                logger.warning(
+                    "Could not load per-user tokens (user=%s): %s — skipping post",
+                    row_user_id[:8] if row_user_id else "?", _tok_exc,
+                )
+                _token_load_failed = True
+
+        # If we are in tenant mode and token retrieval failed or returned empty,
+        # mark the scheduled row as failed and skip — never use global env creds.
+        if row_user_id and _token_load_failed:
+            update_schedule_status(schedule_id, "failed", user_id=row_user_id)
+            skipped += 1
+            continue
+        if row_user_id and not (row_fb_token and row_fb_page_id):
+            logger.warning(
+                "No Facebook credentials for user=%s — skipping post",
+                row_user_id[:8],
+            )
+            update_schedule_status(schedule_id, "failed", user_id=row_user_id)
+            skipped += 1
+            continue
 
         # ── Per-platform results (tracked independently) ───────────────
         fb_post_id: str = ""

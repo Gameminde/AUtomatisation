@@ -63,6 +63,20 @@ class UserConfig:
             settings = get_user_settings(user_id)
             gemini_key = get_gemini_key_for_user(user_id) or ""
 
+            # posts_per_day / posting_times: managed_pages is canonical
+            # (page-level schedule), user_settings is the fallback.
+            # tokens dict comes from managed_pages so we prefer it.
+            posts_per_day_final = int(
+                tokens.get("posts_per_day")
+                or settings.get("posts_per_day")
+                or 3
+            )
+            posting_times_final = (
+                tokens.get("posting_times")
+                or settings.get("posting_times")
+                or "08:00,13:00,19:00"
+            )
+
             # newsdata_api_key: per-user setting → env fallback
             newsdata_key = (
                 settings.get("newsdata_api_key")
@@ -90,8 +104,8 @@ class UserConfig:
                 instagram_account_id=tokens.get("instagram_account_id", ""),
                 newsdata_api_key=newsdata_key,
                 pexels_api_key=pexels_key,
-                posts_per_day=int(settings.get("posts_per_day") or 3),
-                posting_times=settings.get("posting_times") or "08:00,13:00,19:00",
+                posts_per_day=posts_per_day_final,
+                posting_times=posting_times_final,
                 language_ratio=float(settings.get("language_ratio") or 0.7),
                 telegram_chat_id=settings.get("telegram_chat_id") or "",
                 niche_keywords=niche_kw,

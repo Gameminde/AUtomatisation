@@ -332,11 +332,20 @@ def run_all_users(max_workers: int = MAX_WORKERS) -> Dict:
             executor.submit(_run_pipeline_for_user, UserConfig.from_db(uid)): uid
             for uid in user_ids
         }
-        for future in as_completed(futures, timeout=PIPELINE_TIMEOUT_SECONDS + 30):
+        # Iterate without a global batch timeout so queued users are always
+        # processed as workers free up (TimeoutError would silently drop them).
+        for future in as_completed(futures):
             uid = futures[future]
             try:
+                # Per-future timeout ensures one slow user cannot block others
                 res = future.result(timeout=PIPELINE_TIMEOUT_SECONDS)
                 results.append(res)
+            except TimeoutError:
+                logger.error(
+                    "Pipeline timed out for user=%s after %ds",
+                    uid[:8], PIPELINE_TIMEOUT_SECONDS,
+                )
+                results.append({"user_id": uid, "error": "timeout"})
             except Exception as exc:
                 logger.error("Pipeline future failed (user=%s): %s", uid[:8], exc)
                 results.append({"user_id": uid, "error": str(exc)})
