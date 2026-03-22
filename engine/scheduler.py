@@ -54,10 +54,11 @@ def _build_slots_from_times(day: date, posting_times: str) -> List[Dict]:
     Build UTC posting slots from a user-supplied comma-separated HH:MM string.
 
     Each time token is interpreted as UTC.  A random 0–10 min jitter is applied
-    to avoid exact-hour posting.  Returns at most len(tokens) slots sorted by time.
+    to avoid exact-hour posting.  Overflow is resolved BEFORE datetime construction
+    to avoid ValueError for minute >= 60.
 
     Args:
-        day:          Target date.
+        day:           Target date.
         posting_times: e.g. "08:00,13:00,19:00"
     """
     import random
@@ -65,17 +66,25 @@ def _build_slots_from_times(day: date, posting_times: str) -> List[Dict]:
     tokens = [t.strip() for t in posting_times.split(",") if t.strip()]
     for token in tokens:
         try:
-            hour, minute = int(token.split(":")[0]), int(token.split(":")[1])
+            parts = token.split(":")
+            hour, minute = int(parts[0]), int(parts[1])
         except (ValueError, IndexError):
             continue
         jitter_min = random.randint(0, 10)
-        utc_dt = datetime(day.year, day.month, day.day, hour, minute + jitter_min, tzinfo=timezone.utc)
-        # Clamp minute overflow
-        if utc_dt.minute >= 60:
-            from datetime import timedelta as _td
-            utc_dt = utc_dt.replace(minute=utc_dt.minute - 60) + _td(hours=1)
+        total_minute = minute + jitter_min
+        # Resolve overflow BEFORE constructing datetime to avoid ValueError
+        extra_hours, clamped_minute = divmod(total_minute, 60)
+        clamped_hour = (hour + extra_hours) % 24
+        # Build the base datetime for the target day, then add any day-wrap offset
+        base_dt = datetime(
+            day.year, day.month, day.day,
+            clamped_hour, clamped_minute,
+            tzinfo=timezone.utc,
+        )
+        if hour + extra_hours >= 24:
+            base_dt = base_dt + timedelta(days=1)
         slots.append({
-            "scheduled_time": utc_dt.replace(tzinfo=None).isoformat(),
+            "scheduled_time": base_dt.replace(tzinfo=None).isoformat(),
             "timezone": "UTC",
         })
     slots.sort(key=lambda s: s["scheduled_time"])

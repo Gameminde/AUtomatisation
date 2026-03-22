@@ -370,6 +370,7 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
             publish_to_instagram=publish_to_instagram,
             ig_ok=ig_ok,
             ig_post_id=ig_post_id,
+            user_id=row_user_id,
         )
 
         # ── Update content status & schedule row based on outcomes ─────
@@ -557,9 +558,13 @@ def _persist_publish_outcome(
     publish_to_instagram: bool,
     ig_ok: bool,
     ig_post_id: str,
+    user_id: Optional[str] = None,
 ) -> None:
     """
     Write a single, authoritative published_posts row to Supabase for this attempt.
+
+    user_id is ALWAYS propagated to every DB write so published_posts rows are
+    correctly scoped to the owning tenant.
 
     Design:
     - If Facebook succeeded, mark_published() already inserted the FB row.
@@ -576,19 +581,20 @@ def _persist_publish_outcome(
         client = config.get_supabase_client()
 
         if fb_ok and not publish_to_instagram:
-            # FB-only success — already inserted by mark_published(); nothing to do.
+            # FB-only success — already inserted by mark_published() with user_id; nothing to do.
             return
 
         if fb_ok and publish_to_instagram:
             # FB succeeded; IG was attempted. _publish_to_instagram_if_configured already
-            # updated the row on IG success. If IG failed, we need to stamp instagram_status.
+            # updated the row on IG success. If IG failed, stamp instagram_status='failed'.
             if not ig_ok:
-                client.table("published_posts").update(
+                q = client.table("published_posts").update(
                     {"instagram_status": "failed"}
-                ).eq("content_id", content_id).eq(
-                    "facebook_post_id", fb_post_id
-                ).execute()
-            # If IG succeeded the row was already updated inside _publish_to_instagram_if_configured.
+                ).eq("content_id", content_id).eq("facebook_post_id", fb_post_id)
+                if user_id:
+                    q = q.eq("user_id", user_id)
+                q.execute()
+            # IG succeeded → already updated inside _publish_to_instagram_if_configured.
             return
 
         if not fb_ok and ig_ok and not publish_to_facebook:
@@ -597,15 +603,16 @@ def _persist_publish_outcome(
 
         if not fb_ok and ig_ok and publish_to_facebook:
             # FB failed, IG succeeded. IG helper inserted an IG-only row.
-            # Stamp facebook_status='failed' on that row so the dashboard shows the full picture.
-            result = (
+            # Stamp facebook_status='failed' on that row for the full picture.
+            q = (
                 client.table("published_posts")
                 .select("id")
                 .eq("content_id", content_id)
                 .eq("instagram_post_id", ig_post_id)
-                .limit(1)
-                .execute()
             )
+            if user_id:
+                q = q.eq("user_id", user_id)
+            result = q.limit(1).execute()
             if result.data:
                 client.table("published_posts").update({
                     "facebook_status": "failed",
@@ -625,6 +632,9 @@ def _persist_publish_outcome(
             "content_id": content_id,
             "platforms": ",".join(platforms_attempted),
         }
+        # Always write user_id so the row is tenant-scoped
+        if user_id:
+            row["user_id"] = user_id
         if publish_to_facebook:
             row["facebook_status"] = "failed"
         if publish_to_instagram:
@@ -731,15 +741,18 @@ def _publish_to_instagram_if_configured(
                     "platforms": combined,
                 }).eq("id", row.data[0]["id"]).execute()
         else:
-            # IG-only: insert new row
+            # IG-only: insert new row — always include user_id for tenant isolation
             import uuid as _uuid
-            client.table("published_posts").insert({
+            ig_row: Dict = {
                 "id": str(_uuid.uuid4()),
                 "content_id": content["id"],
                 "instagram_post_id": ig_post_id,
                 "instagram_status": "published",
                 "platforms": "instagram",
-            }).execute()
+            }
+            if user_id:
+                ig_row["user_id"] = user_id
+            client.table("published_posts").insert(ig_row).execute()
     except Exception as db_err:
         logger.warning("Could not update published_posts with Instagram post ID: %s", db_err)
 

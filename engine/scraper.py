@@ -39,15 +39,22 @@ def set_feeds(urls: List[str]) -> None:
 RSS_FEEDS = get_feeds()
 
 
-def fetch_newsdata_articles() -> List[dict]:
-    """Fetch articles from NewsData.io."""
-    if not config.NEWSDATA_API_KEY:
+def fetch_newsdata_articles(api_key: Optional[str] = None) -> List[dict]:
+    """Fetch articles from NewsData.io.
+
+    Args:
+        api_key: NewsData.io API key to use. Falls back to config.NEWSDATA_API_KEY
+                 when not provided. Pass a per-user key for multi-tenant isolation
+                 (avoids mutating module globals in a threaded environment).
+    """
+    effective_key = api_key or config.NEWSDATA_API_KEY
+    if not effective_key:
         logger.warning("NEWSDATA_API_KEY not set; skipping NewsData.io")
         return []
 
     url = "https://newsdata.io/api/1/latest"
     params = {
-        "apikey": config.NEWSDATA_API_KEY,
+        "apikey": effective_key,
         "category": "technology",
         "language": "en",
         "country": "us,gb,ca",
@@ -232,36 +239,29 @@ def run(
     """Run the full scrape pipeline.
 
     Args:
-        user_id:         Tenant ID passed through to save_articles so all fetched
-                         articles are tagged with the owning user. Required for
-                         multi-tenant operation.
-        newsdata_api_key: Per-user NewsData.io API key; overrides env var when set.
-        keywords:        Per-user keyword list for filtering; falls back to
-                         config.DEFAULT_KEYWORDS when not provided.
+        user_id:          Tenant ID — tags every saved row; required for
+                          multi-tenant operation.
+        newsdata_api_key: Per-user NewsData.io API key passed directly to
+                          fetch_newsdata_articles() (no global mutation — safe
+                          for concurrent threads).
+        keywords:         Per-user keyword list for filtering; falls back to
+                          config.DEFAULT_KEYWORDS when not provided.
     """
-    # Temporarily override NEWSDATA key for this user if provided
-    _prev_key = None
-    if newsdata_api_key:
-        _prev_key = config.NEWSDATA_API_KEY
-        config.NEWSDATA_API_KEY = newsdata_api_key
+    filter_kw = keywords or config.DEFAULT_KEYWORDS
 
-    try:
-        items: List[dict] = []
-        items.extend(fetch_newsdata_articles())
-        for rss_url in get_feeds():
-            items.extend(fetch_rss_feed(rss_url))
-            time.sleep(config.REQUEST_SLEEP_SECONDS)
-        items.extend(fetch_hackernews_top())
+    items: List[dict] = []
+    # Pass the per-user API key explicitly — no global state mutation
+    items.extend(fetch_newsdata_articles(api_key=newsdata_api_key))
+    for rss_url in get_feeds():
+        items.extend(fetch_rss_feed(rss_url))
+        time.sleep(config.REQUEST_SLEEP_SECONDS)
+    items.extend(fetch_hackernews_top())
 
-        filter_kw = keywords or config.DEFAULT_KEYWORDS
-        filtered = filter_articles(items, filter_kw)
-        unique = dedupe_by_url(filtered)
-        saved = save_articles(unique, user_id=user_id, keywords=filter_kw)
-        logger.info("Scraper saved %s new articles (user_id=%s)", saved, user_id)
-        return saved
-    finally:
-        if _prev_key is not None:
-            config.NEWSDATA_API_KEY = _prev_key
+    filtered = filter_articles(items, filter_kw)
+    unique = dedupe_by_url(filtered)
+    saved = save_articles(unique, user_id=user_id, keywords=filter_kw)
+    logger.info("Scraper saved %s new articles (user_id=%s)", saved, user_id)
+    return saved
 
 
 if __name__ == "__main__":
