@@ -176,5 +176,8 @@ def register():
 @auth_bp.route("/logout")
 @login_required
 def logout():
+    from flask import session
+    _ob_key = f"ob_done:{current_user.id}"
+    session.pop(_ob_key, None)
     logout_user()
     return redirect(url_for("auth.login"))

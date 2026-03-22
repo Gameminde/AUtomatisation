@@ -146,14 +146,15 @@ def create_app() -> Flask:
             return None
         if not _cu.is_authenticated:
             return None
-        if _sess.get("onboarding_complete"):
+        _ob_key = f"ob_done:{_cu.id}"
+        if _sess.get(_ob_key):
             return None
         try:
             settings = _get_us(_cu.id)
             if settings.get("onboarding_complete"):
-                _sess["onboarding_complete"] = True
+                _sess[_ob_key] = True
                 return None
-            _sess["onboarding_complete"] = False
+            _sess[_ob_key] = False
             return _redir(_ufor("onboarding.wizard"))
         except Exception as _exc:
             logger.warning("Onboarding gate check failed: %s", _exc)

@@ -33,7 +33,7 @@ def wizard():
     step = _step_from_settings(settings)
 
     if step >= 5:
-        session["onboarding_complete"] = True
+        session[f"ob_done:{current_user.id}"] = True
         return redirect(url_for("web.page_dashboard"))
 
     has_fb = _has_facebook_page()
@@ -67,7 +67,7 @@ def set_step():
     })
 
     if is_complete:
-        session["onboarding_complete"] = True
+        session[f"ob_done:{current_user.id}"] = True
 
     return jsonify({"ok": True, "step": new_step, "complete": is_complete})
 
@@ -129,7 +129,7 @@ def complete():
         "onboarding_step": 5,
         "onboarding_complete": True,
     })
-    session["onboarding_complete"] = True
+    session[f"ob_done:{current_user.id}"] = True
     return jsonify({"ok": True, "redirect": url_for("web.page_dashboard")})
 
 
