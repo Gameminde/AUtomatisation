@@ -132,7 +132,7 @@ def create_app() -> Flask:
     _GATE_SKIP_PREFIXES = (
         "/onboarding", "/auth/", "/static/", "/media/",
         "/login", "/register", "/logout", "/design-system",
-        "/api/",
+        "/api/", "/oauth/",
     )
 
     from flask import request as _req, redirect as _redir, url_for as _ufor, session as _sess
