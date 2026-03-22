@@ -1,0 +1,1391 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Content Factory — Design System v4</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ═══════════════════════════════════════════════════════
+       DESIGN TOKENS
+    ═══════════════════════════════════════════════════════ */
+    :root {
+      /* Colors */
+      --bg:           #0a0a0f;
+      --surface:      #0f1117;
+      --glass:        rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.08);
+      --primary:      #6366f1;
+      --primary-end:  #818cf8;
+      --secondary:    #22d3ee;
+      --success:      #10b981;
+      --warning:      #f59e0b;
+      --danger:       #ef4444;
+      --text:         #f1f5f9;
+      --text-muted:   #94a3b8;
+      --text-faint:   #475569;
+
+      /* Typography */
+      --font-display: "Space Grotesk", system-ui, sans-serif;
+      --font-body:    "Inter", system-ui, sans-serif;
+      --font-ar:      "IBM Plex Sans Arabic", system-ui, sans-serif;
+
+      /* Radii */
+      --r-sm:  8px;
+      --r-md:  12px;
+      --r-lg:  16px;
+      --r-xl:  24px;
+
+      /* Shadows */
+      --shadow-glass:   0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+      --shadow-glow:    0 0 24px rgba(99,102,241,0.35);
+      --shadow-deep:    0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
+
+      /* Transitions */
+      --ease: cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       RESET & BASE
+    ═══════════════════════════════════════════════════════ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+      min-height: 100vh;
+    }
+
+    body[dir="rtl"] { font-family: var(--font-ar); }
+
+    /* ═══════════════════════════════════════════════════════
+       FLOATING BACKGROUND ORBS
+    ═══════════════════════════════════════════════════════ */
+    .orb-field {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      overflow: hidden;
+    }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.12;
+      will-change: transform;
+      transition: transform 0.1s linear;
+    }
+
+    .orb-1 {
+      width: 600px; height: 600px;
+      background: var(--primary);
+      top: -200px; left: -150px;
+    }
+
+    .orb-2 {
+      width: 500px; height: 500px;
+      background: var(--secondary);
+      top: 40%; right: -200px;
+    }
+
+    .orb-3 {
+      width: 400px; height: 400px;
+      background: #a855f7;
+      bottom: -100px; left: 30%;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       PAGE SHELL
+    ═══════════════════════════════════════════════════════ */
+    .page {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       SIDEBAR NAV
+    ═══════════════════════════════════════════════════════ */
+    .sidebar {
+      background: rgba(15,17,23,0.8);
+      backdrop-filter: blur(20px);
+      border-inline-end: 1px solid var(--glass-border);
+      padding: 1.75rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      position: sticky;
+      inset-block-start: 0;
+      block-size: 100vh;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .brand-icon {
+      width: 44px; height: 44px;
+      border-radius: var(--r-md);
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      display: grid;
+      place-items: center;
+      font-size: 1.1rem;
+      flex-shrink: 0;
+      box-shadow: 0 0 20px rgba(99,102,241,0.4);
+    }
+
+    .brand-name {
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: -0.01em;
+    }
+
+    .brand-sub {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-block-start: 0.1rem;
+    }
+
+    .nav {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.7rem 0.9rem;
+      border-radius: var(--r-md);
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s var(--ease);
+      border-inline-start: 2px solid transparent;
+      position: relative;
+    }
+
+    .nav-item:hover {
+      color: var(--text);
+      background: var(--glass);
+      border-inline-start-color: rgba(99,102,241,0.4);
+    }
+
+    .nav-item.active {
+      color: var(--text);
+      background: rgba(99,102,241,0.12);
+      border-inline-start-color: var(--primary);
+      box-shadow: inset 0 0 20px rgba(99,102,241,0.08);
+    }
+
+    .nav-icon {
+      width: 20px;
+      text-align: center;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .nav-badge {
+      margin-inline-start: auto;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       MAIN CONTENT
+    ═══════════════════════════════════════════════════════ */
+    .main {
+      padding: clamp(1.25rem, 3vw, 2.5rem);
+      overflow-y: auto;
+    }
+
+    .section-label {
+      font-family: var(--font-display);
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-block-end: 1rem;
+      margin-block-start: 2.5rem;
+      padding-block-start: 2rem;
+      border-block-start: 1px solid var(--glass-border);
+    }
+
+    .section-label:first-child {
+      border-block-start: none;
+      padding-block-start: 0;
+      margin-block-start: 0;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-size: clamp(1.3rem, 3vw, 2rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-block-end: 0.35rem;
+      background: linear-gradient(135deg, var(--text) 40%, var(--text-muted));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .section-desc {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+      margin-block-end: 1.75rem;
+    }
+
+    .showcase {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      align-items: flex-start;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       GLASS CARD — THE CORE COMPONENT
+    ═══════════════════════════════════════════════════════ */
+    .card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--r-lg);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      box-shadow: var(--shadow-glass);
+      transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease);
+      transform-style: preserve-3d;
+      will-change: transform;
+    }
+
+    .card:hover {
+      transform: translateY(-2px) scale(1.01);
+      box-shadow: var(--shadow-deep);
+    }
+
+    .card-sm {
+      padding: 1rem;
+      border-radius: var(--r-md);
+    }
+
+    .card-md {
+      padding: 1.5rem;
+    }
+
+    .card-lg {
+      padding: 2rem;
+    }
+
+    /* Tilt container */
+    .tilt-wrap {
+      perspective: 1000px;
+      display: inline-block;
+    }
+
+    .card-tilt {
+      transform-origin: center;
+      transition: transform 0.1s linear;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       STAT CARD
+    ═══════════════════════════════════════════════════════ */
+    .stat-card {
+      min-width: 160px;
+    }
+
+    .stat-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      margin-block-end: 0.6rem;
+    }
+
+    .stat-value {
+      font-family: var(--font-display);
+      font-size: clamp(1.6rem, 3vw, 2.2rem);
+      font-weight: 700;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-block-end: 0.5rem;
+    }
+
+    .stat-change {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+    }
+
+    .stat-change.up {
+      background: rgba(16,185,129,0.15);
+      color: var(--success);
+    }
+
+    .stat-change.down {
+      background: rgba(239,68,68,0.15);
+      color: var(--danger);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       BUTTONS
+    ═══════════════════════════════════════════════════════ */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.65rem 1.35rem;
+      border-radius: var(--r-md);
+      font-family: var(--font-body);
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      text-decoration: none;
+      transition: all 0.25s var(--ease);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      color: #fff;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 30px rgba(99,102,241,0.55);
+    }
+
+    .btn-primary:active { transform: translateY(0) scale(0.98); }
+
+    .btn-primary.loading {
+      pointer-events: none;
+      opacity: 0.8;
+    }
+
+    .btn-primary.loading .btn-text { opacity: 0; }
+
+    .btn-primary.loading::after {
+      content: "";
+      position: absolute;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.65s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .btn-ghost {
+      background: var(--glass);
+      color: var(--text-muted);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(10px);
+    }
+
+    .btn-ghost:hover {
+      color: var(--text);
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(255,255,255,0.15);
+      transform: translateY(-1px);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       INPUT FIELD
+    ═══════════════════════════════════════════════════════ */
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.45rem;
+    }
+
+    .field-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .input {
+      width: 100%;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--r-md);
+      padding: 0.65rem 0.9rem;
+      color: var(--text);
+      font-family: var(--font-body);
+      font-size: 0.92rem;
+      transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+      outline: none;
+    }
+
+    .input::placeholder { color: var(--text-faint); }
+
+    .input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.18);
+      background: rgba(99,102,241,0.05);
+    }
+
+    .input-ar { direction: rtl; font-family: var(--font-ar); }
+
+    /* ═══════════════════════════════════════════════════════
+       BADGES
+    ═══════════════════════════════════════════════════════ */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .badge-success {
+      background: rgba(16,185,129,0.15);
+      color: var(--success);
+      border: 1px solid rgba(16,185,129,0.25);
+    }
+
+    .badge-warning {
+      background: rgba(245,158,11,0.15);
+      color: var(--warning);
+      border: 1px solid rgba(245,158,11,0.25);
+    }
+
+    .badge-danger {
+      background: rgba(239,68,68,0.15);
+      color: var(--danger);
+      border: 1px solid rgba(239,68,68,0.25);
+    }
+
+    .badge-info {
+      background: rgba(34,211,238,0.12);
+      color: var(--secondary);
+      border: 1px solid rgba(34,211,238,0.25);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       SKELETON LOADING
+    ═══════════════════════════════════════════════════════ */
+    .skeleton {
+      background: linear-gradient(90deg,
+        rgba(255,255,255,0.04) 25%,
+        rgba(255,255,255,0.09) 50%,
+        rgba(255,255,255,0.04) 75%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 1.6s ease-in-out infinite;
+      border-radius: var(--r-sm);
+    }
+
+    @keyframes shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .skel-line {
+      height: 12px;
+      margin-block-end: 0.5rem;
+    }
+
+    .skel-line.short { width: 55%; }
+    .skel-line.medium { width: 80%; }
+    .skel-line.full { width: 100%; }
+    .skel-avatar { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; }
+    .skel-header { height: 18px; width: 60%; margin-block-end: 0.75rem; }
+    .skel-img { height: 120px; width: 100%; margin-block-end: 0.75rem; border-radius: var(--r-md); }
+
+    /* ═══════════════════════════════════════════════════════
+       TOAST NOTIFICATION
+    ═══════════════════════════════════════════════════════ */
+    .toast-stack {
+      position: fixed;
+      inset-block-start: 1.25rem;
+      inset-inline-end: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+      z-index: 9999;
+    }
+
+    .toast {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.9rem 1rem;
+      background: rgba(15,17,23,0.92);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--r-lg);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      min-width: 280px;
+      max-width: 360px;
+      animation: toast-in 0.35s var(--ease);
+    }
+
+    .toast.success { border-inline-start: 3px solid var(--success); }
+    .toast.warning { border-inline-start: 3px solid var(--warning); }
+    .toast.danger  { border-inline-start: 3px solid var(--danger); }
+    .toast.info    { border-inline-start: 3px solid var(--secondary); }
+
+    @keyframes toast-in {
+      from { opacity: 0; transform: translateX(40px) scale(0.95); }
+      to   { opacity: 1; transform: translateX(0) scale(1); }
+    }
+
+    .toast-icon {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      font-size: 0.8rem;
+    }
+
+    .toast.success .toast-icon { background: rgba(16,185,129,0.2); color: var(--success); }
+    .toast.warning .toast-icon { background: rgba(245,158,11,0.2); color: var(--warning); }
+    .toast.danger  .toast-icon { background: rgba(239,68,68,0.2);  color: var(--danger); }
+    .toast.info    .toast-icon { background: rgba(34,211,238,0.15); color: var(--secondary); }
+
+    .toast-body { flex: 1; }
+    .toast-title { font-weight: 600; font-size: 0.88rem; margin-block-end: 0.15rem; }
+    .toast-msg   { font-size: 0.8rem; color: var(--text-muted); }
+
+    .toast-dismiss {
+      background: none; border: none; color: var(--text-faint);
+      cursor: pointer; font-size: 1rem; line-height: 1;
+      padding: 0.2rem; transition: color 0.15s;
+    }
+    .toast-dismiss:hover { color: var(--text); }
+
+    /* ═══════════════════════════════════════════════════════
+       PROGRESS BAR
+    ═══════════════════════════════════════════════════════ */
+    .progress-wrap {
+      background: rgba(255,255,255,0.06);
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--primary), var(--secondary));
+      position: relative;
+      overflow: hidden;
+      transition: width 0.8s var(--ease);
+    }
+
+    .progress-fill::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255,255,255,0.35) 50%,
+        transparent 100%
+      );
+      background-size: 200% 100%;
+      animation: shimmer 1.6s ease-in-out infinite;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-block-end: 0.4rem;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       TOGGLE SWITCH
+    ═══════════════════════════════════════════════════════ */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    [dir="rtl"] .toggle-row { flex-direction: row-reverse; }
+
+    .toggle-label { font-size: 0.9rem; font-weight: 500; }
+    .toggle-sub   { font-size: 0.78rem; color: var(--text-muted); margin-block-start: 0.1rem; }
+
+    .toggle-switch {
+      position: relative;
+      width: 44px; height: 24px;
+      flex-shrink: 0;
+    }
+
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+    .toggle-track {
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid var(--glass-border);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.25s var(--ease);
+    }
+
+    .toggle-track::before {
+      content: "";
+      position: absolute;
+      width: 16px; height: 16px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      inset-block-start: 3px;
+      inset-inline-start: 3px;
+      transition: all 0.25s var(--ease);
+    }
+
+    .toggle-switch input:checked + .toggle-track {
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+
+    .toggle-switch input:checked + .toggle-track::before {
+      inset-inline-start: 21px;
+      background: #fff;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       BOTTOM TAB BAR (Mobile)
+    ═══════════════════════════════════════════════════════ */
+    .bottom-tabs {
+      display: flex;
+      background: rgba(15,17,23,0.95);
+      border-block-start: 1px solid var(--glass-border);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    .tab-item {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.75rem 0.5rem;
+      color: var(--text-faint);
+      text-decoration: none;
+      font-size: 0.65rem;
+      font-weight: 600;
+      transition: color 0.2s var(--ease);
+      position: relative;
+    }
+
+    .tab-item.active { color: var(--primary); }
+
+    .tab-item.active::before {
+      content: "";
+      position: absolute;
+      inset-block-start: 0;
+      inset-inline-start: 50%;
+      transform: translateX(-50%);
+      width: 36px; height: 2px;
+      background: var(--primary);
+      border-radius: 0 0 4px 4px;
+    }
+
+    .tab-icon { font-size: 1.1rem; }
+
+    /* ═══════════════════════════════════════════════════════
+       COLOR PALETTE SWATCHES
+    ═══════════════════════════════════════════════════════ */
+    .swatch-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+    }
+
+    .swatch {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .swatch-dot {
+      width: 56px; height: 56px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,0.1);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .swatch-hex {
+      font-size: 0.65rem;
+      font-family: monospace;
+      color: var(--text-muted);
+    }
+
+    .swatch-name {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: var(--text-faint);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       TYPOGRAPHY SHOWCASE
+    ═══════════════════════════════════════════════════════ */
+    .type-sample {
+      margin-block-end: 1.25rem;
+      padding-block-end: 1.25rem;
+      border-block-end: 1px solid var(--glass-border);
+    }
+
+    .type-meta {
+      font-size: 0.72rem;
+      color: var(--text-faint);
+      font-family: monospace;
+      margin-block-end: 0.3rem;
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       STAGGER FADE-IN
+    ═══════════════════════════════════════════════════════ */
+    .fade-item {
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
+    }
+
+    .fade-item.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* ═══════════════════════════════════════════════════════
+       UTILITY
+    ═══════════════════════════════════════════════════════ */
+    .row   { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .col   { display: flex; flex-direction: column; gap: 0.5rem; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
+    .mt    { margin-block-start: 1rem; }
+    .w-full { width: 100%; }
+    .counter { display: inline-block; }
+
+    /* RTL demo */
+    .rtl-demo { direction: rtl; font-family: var(--font-ar); }
+
+    /* ═══════════════════════════════════════════════════════
+       RESPONSIVE
+    ═══════════════════════════════════════════════════════ */
+    @media (max-width: 768px) {
+      .page { grid-template-columns: 1fr; }
+      .sidebar { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Floating background orbs -->
+<div class="orb-field" aria-hidden="true">
+  <div class="orb orb-1" id="orb1"></div>
+  <div class="orb orb-2" id="orb2"></div>
+  <div class="orb orb-3" id="orb3"></div>
+</div>
+
+<!-- Toast stack (rendered at top-right) -->
+<div class="toast-stack" id="toastStack">
+  <div class="toast success">
+    <div class="toast-icon">✓</div>
+    <div class="toast-body">
+      <div class="toast-title">Post published</div>
+      <div class="toast-msg">Your content went live on all 3 pages.</div>
+    </div>
+    <button class="toast-dismiss" onclick="this.closest('.toast').remove()">✕</button>
+  </div>
+  <div class="toast warning">
+    <div class="toast-icon">!</div>
+    <div class="toast-body">
+      <div class="toast-title">Token expiring soon</div>
+      <div class="toast-msg">Facebook token expires in 4 days.</div>
+    </div>
+    <button class="toast-dismiss" onclick="this.closest('.toast').remove()">✕</button>
+  </div>
+</div>
+
+<div class="page">
+  <!-- ── SIDEBAR ── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-icon">✦</div>
+      <div>
+        <div class="brand-name">Content Factory</div>
+        <div class="brand-sub">Design System v4</div>
+      </div>
+    </div>
+
+    <nav class="nav">
+      <a href="#" class="nav-item active">
+        <span class="nav-icon">⚡</span>
+        <span>Dashboard</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">✦</span>
+        <span>Studio</span>
+        <span class="nav-badge">3</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">◫</span>
+        <span>Templates</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">⚙</span>
+        <span>Settings</span>
+      </a>
+      <a href="#" class="nav-item">
+        <span class="nav-icon">♥</span>
+        <span>Health</span>
+      </a>
+    </nav>
+
+    <div style="margin-block-start:auto;">
+      <div style="font-size:0.75rem;color:var(--text-faint);margin-block-end:0.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">user@example.com</div>
+      <button class="btn btn-ghost" style="width:100%;font-size:0.82rem;">Sign out</button>
+    </div>
+  </aside>
+
+  <!-- ── MAIN ── -->
+  <main class="main">
+
+    <!-- HEADER -->
+    <div style="margin-block-end:3rem;">
+      <p style="color:var(--primary);font-size:0.8rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-block-end:0.5rem;">Design System</p>
+      <h1 style="font-family:var(--font-display);font-size:clamp(1.8rem,4vw,3rem);font-weight:700;letter-spacing:-0.03em;background:linear-gradient(135deg,#f1f5f9 30%,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Content Factory v4</h1>
+      <p style="color:var(--text-muted);margin-block-start:0.5rem;">Complete reference for every screen, component, and interaction.</p>
+    </div>
+
+    <!-- ── COLOR PALETTE ── -->
+    <p class="section-label">01 — Color Palette</p>
+    <h2 class="section-title">Tokens</h2>
+    <p class="section-desc">Every color used across the application. Never use raw hex in components — always use the variable.</p>
+
+    <div class="swatch-grid fade-item">
+      <div class="swatch">
+        <div class="swatch-dot" style="background:#0a0a0f;"></div>
+        <div class="swatch-hex">#0a0a0f</div>
+        <div class="swatch-name">Background</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-dot" style="background:#0f1117;"></div>
+        <div class="swatch-hex">#0f1117</div>
+        <div class="swatch-name">Surface</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-dot" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.15);"></div>
+        <div class="swatch-hex">rgba 4%</div>
+        <div class="swatch-name">Glass</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-dot" style="background:#6366f1;box-shadow:0 0 20px rgba(99,102,241,0.5);"></div>
+        <div class="swatch-hex">#6366f1</div>
+        <div class="swatch-name">Primary</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-dot" style="background:#22d3ee;box-shadow:0 0 20px rgba(34,211,238,0.4);"></div>
+        <div class="swatch-hex">#22d3ee</div>
+        <div class="swatch-name">Secondary</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-dot" style="background:#10b981;"></div>
+        <div class="swatch-hex">#10b981</div>
+        <div class="swatch-name">Success</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-dot" style="background:#f59e0b;"></div>
+        <div class="swatch-hex">#f59e0b</div>
+        <div class="swatch-name">Warning</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-dot" style="background:#ef4444;"></div>
+        <div class="swatch-hex">#ef4444</div>
+        <div class="swatch-name">Danger</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-dot" style="background:#f1f5f9;"></div>
+        <div class="swatch-hex">#f1f5f9</div>
+        <div class="swatch-name">Text</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-dot" style="background:#94a3b8;"></div>
+        <div class="swatch-hex">#94a3b8</div>
+        <div class="swatch-name">Muted</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-dot" style="background:#475569;"></div>
+        <div class="swatch-hex">#475569</div>
+        <div class="swatch-name">Faint</div>
+      </div>
+    </div>
+
+    <!-- ── TYPOGRAPHY ── -->
+    <p class="section-label">02 — Typography</p>
+    <h2 class="section-title">Type Scale</h2>
+    <p class="section-desc">Three typefaces: Space Grotesk for display, Inter for UI/body, IBM Plex Sans Arabic for Arabic text.</p>
+
+    <div class="card card-md fade-item">
+      <div class="type-sample">
+        <div class="type-meta">Space Grotesk 700 — Display Heading</div>
+        <div style="font-family:var(--font-display);font-size:clamp(1.8rem,4vw,3rem);font-weight:700;letter-spacing:-0.03em;line-height:1.1;">The Future of Arabic Content</div>
+      </div>
+      <div class="type-sample">
+        <div class="type-meta">Inter 600 — Section Title</div>
+        <div style="font-family:var(--font-body);font-size:1.4rem;font-weight:600;letter-spacing:-0.01em;">Dashboard Overview</div>
+      </div>
+      <div class="type-sample">
+        <div class="type-meta">Inter 400 — Body Text</div>
+        <div style="font-family:var(--font-body);font-size:1rem;font-weight:400;color:var(--text-muted);max-width:560px;">Create, schedule, and publish Arabic content at scale. Powered by Gemini AI with full support for Facebook and Instagram.</div>
+      </div>
+      <div class="type-sample">
+        <div class="type-meta">IBM Plex Sans Arabic 600 — Arabic UI</div>
+        <div style="font-family:var(--font-ar);font-size:1.2rem;font-weight:600;direction:rtl;text-align:start;">مرحباً بك في مصنع المحتوى</div>
+      </div>
+      <div>
+        <div class="type-meta">IBM Plex Sans Arabic 400 — Arabic Body</div>
+        <div style="font-family:var(--font-ar);font-size:0.95rem;font-weight:400;direction:rtl;text-align:start;color:var(--text-muted);max-width:500px;">أنشئ محتوى احترافياً بالذكاء الاصطناعي وانشره على فيسبوك وإنستجرام بنقرة واحدة.</div>
+      </div>
+    </div>
+
+    <!-- ── GLASS CARDS ── -->
+    <p class="section-label">03 — Glass Cards</p>
+    <h2 class="section-title">Cards — 3 Sizes</h2>
+    <p class="section-desc">The core visual unit. Every card uses glassmorphism with a subtle 3D tilt on hover. Move your mouse over each card below.</p>
+
+    <div class="showcase">
+      <!-- Small -->
+      <div class="tilt-wrap">
+        <div class="card card-sm fade-item" style="width:180px;" data-tilt>
+          <div style="font-size:1.4rem;margin-block-end:0.5rem;">⚡</div>
+          <div style="font-size:0.85rem;font-weight:600;margin-block-end:0.25rem;">Small Card</div>
+          <div style="font-size:0.75rem;color:var(--text-muted);">Stat / quick info</div>
+        </div>
+      </div>
+
+      <!-- Medium -->
+      <div class="tilt-wrap">
+        <div class="card card-md fade-item" style="width:260px;" data-tilt>
+          <div style="display:flex;align-items:center;gap:0.6rem;margin-block-end:0.75rem;">
+            <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--secondary));display:grid;place-items:center;font-size:0.9rem;">✦</div>
+            <div>
+              <div style="font-size:0.9rem;font-weight:600;">Medium Card</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);">Content blocks</div>
+            </div>
+          </div>
+          <div style="font-size:0.82rem;color:var(--text-muted);line-height:1.6;">Used for content previews, settings sections, and feature tiles throughout the app.</div>
+        </div>
+      </div>
+
+      <!-- Large -->
+      <div class="tilt-wrap">
+        <div class="card card-lg fade-item" style="width:340px;" data-tilt>
+          <div style="font-size:0.75rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--primary);margin-block-end:0.75rem;">LARGE PANEL</div>
+          <div style="font-family:var(--font-display);font-size:1.5rem;font-weight:700;margin-block-end:0.6rem;">Full Feature Panel</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);margin-block-end:1.25rem;">Used for the main content editor, analytics detail views, and onboarding steps.</div>
+          <div style="display:flex;gap:0.5rem;">
+            <span class="badge badge-success">✓ Active</span>
+            <span class="badge badge-info">Gemini</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STAT CARDS ── -->
+    <p class="section-label">04 — Stat Cards</p>
+    <h2 class="section-title">KPI Counters</h2>
+    <p class="section-desc">Numbers count up from 0 when they enter the viewport.</p>
+
+    <div class="grid2">
+      <div class="card card-md stat-card fade-item">
+        <div class="stat-label">Posts Published</div>
+        <div class="stat-value"><span class="counter" data-target="1284">0</span></div>
+        <span class="stat-change up">↑ 12.4%</span>
+      </div>
+      <div class="card card-md stat-card fade-item">
+        <div class="stat-label">Total Reach</div>
+        <div class="stat-value"><span class="counter" data-target="84200">0</span><span style="font-size:1.2rem;color:var(--text-muted);">k</span></div>
+        <span class="stat-change up">↑ 8.1%</span>
+      </div>
+      <div class="card card-md stat-card fade-item">
+        <div class="stat-label">AI Tokens Used</div>
+        <div class="stat-value"><span class="counter" data-target="2150000">0</span></div>
+        <span class="stat-change down">↓ 2.3%</span>
+      </div>
+      <div class="card card-md stat-card fade-item">
+        <div class="stat-label">Active Pages</div>
+        <div class="stat-value"><span class="counter" data-target="7">0</span></div>
+        <span class="stat-change up">↑ 1 new</span>
+      </div>
+    </div>
+
+    <!-- ── BUTTONS ── -->
+    <p class="section-label">05 — Buttons</p>
+    <h2 class="section-title">Actions</h2>
+    <p class="section-desc">Primary uses gradient fill; ghost uses glass border. Click "Publish" to see the loading state.</p>
+
+    <div class="showcase fade-item">
+      <button class="btn btn-primary" id="btnPublish" onclick="demoLoading(this)">
+        <span class="btn-text">⚡ Publish Now</span>
+      </button>
+      <button class="btn btn-primary">
+        <span class="btn-text">✦ Generate Content</span>
+      </button>
+      <button class="btn btn-ghost">← Back</button>
+      <button class="btn btn-ghost">Preview</button>
+      <button class="btn btn-primary loading">
+        <span class="btn-text">Saving...</span>
+      </button>
+    </div>
+
+    <!-- ── INPUTS ── -->
+    <p class="section-label">06 — Inputs</p>
+    <h2 class="section-title">Form Fields</h2>
+    <p class="section-desc">Glass border, dark fill, focus glow. Arabic placeholder shown on the second example.</p>
+
+    <div class="col fade-item" style="max-width:440px;">
+      <div class="field">
+        <label class="field-label">Gemini API Key</label>
+        <input class="input" type="text" placeholder="AIza...Xk9d">
+      </div>
+      <div class="field">
+        <label class="field-label" style="font-family:var(--font-ar);direction:rtl;text-align:start;">اسم الصفحة</label>
+        <input class="input input-ar" type="text" placeholder="أدخل اسم الصفحة هنا">
+      </div>
+      <div class="field">
+        <label class="field-label">Search</label>
+        <input class="input" type="text" placeholder="Search posts, templates…">
+      </div>
+    </div>
+
+    <!-- ── BADGES ── -->
+    <p class="section-label">07 — Badges</p>
+    <h2 class="section-title">Status Indicators</h2>
+    <p class="section-desc">Four variants for all status states.</p>
+
+    <div class="showcase fade-item">
+      <span class="badge badge-success">✓ Published</span>
+      <span class="badge badge-warning">⚠ Pending Review</span>
+      <span class="badge badge-danger">✕ Failed</span>
+      <span class="badge badge-info">◎ Processing</span>
+      <span class="badge badge-success">✓ Token Valid</span>
+      <span class="badge badge-warning">! Expiring Soon</span>
+    </div>
+
+    <!-- ── SKELETON ── -->
+    <p class="section-label">08 — Skeleton Loading</p>
+    <h2 class="section-title">Loading States</h2>
+    <p class="section-desc">Shimmer animation replaces content during async data loads.</p>
+
+    <div class="grid2">
+      <div class="card card-md fade-item">
+        <div class="skeleton skel-img"></div>
+        <div class="skeleton skel-header"></div>
+        <div class="skeleton skel-line full"></div>
+        <div class="skeleton skel-line medium"></div>
+        <div class="skeleton skel-line short"></div>
+      </div>
+      <div class="card card-md fade-item">
+        <div style="display:flex;gap:0.75rem;margin-block-end:1rem;align-items:center;">
+          <div class="skeleton skel-avatar"></div>
+          <div style="flex:1;">
+            <div class="skeleton skel-line medium" style="margin-block-end:0.4rem;"></div>
+            <div class="skeleton skel-line short"></div>
+          </div>
+        </div>
+        <div class="skeleton skel-line full"></div>
+        <div class="skeleton skel-line full" style="margin-block-end:0;"></div>
+      </div>
+    </div>
+
+    <!-- ── PROGRESS ── -->
+    <p class="section-label">09 — Progress Bars</p>
+    <h2 class="section-title">Progress</h2>
+    <p class="section-desc">Gradient fill with animated shimmer. Width transitions smoothly on update.</p>
+
+    <div class="card card-md fade-item" style="max-width:500px;">
+      <div style="margin-block-end:1.25rem;">
+        <div class="progress-label"><span>Posts generated this month</span><span>72%</span></div>
+        <div class="progress-wrap"><div class="progress-fill" style="width:72%"></div></div>
+      </div>
+      <div style="margin-block-end:1.25rem;">
+        <div class="progress-label"><span>Gemini quota</span><span>38%</span></div>
+        <div class="progress-wrap"><div class="progress-fill" style="width:38%"></div></div>
+      </div>
+      <div>
+        <div class="progress-label"><span>Storage used</span><span>91%</span></div>
+        <div class="progress-wrap"><div class="progress-fill" style="width:91%"></div></div>
+      </div>
+    </div>
+
+    <!-- ── TOGGLES ── -->
+    <p class="section-label">10 — Toggle Switches</p>
+    <h2 class="section-title">Toggles</h2>
+    <p class="section-desc">Using logical CSS — label position flips correctly in RTL without any extra JS.</p>
+
+    <div class="card card-md fade-item" style="max-width:400px;">
+      <div class="col">
+        <label class="toggle-row">
+          <div class="toggle-switch">
+            <input type="checkbox" checked>
+            <div class="toggle-track"></div>
+          </div>
+          <div>
+            <div class="toggle-label">Auto-publish</div>
+            <div class="toggle-sub">Publish approved posts automatically</div>
+          </div>
+        </label>
+        <label class="toggle-row">
+          <div class="toggle-switch">
+            <input type="checkbox">
+            <div class="toggle-track"></div>
+          </div>
+          <div>
+            <div class="toggle-label">Viral mode</div>
+            <div class="toggle-sub">Boost reach with trending hooks</div>
+          </div>
+        </label>
+        <!-- Arabic RTL toggle demo -->
+        <label class="toggle-row rtl-demo" style="margin-block-start:0.5rem;padding-block-start:0.75rem;border-block-start:1px solid var(--glass-border);">
+          <div class="toggle-switch">
+            <input type="checkbox" checked>
+            <div class="toggle-track"></div>
+          </div>
+          <div>
+            <div class="toggle-label">النشر التلقائي</div>
+            <div class="toggle-sub">يعمل بشكل صحيح مع RTL</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- ── BOTTOM TAB BAR ── -->
+    <p class="section-label">11 — Bottom Tab Bar</p>
+    <h2 class="section-title">Mobile Navigation</h2>
+    <p class="section-desc">Replaces the sidebar at mobile widths. Active item shows an accent indicator line at the top.</p>
+
+    <div class="card fade-item" style="max-width:400px;overflow:hidden;">
+      <div class="bottom-tabs">
+        <a href="#" class="tab-item active">
+          <span class="tab-icon">⚡</span>
+          <span>Home</span>
+        </a>
+        <a href="#" class="tab-item">
+          <span class="tab-icon">✦</span>
+          <span>Studio</span>
+        </a>
+        <a href="#" class="tab-item">
+          <span class="tab-icon">◫</span>
+          <span>Templates</span>
+        </a>
+        <a href="#" class="tab-item">
+          <span class="tab-icon">⚙</span>
+          <span>Settings</span>
+        </a>
+        <a href="#" class="tab-item">
+          <span class="tab-icon">♥</span>
+          <span>Health</span>
+        </a>
+      </div>
+    </div>
+
+    <!-- ── 3D TILT SHOWCASE ── -->
+    <p class="section-label">12 — 3D Tilt Effect</p>
+    <h2 class="section-title">Interactive Depth</h2>
+    <p class="section-desc">Move your mouse over these cards. JavaScript tracks cursor position and applies up to 5° tilt on each axis using CSS perspective.</p>
+
+    <div class="showcase">
+      <div class="tilt-wrap">
+        <div class="card card-md fade-item" data-tilt style="width:220px;">
+          <div style="font-size:2rem;margin-block-end:0.75rem;">🧠</div>
+          <div style="font-weight:700;font-family:var(--font-display);margin-block-end:0.4rem;">Gemini AI</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);">Tilt this card in 3D space</div>
+        </div>
+      </div>
+      <div class="tilt-wrap">
+        <div class="card card-md fade-item" data-tilt style="width:220px;background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(34,211,238,0.06));border-color:rgba(99,102,241,0.25);">
+          <div style="font-size:2rem;margin-block-end:0.75rem;">📱</div>
+          <div style="font-weight:700;font-family:var(--font-display);margin-block-end:0.4rem;">Facebook Pages</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);">Connected &amp; active</div>
+        </div>
+      </div>
+      <div class="tilt-wrap">
+        <div class="card card-md fade-item" data-tilt style="width:220px;">
+          <div style="font-size:2rem;margin-block-end:0.75rem;">📡</div>
+          <div style="font-weight:700;font-family:var(--font-display);margin-block-end:0.4rem;">Telegram Bot</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);">Real-time notifications</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── TOASTS DEMO ── -->
+    <p class="section-label">13 — Toast Notifications</p>
+    <h2 class="section-title">Notifications</h2>
+    <p class="section-desc">Four variants. Glassmorphism style, animate in from the inline-end edge. Toasts are already visible top-right.</p>
+
+    <div class="showcase fade-item">
+      <button class="btn btn-ghost" onclick="showToast('success','Published!','Your content went live.')">Success Toast</button>
+      <button class="btn btn-ghost" onclick="showToast('warning','Warning','Token expires in 4 days.')">Warning Toast</button>
+      <button class="btn btn-ghost" onclick="showToast('danger','Error','Post failed to publish.')">Error Toast</button>
+      <button class="btn btn-ghost" onclick="showToast('info','Processing','AI is generating content…')">Info Toast</button>
+    </div>
+
+    <!-- ── SPACING AT BOTTOM ── -->
+    <div style="height:4rem;"></div>
+
+  </main>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   STAGGER FADE-IN on scroll
+═══════════════════════════════════════════════ */
+const fadeItems = document.querySelectorAll('.fade-item');
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach((entry, i) => {
+    if (entry.isIntersecting) {
+      setTimeout(() => entry.target.classList.add('visible'), i * 80);
+      observer.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.12 });
+fadeItems.forEach(el => observer.observe(el));
+
+/* ═══════════════════════════════════════════════
+   3D TILT — Mouse tracking
+═══════════════════════════════════════════════ */
+document.querySelectorAll('[data-tilt]').forEach(card => {
+  const wrap = card.closest('.tilt-wrap') || card;
+  card.classList.add('card-tilt');
+
+  wrap.addEventListener('mousemove', (e) => {
+    const rect = card.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = (e.clientX - cx) / (rect.width / 2);
+    const dy = (e.clientY - cy) / (rect.height / 2);
+    const rotY =  dx * 5;
+    const rotX = -dy * 5;
+    card.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(1.02)`;
+    card.style.boxShadow = `${-rotY*2}px ${rotX*2}px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)`;
+    card.style.transition = 'transform 0.05s linear, box-shadow 0.05s linear';
+  });
+
+  wrap.addEventListener('mouseleave', () => {
+    card.style.transform = '';
+    card.style.boxShadow = '';
+    card.style.transition = 'transform 0.4s cubic-bezier(0.4,0,0.2,1), box-shadow 0.4s cubic-bezier(0.4,0,0.2,1)';
+  });
+});
+
+/* ═══════════════════════════════════════════════
+   FLOATING ORBS — Parallax on scroll
+═══════════════════════════════════════════════ */
+const orb1 = document.getElementById('orb1');
+const orb2 = document.getElementById('orb2');
+const orb3 = document.getElementById('orb3');
+
+window.addEventListener('scroll', () => {
+  const y = window.scrollY;
+  if (orb1) orb1.style.transform = `translateY(${y * 0.15}px)`;
+  if (orb2) orb2.style.transform = `translateY(${y * -0.1}px)`;
+  if (orb3) orb3.style.transform = `translateY(${y * 0.08}px)`;
+}, { passive: true });
+
+/* ═══════════════════════════════════════════════
+   NUMBER COUNTERS — Count up on viewport entry
+═══════════════════════════════════════════════ */
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+
+function animateCounter(el) {
+  const target = parseInt(el.dataset.target, 10);
+  const duration = 1200;
+  const start = performance.now();
+  function update(now) {
+    const elapsed = now - start;
+    const progress = Math.min(elapsed / duration, 1);
+    const value = Math.round(easeOut(progress) * target);
+    el.textContent = value.toLocaleString();
+    if (progress < 1) requestAnimationFrame(update);
+  }
+  requestAnimationFrame(update);
+}
+
+const counterObserver = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      animateCounter(entry.target);
+      counterObserver.unobserve(entry.target);
+    }
+  });
+}, { threshold: 0.5 });
+
+document.querySelectorAll('.counter').forEach(el => counterObserver.observe(el));
+
+/* ═══════════════════════════════════════════════
+   BUTTON LOADING STATE DEMO
+═══════════════════════════════════════════════ */
+function demoLoading(btn) {
+  btn.classList.add('loading');
+  setTimeout(() => {
+    btn.classList.remove('loading');
+    showToast('success', 'Published!', 'Your content is now live.');
+  }, 2000);
+}
+
+/* ═══════════════════════════════════════════════
+   TOAST SYSTEM
+═══════════════════════════════════════════════ */
+const iconMap = { success: '✓', warning: '!', danger: '✕', info: '◎' };
+
+function showToast(type, title, msg) {
+  const stack = document.getElementById('toastStack');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.innerHTML = `
+    <div class="toast-icon">${iconMap[type] || '◎'}</div>
+    <div class="toast-body">
+      <div class="toast-title">${title}</div>
+      <div class="toast-msg">${msg}</div>
+    </div>
+    <button class="toast-dismiss" onclick="this.closest('.toast').remove()">✕</button>
+  `;
+  stack.prepend(t);
+  setTimeout(() => t.remove(), 5000);
+}
+</script>
+</body>
+</html>

@@ -126,7 +126,11 @@ def create_app() -> Flask:
     # ── Top-level auth aliases (/login → /auth/login etc.) ─────────────────
     # Allows canonical short URLs in links/templates while keeping the blueprint
     # prefix (/auth/*) as the authoritative route for url_for() calls.
-    from flask import redirect, url_for as _url_for
+    from flask import redirect, url_for as _url_for, send_from_directory
+
+    @_app.route("/design-system")
+    def _design_system():
+        return send_from_directory(_root, "design_system.html")
 
     @_app.route("/login")
     def _login_alias():
