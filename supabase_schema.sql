@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS managed_pages (
     posting_times TEXT DEFAULT '08:00,13:00,19:00',
     language TEXT DEFAULT 'ar',
     status TEXT DEFAULT 'active',
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    user_id UUID REFERENCES users(id)
 );
 
 CREATE TABLE IF NOT EXISTS raw_articles (
@@ -102,7 +103,7 @@ CREATE TABLE IF NOT EXISTS published_posts (
     user_id UUID REFERENCES users(id)
 );
 
--- Migration: add posting_times to existing managed_pages (run if column missing)
+-- Migration: add posting_times to existing managed_pages
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -110,6 +111,17 @@ BEGIN
         WHERE table_name = 'managed_pages' AND column_name = 'posting_times'
     ) THEN
         ALTER TABLE managed_pages ADD COLUMN posting_times TEXT DEFAULT '08:00,13:00,19:00';
+    END IF;
+END $$;
+
+-- Migration: add user_id to existing managed_pages
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'managed_pages' AND column_name = 'user_id'
+    ) THEN
+        ALTER TABLE managed_pages ADD COLUMN user_id UUID REFERENCES users(id);
     END IF;
 END $$;
 
