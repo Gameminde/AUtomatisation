@@ -21,14 +21,19 @@ from typing import Dict, List, Optional
 
 from flask import Flask, jsonify, render_template, request, redirect, url_for, session, Blueprint, send_file
 from flask_cors import CORS
+from flask_login import LoginManager, login_required, current_user
 
 import config
 import json
 import random
 from pathlib import Path
 
-# Initialize Flask app
-app = Flask(__name__, template_folder='templates', static_folder='static')
+logger = config.get_logger("dashboard")
+
+API_KEY = os.getenv("DASHBOARD_API_KEY", "")
+
+web_bp = Blueprint('web', __name__)
+api_bp = Blueprint('api', __name__)
 
 
 def _get_or_create_secret_key() -> str:
@@ -48,23 +53,7 @@ def _get_or_create_secret_key() -> str:
     return new_key
 
 
-app.secret_key = _get_or_create_secret_key()
-CORS(app)
-
-logger = config.get_logger("dashboard")
-
-# Simple API key auth (for production, use proper auth)
-API_KEY = os.getenv("DASHBOARD_API_KEY", "")
-
-# Blueprints
-web_bp = Blueprint('web', __name__)
-api_bp = Blueprint('api', __name__)
-
-@app.context_processor
-def inject_dashboard_config():
-    return {
-        'dashboard_api_key': API_KEY or ''
-    }
+from models import User
 
 def _read_env_file():
     env_path = Path(__file__).parent / '.env'
@@ -82,14 +71,12 @@ def _write_env_file(env_path: Path, data: Dict[str, str]) -> None:
         for key, val in data.items():
             f.write(f"{key}={val}\n")
 
-def require_auth(f):
-    """Simple authentication decorator."""
+def api_login_required(f):
+    """Decorator for JSON API routes: returns 401 JSON (no redirect)."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        if API_KEY:
-            auth_header = request.headers.get("X-API-Key")
-            if auth_header != API_KEY:
-                return jsonify({"error": "Unauthorized"}), 401
+        if not current_user.is_authenticated:
+            return jsonify({"error": "Authentication required"}), 401
         return f(*args, **kwargs)
     return decorated
 
@@ -99,7 +86,7 @@ def require_auth(f):
 # ============================================
 
 @api_bp.route('/api/pages', methods=['GET'])
-@require_auth
+@api_login_required
 def get_pages():
     """Get all managed pages."""
     try:
@@ -112,7 +99,7 @@ def get_pages():
 
 
 @api_bp.route('/api/pages', methods=['POST'])
-@require_auth
+@api_login_required
 def add_page():
     """Add a new managed page."""
     try:
@@ -141,7 +128,7 @@ def add_page():
 
 
 @api_bp.route('/api/pages/<page_id>', methods=['PUT'])
-@require_auth
+@api_login_required
 def update_page(page_id: str):
     """Update page configuration."""
     try:
@@ -168,7 +155,7 @@ def update_page(page_id: str):
 
 
 @api_bp.route('/api/pages/<page_id>', methods=['DELETE'])
-@require_auth
+@api_login_required
 def delete_page(page_id: str):
     """Delete a managed page."""
     try:
@@ -188,32 +175,37 @@ def delete_page(page_id: str):
 # ============================================
 
 @web_bp.route('/')
+@login_required
 def page_dashboard():
     """Main Dashboard (Mission Control)."""
     return render_template('dashboard_v3.html', active_page='dashboard')
 
 @web_bp.route('/studio')
+@login_required
 def page_studio():
     """Content Studio."""
     return render_template('studio_v3.html', active_page='studio')
 
 @web_bp.route('/templates')
+@login_required
 def page_templates():
     """Templates & Branding."""
     return render_template('templates_v3.html', active_page='templates')
 
 @web_bp.route('/settings')
+@login_required
 def page_settings():
     """Unified Settings."""
     return render_template('settings_v3.html', active_page='settings')
 
 @web_bp.route('/health')
+@login_required
 def page_health():
     """System Health & Logs page."""
     return render_template('health_v3.html', active_page='health')
 
-# Legacy setup (kept for config access if needed, or redirect)
 @web_bp.route('/setup')
+@login_required
 def page_setup():
     return render_template('setup_v3.html', active_page='setup')
 
@@ -224,7 +216,7 @@ def page_setup():
 # ============================================
 
 @api_bp.route('/api/analytics/overview', methods=['GET'])
-@require_auth
+@api_login_required
 def get_analytics_overview():
     """Get analytics overview for all pages."""
     try:
@@ -269,7 +261,7 @@ def get_analytics_overview():
 
 
 @api_bp.route('/api/insights', methods=['GET'])
-@require_auth
+@api_login_required
 def get_insights():
     """
     Generate 2-3 plain-language 'What's Working' insights from engagement data.
@@ -557,7 +549,7 @@ def get_insights():
 
 
 @api_bp.route('/api/analytics/daily', methods=['GET'])
-@require_auth
+@api_login_required
 def get_daily_analytics():
     """Get daily analytics breakdown."""
     try:
@@ -593,7 +585,7 @@ def get_daily_analytics():
 # ============================================
 
 @api_bp.route('/api/status', methods=['GET'])
-@require_auth
+@api_login_required
 def get_system_status():
     """Get system status and health checks."""
     try:
@@ -629,7 +621,7 @@ def get_system_status():
 
 
 @api_bp.route('/api/status/modules', methods=['GET'])
-@require_auth
+@api_login_required
 def get_modules_status():
     """Get status of all automation modules."""
     modules = {}
@@ -659,7 +651,7 @@ def get_modules_status():
 # ============================================
 
 @api_bp.route('/api/system/snapshot', methods=['GET'])
-@require_auth
+@api_login_required
 def get_system_snapshot():
     """
     v2.1: Get at-a-glance system health snapshot.
@@ -713,7 +705,7 @@ def get_system_snapshot():
 
 
 @api_bp.route('/api/content/<content_id>/approve', methods=['POST'])
-@require_auth
+@api_login_required
 def approve_content(content_id: str):
     """
     v2.1: Approve content for publishing.
@@ -740,7 +732,7 @@ def approve_content(content_id: str):
 
 
 @api_bp.route('/api/content/<content_id>/reject', methods=['POST'])
-@require_auth
+@api_login_required
 def reject_content(content_id: str):
     """
     v2.1.1: Reject content (mark as rejected or regenerate).
@@ -779,7 +771,7 @@ def reject_content(content_id: str):
 
 
 @api_bp.route('/api/content/pending', methods=['GET'])
-@require_auth
+@api_login_required
 def get_pending_content():
     """
     v2.1: Get content awaiting approval.
@@ -809,7 +801,7 @@ def get_pending_content():
 # ============================================
 
 @api_bp.route('/api/content/scheduled', methods=['GET'])
-@require_auth
+@api_login_required
 def get_scheduled_content():
     """Get scheduled posts."""
     try:
@@ -833,7 +825,7 @@ def get_scheduled_content():
 
 
 @api_bp.route('/api/content/published', methods=['GET'])
-@require_auth
+@api_login_required
 def get_published_content():
     """Get recently published posts."""
     try:
@@ -859,7 +851,7 @@ def get_published_content():
 
 
 @api_bp.route('/api/content/<content_id>', methods=['GET'])
-@require_auth
+@api_login_required
 def get_content_by_id(content_id: str):
     """Get specific content by ID."""
     try:
@@ -883,7 +875,7 @@ def get_content_by_id(content_id: str):
 
 
 @api_bp.route('/api/content/<content_id>/image', methods=['GET'])
-@require_auth
+@api_login_required
 def get_content_image(content_id: str):
     # Serve local image for a content item.
     try:
@@ -922,7 +914,7 @@ def get_content_image(content_id: str):
 
 
 @api_bp.route('/api/content/<content_id>', methods=['PUT'])
-@require_auth
+@api_login_required
 def update_content(content_id: str):
     """
     v3.0: Update content fields (caption, image title, hashtags).
@@ -959,7 +951,7 @@ def update_content(content_id: str):
 
 
 @api_bp.route('/api/actions/publish-next', methods=['POST'])
-@require_auth
+@api_login_required
 def publish_next():
     """
     Force publish the next scheduled item immediately.
@@ -1000,7 +992,7 @@ def publish_next():
 
 
 @api_bp.route('/api/content/dashboard-summary', methods=['GET'])
-@require_auth
+@api_login_required
 def get_dashboard_summary():
     """
     Get summary data for the Mission Control dashboard queues.
@@ -1070,7 +1062,7 @@ def get_dashboard_summary():
 
 
 @api_bp.route('/api/content/list', methods=['GET'])
-@require_auth
+@api_login_required
 def list_content():
     try:
         client = config.get_supabase_client()
@@ -1102,7 +1094,7 @@ def list_content():
 
 
 @api_bp.route('/api/content/all', methods=['GET'])
-@require_auth
+@api_login_required
 def get_all_content():
     """
     Get all content with filtering.
@@ -1129,7 +1121,7 @@ def get_all_content():
 # ============================================
 
 @api_bp.route('/api/brand/templates', methods=['GET'])
-@require_auth
+@api_login_required
 def get_brand_templates():
     """Get all text and image templates."""
     try:
@@ -1164,7 +1156,7 @@ def get_brand_templates():
 
 
 @api_bp.route('/api/brand/template-select', methods=['POST'])
-@require_auth
+@api_login_required
 def select_brand_template():
     try:
         data = request.json or {}
@@ -1191,7 +1183,7 @@ def select_brand_template():
 
 
 @api_bp.route('/api/brand/language-ratio', methods=['POST'])
-@require_auth
+@api_login_required
 def set_language_ratio():
     """Set language distribution weights."""
     try:
@@ -1221,7 +1213,7 @@ def set_language_ratio():
         return jsonify({"error": str(e)}), 500
 
 @api_bp.route('/api/brand/glossary', methods=['POST'])
-@require_auth
+@api_login_required
 def update_glossary():
     """Update Keep-English glossary."""
     try:
@@ -1251,7 +1243,7 @@ def update_glossary():
 # ============================================
 
 @api_bp.route('/api/health/status', methods=['GET'])
-@require_auth
+@api_login_required
 def get_health_detailed():
     """Detailed health status."""
     try:
@@ -1287,7 +1279,7 @@ def get_health_detailed():
         return jsonify({"error": str(e)}), 500
 
 @api_bp.route('/api/health/events', methods=['GET'])
-@require_auth
+@api_login_required
 def get_health_events():
     """Get recent system events/logs."""
     # For now, return mock events or read from a log file if possible
@@ -1300,7 +1292,7 @@ def get_health_events():
     return jsonify({"events": events})
 
 @api_bp.route('/api/health/test/<service>', methods=['GET'])
-@require_auth
+@api_login_required
 def run_service_test(service):
     """Run diagnostic test for a service."""
     try:
@@ -1324,14 +1316,14 @@ def run_service_test(service):
         return jsonify({"success": False})
 
 @api_bp.route('/api/health/acknowledge-error', methods=['POST'])
-@require_auth
+@api_login_required
 def ack_error():
     # Clear error state logic here
     return jsonify({"success": True})
 
 
 @api_bp.route('/api/config/api-keys', methods=['GET', 'POST'])
-@require_auth
+@api_login_required
 def config_api_keys():
     # Get API key status or update keys (for buyers).
     if request.method == 'GET':
@@ -1368,7 +1360,7 @@ def config_api_keys():
 
 
 @api_bp.route('/api/config/database', methods=['GET', 'POST'])
-@require_auth
+@api_login_required
 def config_database():
     if request.method == 'GET':
         return jsonify({
@@ -1394,7 +1386,7 @@ def config_database():
 
 
 @api_bp.route('/api/config/approval-mode', methods=['POST'])
-@require_auth
+@api_login_required
 def config_approval_mode():
     data = request.json or {}
     enabled = bool(data.get('enabled'))
@@ -1433,7 +1425,7 @@ def serve_media_public(filename: str):
 # ============================================
 
 @api_bp.route('/api/instagram/status', methods=['GET'])
-@require_auth
+@api_login_required
 def get_instagram_status():
     """Get Instagram Business Account connection status for the active Facebook Page."""
     try:
@@ -1484,7 +1476,7 @@ def get_instagram_status():
 # ============================================
 
 @api_bp.route('/api/actions/publish-content', methods=['POST'])
-@require_auth
+@api_login_required
 def publish_specific_content():
     """
     Publish a specific content by ID to one or more platforms.
@@ -1714,7 +1706,7 @@ def _publish_content_to_instagram(content_id: str) -> Dict:
 # ============================================
 
 @api_bp.route('/api/actions/run-now', methods=['POST'])
-@require_auth
+@api_login_required
 def action_run_now():
     """Trigger the content generation pipeline immediately."""
     try:
@@ -1744,7 +1736,7 @@ def action_run_now():
 
 
 @api_bp.route('/api/actions/pause', methods=['POST'])
-@require_auth
+@api_login_required
 def action_pause():
     """Pause the system for 24h."""
     # Implementation pending - usually sets a flag in DB
@@ -1752,7 +1744,7 @@ def action_pause():
 # ============================================
 
 @api_bp.route('/api/actions/publish-now', methods=['POST'])
-@require_auth
+@api_login_required
 def publish_now():
     """Trigger immediate publishing run."""
     try:
@@ -1769,7 +1761,7 @@ def publish_now():
 
 
 @api_bp.route('/api/actions/create-content', methods=['POST'])
-@require_auth
+@api_login_required
 def create_content():
     """Create new content from trending topic with style."""
     try:
@@ -1796,7 +1788,7 @@ def create_content():
 
 
 @api_bp.route('/api/content/<content_id>/schedule', methods=['POST'])
-@require_auth
+@api_login_required
 def schedule_content(content_id: str):
     try:
         data = request.json or {}
@@ -1825,7 +1817,7 @@ def schedule_content(content_id: str):
 
 
 @api_bp.route('/api/content/<content_id>/regenerate', methods=['POST'])
-@require_auth
+@api_login_required
 def regenerate_content_by_id(content_id: str):
     """Regenerate content with a different style or template."""
     try:
@@ -1944,7 +1936,7 @@ def regenerate_content_by_id(content_id: str):
 
 
 @api_bp.route('/api/actions/schedule', methods=['POST'])
-@require_auth
+@api_login_required
 def run_scheduler():
     """
     Run the scheduler.
@@ -1981,7 +1973,7 @@ def run_scheduler():
 # ============================================
 
 @api_bp.route('/api/ab-tests', methods=['GET'])
-@require_auth
+@api_login_required
 def get_ab_tests():
     """Get active A/B tests."""
     try:
@@ -1995,7 +1987,7 @@ def get_ab_tests():
 
 
 @api_bp.route('/api/ab-tests', methods=['POST'])
-@require_auth
+@api_login_required
 def create_ab_test():
     """Create a new A/B test."""
     try:
@@ -2019,7 +2011,7 @@ def create_ab_test():
 
 
 @api_bp.route('/api/ab-tests/<test_id>/results', methods=['GET'])
-@require_auth
+@api_login_required
 def get_ab_test_results(test_id: str):
     """Get results for a specific A/B test."""
     try:
@@ -2037,7 +2029,7 @@ def get_ab_test_results(test_id: str):
 # ============================================
 
 @api_bp.route('/api/virality/score', methods=['POST'])
-@require_auth
+@api_login_required
 def score_content_virality():
     """Score content for virality potential."""
     try:
@@ -2059,7 +2051,7 @@ def score_content_virality():
 
 
 @api_bp.route('/api/virality/analyze', methods=['POST'])
-@require_auth
+@api_login_required
 def analyze_content_improvement():
     """Analyze content and suggest improvements."""
     try:
@@ -2083,7 +2075,7 @@ def analyze_content_improvement():
 # ============================================
 
 @api_bp.route('/api/randomization/config', methods=['GET'])
-@require_auth
+@api_login_required
 def get_randomization_config():
     """Get current randomization settings."""
     try:
@@ -2110,7 +2102,7 @@ def get_randomization_config():
 # ============================================
 
 @api_bp.route('/api/logs/recent', methods=['GET'])
-@require_auth
+@api_login_required
 def get_recent_logs():
     """Get recent log entries."""
     try:
@@ -2137,7 +2129,7 @@ def get_recent_logs():
 # ============================================
 
 @api_bp.route('/api/actions/sync-analytics', methods=['POST'])
-@require_auth
+@api_login_required
 def sync_analytics():
     """Sync analytics from Facebook for recent posts."""
     try:
@@ -2339,7 +2331,7 @@ def oauth_select_page():
 
 
 @api_bp.route('/api/facebook/status', methods=['GET'])
-@require_auth
+@api_login_required
 def get_facebook_status():
     """Get Facebook connection status."""
     try:
@@ -2360,7 +2352,7 @@ def get_facebook_status():
 
 
 @api_bp.route('/api/facebook/disconnect', methods=['POST'])
-@require_auth
+@api_login_required
 def disconnect_facebook():
     """Disconnect Facebook (remove tokens)."""
     try:
@@ -2383,7 +2375,7 @@ def disconnect_facebook():
 # ============================================
 
 @api_bp.route('/api/ai/test', methods=['POST'])
-@require_auth
+@api_login_required
 def test_ai_connection():
     """Test AI connection (Gemini or OpenRouter)."""
     try:
@@ -2407,7 +2399,7 @@ agent_running = False
 
 
 @api_bp.route('/api/agent/status', methods=['GET'])
-@require_auth
+@api_login_required
 def get_agent_status():
     """Get agent running status."""
     global agent_running
@@ -2418,7 +2410,7 @@ def get_agent_status():
 
 
 @api_bp.route('/api/agent/start', methods=['POST'])
-@require_auth
+@api_login_required
 def start_agent():
     """Start the automation agent."""
     global agent_thread, agent_running
@@ -2457,7 +2449,7 @@ def start_agent():
 
 
 @api_bp.route('/api/agent/stop', methods=['POST'])
-@require_auth
+@api_login_required
 def stop_agent():
     """Stop the automation agent."""
     global agent_running
@@ -2473,7 +2465,7 @@ def stop_agent():
 # ============================================
 
 @api_bp.route('/api/content/regenerate', methods=['POST'])
-@require_auth
+@api_login_required
 def regenerate_content_legacy():
     """Regenerate content with a specific style."""
     try:
@@ -2564,7 +2556,7 @@ def regenerate_content_legacy():
 
 
 @api_bp.route('/api/config/posts-limit', methods=['POST'])
-@require_auth  
+@api_login_required  
 def set_posts_limit():
     """Set daily posts limit."""
     try:
@@ -2770,14 +2762,6 @@ def test_ai_provider():
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
 
-# Register blueprints (MUST be after ALL route definitions)
-app.register_blueprint(web_bp)
-app.register_blueprint(api_bp)
-
-# ── Run smart-defaults backfill at module load time so it executes under
-# both `python dashboard_app.py` and Gunicorn (`gunicorn dashboard_app:app`).
-# Wrapped in app context so db helpers resolve correctly. ─────────────────
-
 def _init_smart_defaults() -> None:
     """
     Apply smart scheduling defaults to any managed_pages rows that have
@@ -2833,29 +2817,56 @@ def _init_smart_defaults() -> None:
         logger.warning("Smart defaults init failed: %s", e)
 
 
-# Module-level call: runs under both `python dashboard_app.py` and Gunicorn.
-with app.app_context():
-    _init_smart_defaults()
+def create_app():
+    """Application factory — returns a configured Flask app instance."""
+    _app = Flask(__name__, template_folder='templates', static_folder='static')
+    _app.secret_key = _get_or_create_secret_key()
+    CORS(_app)
+
+    login_manager = LoginManager()
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = ''
+    login_manager.init_app(_app)
+
+    @login_manager.user_loader
+    def load_user(user_id):
+        try:
+            client = config.get_supabase_client()
+            result = (
+                client.table('users')
+                .select('id, email, is_active')
+                .eq('id', user_id)
+                .execute()
+            )
+            if result.data:
+                d = result.data[0]
+                return User(d['id'], d['email'], d.get('is_active', True))
+        except Exception:
+            pass
+        return None
+
+    @_app.context_processor
+    def inject_dashboard_config():
+        return {
+            'dashboard_api_key': API_KEY or '',
+            'current_user': current_user,
+        }
+
+    from app.auth.routes import auth_bp
+    _app.register_blueprint(auth_bp)
+    _app.register_blueprint(web_bp)
+    _app.register_blueprint(api_bp)
+
+    with _app.app_context():
+        _init_smart_defaults()
+
+    return _app
+
+
+app = create_app()
 
 
 if __name__ == '__main__':
-    print("=" * 60)
-    print("🚀 Content Factory Dashboard")
-    print("=" * 60)
-
-    create_tables_if_not_exist()
-
     port = int(os.getenv("DASHBOARD_PORT", 5000))
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
-    
-    print(f"\n🌐 Starting server on http://localhost:{port}")
-    print(f"📊 Debug mode: {debug}")
-    print("\nAPI Endpoints:")
-    print("  GET  /api/pages           - List all pages")
-    print("  POST /api/pages           - Add new page")
-    print("  GET  /api/analytics/overview - Get analytics")
-    print("  GET  /api/status          - System health")
-    print("  POST /api/actions/publish-now - Publish immediately")
-    print()
-
     app.run(host='0.0.0.0', port=port, debug=debug)

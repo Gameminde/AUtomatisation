@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Content Factory — Sign In</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme_v3.css') }}">
+    <style>
+        body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .auth-card {
+            width: min(420px, 92vw);
+            background: var(--bg-soft);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            box-shadow: var(--shadow);
+        }
+        .auth-brand { text-align: center; margin-bottom: 2rem; }
+        .auth-brand-icon {
+            width: 56px; height: 56px; border-radius: 16px;
+            background: rgba(68,241,166,0.15); display: inline-grid;
+            place-items: center; color: var(--primary); font-size: 1.5rem;
+            box-shadow: inset 0 0 20px rgba(68,241,166,0.3); margin-bottom: 0.75rem;
+        }
+        .auth-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
+        .auth-sub { color: var(--text-dim); font-size: 0.9rem; }
+        .field { margin-bottom: 1rem; }
+        .field label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.4rem; color: var(--text-dim); }
+        .field .input { font-size: 1rem; }
+        .btn-block { width: 100%; justify-content: center; padding: 0.75rem; font-size: 1rem; margin-top: 0.5rem; }
+        .auth-footer { text-align: center; margin-top: 1.25rem; color: var(--text-dim); font-size: 0.85rem; }
+        .auth-footer a { color: var(--primary); text-decoration: none; font-weight: 500; }
+        .error-box {
+            background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.3);
+            border-radius: 10px; padding: 0.6rem 0.9rem; margin-bottom: 1rem;
+            color: var(--danger); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-card">
+        <div class="auth-brand">
+            <div class="auth-brand-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+            <div class="auth-title">Content Factory</div>
+            <div class="auth-sub">Sign in to your account</div>
+        </div>
+
+        {% if error %}
+        <div class="error-box">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            {% if error == 'invalid_credentials' %}
+                Incorrect email or password.
+            {% else %}
+                An error occurred. Please try again.
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <form method="post" autocomplete="on">
+            <div class="field">
+                <label for="email">Email address</label>
+                <input id="email" name="email" type="email" class="input" placeholder="you@example.com" required autocomplete="email">
+            </div>
+            <div class="field">
+                <label for="password">Password</label>
+                <input id="password" name="password" type="password" class="input" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">
+                <i class="fa-solid fa-right-to-bracket"></i> Sign in
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            Don't have an account? <a href="{{ url_for('auth.register') }}">Create one</a>
+        </div>
+    </div>
+</body>
+</html>

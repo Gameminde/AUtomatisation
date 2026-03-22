@@ -60,6 +60,14 @@
                 <div class="chip" id="db-mode-chip">DB: --</div>
                 <div class="chip" id="approval-chip">Approval: --</div>
             </div>
+            {% if current_user and current_user.is_authenticated %}
+            <div style="padding-top:0.75rem; border-top:1px solid var(--border); margin-top:0.5rem;">
+                <div class="muted" style="font-size:0.75rem; margin-bottom:0.4rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ current_user.email }}</div>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-ghost" style="width:100%; justify-content:center; font-size:0.82rem; padding:0.45rem;">
+                    <i class="fa-solid fa-right-from-bracket"></i> Sign out
+                </a>
+            </div>
+            {% endif %}
         </aside>
 
         <main class="main">
