@@ -17,10 +17,10 @@ PEXELS_API_KEY = os.getenv("PEXELS_API_KEY")
 class SmartImageSearch:
     """Recherche d'images contextuelle et intelligente"""
 
-    def __init__(self):
+    def __init__(self, user_id: Optional[str] = None):
         from gemini_client import get_ai_client
 
-        self.ai_client = get_ai_client()
+        self.ai_client = get_ai_client(user_id=user_id)
 
     def extract_visual_concepts(self, article_title: str, article_content: str = "") -> Dict:
         """

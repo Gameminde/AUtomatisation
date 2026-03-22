@@ -229,6 +229,7 @@ def download_article_image(
 def generate_arabic_text(
     title: str,
     client: Optional[GeminiClient] = None,
+    user_id: Optional[str] = None,
 ) -> str:
     """
     Génère un texte arabe accrocheur à partir du titre de l'article.
@@ -241,7 +242,7 @@ def generate_arabic_text(
         Texte arabe généré
     """
     if client is None:
-        client = get_ai_client()
+        client = get_ai_client(user_id=user_id)
 
     prompt = ARABIC_TEXT_PROMPT.format(title=title)
 

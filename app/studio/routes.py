@@ -377,7 +377,7 @@ def regenerate_content_legacy():
         style_prompts = {"emotional": "اكتب بأسلوب عاطفي ومؤثر", "news": "اكتب بأسلوب إخباري موضوعي", "casual": "اكتب بأسلوب عفوي وودي", "motivation": "اكتب بأسلوب تحفيزي وملهم"}
         title = article.get("title", "") if article else content.get("hook", "")
         prompt = f'أعد كتابة هذا المنشور:\nالعنوان: {title}\nالمحتوى: {content.get("generated_text","")}\nالتعليمات: {style_prompts.get(style, style_prompts["news"])}\nأجب بـ JSON:\n{{"hook":"...","body":"...","cta":"...","hashtags":["..."]}}'
-        ai = get_ai_client()
+        ai = get_ai_client(user_id=current_user.id)
         response = ai.generate(prompt, max_tokens=1000, temperature=0.8)
         json_match = re.search(r"\{[\s\S]*\}", response)
         if json_match:

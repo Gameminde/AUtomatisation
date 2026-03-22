@@ -127,9 +127,9 @@ BATCH_PROMPT_TEMPLATE = get_prompts()["batch"]
 SINGLE_PROMPT_TEMPLATE = get_prompts()["single"]
 
 
-def get_ai_client_instance() -> GeminiClient:
-    """Get configured AI client (Gemini default, OpenRouter fallback)."""
-    return get_ai_client()
+def get_ai_client_instance(user_id: Optional[str] = None) -> GeminiClient:
+    """Get configured AI client, optionally resolving a per-user Gemini key."""
+    return get_ai_client(user_id=user_id)
 
 
 def fix_json_string(text: str) -> str:
@@ -231,7 +231,7 @@ def parse_json_response(text: str) -> any:
     raise ValueError(f"Failed to parse JSON after recovery attempts: {json_text[:300]}...")
 
 
-def generate_batch(articles: List[dict], client: Optional[GeminiClient] = None) -> List[Dict]:
+def generate_batch(articles: List[dict], client: Optional[GeminiClient] = None, user_id: Optional[str] = None) -> List[Dict]:
     """
     Generate content for multiple articles in a single API call.
 
@@ -246,7 +246,7 @@ def generate_batch(articles: List[dict], client: Optional[GeminiClient] = None) 
         return []
 
     if client is None:
-        client = get_ai_client_instance()
+        client = get_ai_client_instance(user_id=user_id)
 
     # Format articles for prompt
     articles_for_prompt = []
@@ -305,7 +305,7 @@ def generate_batch(articles: List[dict], client: Optional[GeminiClient] = None) 
 
 
 def generate_single(
-    article: dict, client: Optional[GeminiClient] = None
+    article: dict, client: Optional[GeminiClient] = None, user_id: Optional[str] = None
 ) -> Dict:
     """
     Generate content for a single article (fallback method).
@@ -318,7 +318,7 @@ def generate_single(
         Generated content dict
     """
     if client is None:
-        client = get_ai_client_instance()
+        client = get_ai_client_instance(user_id=user_id)
 
     prompt = SINGLE_PROMPT_TEMPLATE.format(
         title=article.get("title", ""),
@@ -351,7 +351,7 @@ def save_processed_content(
     try:
         from image_pipeline import generate_social_post
 
-        ai_client = get_ai_client_instance()
+        ai_client = get_ai_client_instance(user_id=user_id)
         image_path, arabic_text = generate_social_post(
             article_id=article_id,
             title=article_title or payload.get("hook", ""),
@@ -431,7 +431,7 @@ def process_pending_articles(
         len(rows), batch_size, user_id
     )
 
-    ai_client = get_ai_client_instance()
+    ai_client = get_ai_client_instance(user_id=user_id)
     processed = 0
 
     # Process in batches
