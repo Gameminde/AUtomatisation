@@ -92,17 +92,26 @@ def get_user_id_for_chat(chat_id: str) -> Optional[str]:
 
 
 def _mark_connection_active(user_id: str, chat_id: str) -> None:
-    """Upsert telegram_connections row for user_id ↔ chat_id."""
+    """
+    Upsert telegram_connections row for user_id ↔ chat_id.
+
+    After a successful bind, the unique_code is rotated to a new UUID so that
+    the original deep-link / QR code becomes single-use and cannot be replayed.
+    """
     try:
+        import uuid as _uuid
         sb = _get_sb()
         now_iso = datetime.now(timezone.utc).isoformat()
+        # Rotate unique_code on every successful activation to prevent replay
+        new_code = str(_uuid.uuid4())
         sb.table("telegram_connections").upsert({
             "user_id": user_id,
             "chat_id": str(chat_id),
             "is_active": True,
             "connected_at": now_iso,
+            "unique_code": new_code,  # invalidates old deep-link
         }, on_conflict="user_id").execute()
-        logger.info("Telegram connected: user=%s chat=%s", user_id[:8], chat_id)
+        logger.info("Telegram connected: user=%s chat=%s (code rotated)", user_id[:8], chat_id)
     except Exception as exc:
         logger.error("_mark_connection_active failed: %s", exc)
 
