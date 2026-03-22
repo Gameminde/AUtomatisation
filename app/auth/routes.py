@@ -159,7 +159,7 @@ def register():
             from models import User
             user = User(new_user["id"], new_user["email"])
             login_user(user, remember=True)
-            return redirect(url_for("web.page_dashboard"))
+            return redirect(url_for("onboarding.wizard"))
 
         except RuntimeError as exc:
             logger.error("Registration config error: %s", exc)

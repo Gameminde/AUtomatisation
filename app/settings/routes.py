@@ -253,3 +253,42 @@ def test_ai_provider():
         return jsonify(client_obj.test_connection())
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)})
+
+
+# ============================================================
+# Per-user Gemini key (stored encrypted in user_settings)
+# ============================================================
+
+@settings_bp.route("/api/settings/gemini-key", methods=["GET"])
+@api_login_required
+def get_gemini_key_status():
+    """Return whether the current user has a saved Gemini key."""
+    from app.utils import get_user_settings
+    settings = get_user_settings(current_user.id)
+    return jsonify({"has_key": bool(settings.get("gemini_api_key"))})
+
+
+@settings_bp.route("/api/settings/gemini-key", methods=["POST"])
+@api_login_required
+def save_gemini_key():
+    """Encrypt and persist a Gemini API key for the current user."""
+    from app.utils import encrypt_value, upsert_user_settings
+    data = request.get_json(force=True)
+    api_key = (data.get("key") or "").strip()
+    if not api_key:
+        return jsonify({"ok": False, "error": "No key provided"}), 400
+    try:
+        encrypted = encrypt_value(api_key)
+        upsert_user_settings(current_user.id, {"gemini_api_key": encrypted})
+        return jsonify({"ok": True})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@settings_bp.route("/api/settings/gemini-key", methods=["DELETE"])
+@api_login_required
+def delete_gemini_key():
+    """Remove the stored Gemini key for the current user."""
+    from app.utils import upsert_user_settings
+    upsert_user_settings(current_user.id, {"gemini_api_key": None})
+    return jsonify({"ok": True})

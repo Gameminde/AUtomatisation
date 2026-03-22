@@ -162,7 +162,9 @@ def oauth_select_page():
         )
 
     try:
-        from facebook_oauth import get_page_token, save_tokens
+        from facebook_oauth import get_page_token, get_instagram_account_for_page
+        from flask_login import current_user as _cu
+        from app.utils import save_fb_page_for_user
 
         page_id = request.form.get("page_id")
         page_name = request.form.get("page_name")
@@ -172,16 +174,28 @@ def oauth_select_page():
             return redirect(url_for("web.page_setup"))
 
         page_token = get_page_token(result["user_token"], page_id)
-        save_tokens(
+
+        ig_account_id = ""
+        try:
+            ig_info = get_instagram_account_for_page(page_id, page_token)
+            if ig_info:
+                ig_account_id = ig_info.get("instagram_account_id", "")
+        except Exception:
+            pass
+
+        save_fb_page_for_user(
+            user_id=_cu.id,
             page_id=page_id,
-            page_name=page_name,
+            page_name=page_name or "My Page",
             page_token=page_token,
-            user_token=result["user_token"],
-            expires_at=result["expires_at"],
+            instagram_account_id=ig_account_id,
         )
         session.pop("fb_oauth_result", None)
-        logger.info("Connected to page: %s", page_name)
-        return redirect(url_for("web.page_dashboard"))
+        logger.info("Connected page %s for user %s", page_name, _cu.id)
+
+        # If user came from onboarding, return them there; otherwise dashboard
+        next_url = request.args.get("next") or url_for("onboarding.wizard")
+        return redirect(next_url)
 
     except Exception as e:
         logger.error("Page selection error: %s", e)

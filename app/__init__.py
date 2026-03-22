@@ -115,6 +115,7 @@ def create_app() -> Flask:
     from app.pages.routes import pages_bp
     from app.studio.routes import studio_bp
     from app.settings.routes import settings_bp
+    from app.onboarding.routes import onboarding_bp
 
     _app.register_blueprint(auth_bp)
     _app.register_blueprint(web_bp)
@@ -122,6 +123,41 @@ def create_app() -> Flask:
     _app.register_blueprint(pages_bp)
     _app.register_blueprint(studio_bp)
     _app.register_blueprint(settings_bp)
+    _app.register_blueprint(onboarding_bp)
+
+    # ── Onboarding gate ────────────────────────────────────────────────────
+    # Authenticated users who haven't finished onboarding are redirected to
+    # /onboarding before reaching any protected page.  API routes, static
+    # files, and the auth/onboarding routes themselves are excluded.
+    _GATE_SKIP_PREFIXES = (
+        "/onboarding", "/auth/", "/static/", "/media/",
+        "/login", "/register", "/logout", "/design-system",
+        "/api/",
+    )
+
+    from flask import request as _req, redirect as _redir, url_for as _ufor, session as _sess
+    from flask_login import current_user as _cu
+    from app.utils import get_user_settings as _get_us
+
+    @_app.before_request
+    def _onboarding_gate():
+        path = _req.path
+        if any(path.startswith(p) for p in _GATE_SKIP_PREFIXES) or path == "/":
+            return None
+        if not _cu.is_authenticated:
+            return None
+        if _sess.get("onboarding_complete"):
+            return None
+        try:
+            settings = _get_us(_cu.id)
+            if settings.get("onboarding_complete"):
+                _sess["onboarding_complete"] = True
+                return None
+            _sess["onboarding_complete"] = False
+            return _redir(_ufor("onboarding.wizard"))
+        except Exception as _exc:
+            logger.warning("Onboarding gate check failed: %s", _exc)
+            return None
 
     # ── Top-level auth aliases (/login → /auth/login etc.) ─────────────────
     # Allows canonical short URLs in links/templates while keeping the blueprint

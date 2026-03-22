@@ -405,5 +405,40 @@ CREATE POLICY activation_codes_deny_anon ON activation_codes
 
 
 -- ============================================
+-- SECTION 6: user_settings (Phase 2 — per-user config)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS user_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    gemini_api_key TEXT,
+    onboarding_step INTEGER DEFAULT 1,
+    onboarding_complete BOOLEAN DEFAULT FALSE,
+    telegram_chat_id TEXT,
+    pexels_api_key TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_settings_user ON user_settings(user_id);
+
+ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS user_settings_owner ON user_settings;
+CREATE POLICY user_settings_owner ON user_settings
+    FOR ALL
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+-- Migration: add instagram_account_id to managed_pages if missing
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'managed_pages' AND column_name = 'instagram_account_id'
+    ) THEN
+        ALTER TABLE managed_pages ADD COLUMN instagram_account_id TEXT;
+    END IF;
+END $$;
+
+-- ============================================
 -- Done! All tables ready.
 -- ============================================
