@@ -698,3 +698,56 @@ def telegram_pause():
         return jsonify({"ok": True, "paused": paused})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/api/telegram/summary-settings", methods=["GET"])
+@api_login_required
+def telegram_summary_settings_get():
+    """Return the user's daily summary time setting."""
+    try:
+        from app.utils import _get_supabase_client
+        sb = _get_supabase_client()
+        res = (
+            sb.table("user_settings")
+            .select("daily_summary_time")
+            .eq("user_id", current_user.id)
+            .limit(1)
+            .execute()
+        )
+        daily_summary_time = "08:00"
+        if res.data:
+            daily_summary_time = res.data[0].get("daily_summary_time") or "08:00"
+        return jsonify({"ok": True, "daily_summary_time": daily_summary_time})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/api/telegram/summary-settings", methods=["POST"])
+@api_login_required
+def telegram_summary_settings_set():
+    """
+    Update the user's daily summary time.
+
+    Body: { "daily_summary_time": "HH:MM" }
+    The time is interpreted in the user's local timezone (stored in scheduled_posts.timezone).
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        daily_summary_time = (data.get("daily_summary_time") or "08:00").strip()[:5]
+        # Validate HH:MM format
+        parts = daily_summary_time.split(":")
+        if len(parts) != 2 or not all(p.isdigit() for p in parts):
+            return jsonify({"ok": False, "error": "Invalid time format — use HH:MM"}), 400
+        h, m = int(parts[0]), int(parts[1])
+        if not (0 <= h <= 23 and 0 <= m <= 59):
+            return jsonify({"ok": False, "error": "Time out of range"}), 400
+
+        from app.utils import _get_supabase_client
+        sb = _get_supabase_client()
+        sb.table("user_settings").upsert({
+            "user_id": current_user.id,
+            "daily_summary_time": f"{h:02d}:{m:02d}",
+        }).execute()
+        return jsonify({"ok": True, "daily_summary_time": f"{h:02d}:{m:02d}"})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500

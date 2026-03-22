@@ -355,17 +355,49 @@ def _send_daily_summary_for_user(user_id: str) -> None:
         return
     try:
         sb = _get_sb()
-        now = datetime.now(timezone.utc)
-        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        yesterday_start = today_start - timedelta(days=1)
+        now_utc = datetime.now(timezone.utc)
 
-        # Posts scheduled today
+        # Resolve user timezone from scheduled_posts.timezone (most recent active row)
+        user_tz_str = "UTC"
+        try:
+            tz_res = (
+                sb.table("scheduled_posts")
+                .select("timezone")
+                .eq("user_id", user_id)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if tz_res.data and tz_res.data[0].get("timezone"):
+                user_tz_str = tz_res.data[0]["timezone"]
+        except Exception:
+            pass
+
+        try:
+            import zoneinfo
+            user_tz = zoneinfo.ZoneInfo(user_tz_str)
+            now_local = now_utc.astimezone(user_tz)
+        except Exception:
+            now_local = now_utc
+
+        # Compute today boundaries in user's local timezone, converted to UTC for DB queries
+        today_local_start = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+        tomorrow_local_start = today_local_start + timedelta(days=1)
+        yesterday_local_start = today_local_start - timedelta(days=1)
+
+        # Convert to UTC ISO strings for Supabase queries
+        today_utc_iso = today_local_start.astimezone(timezone.utc).isoformat()
+        tomorrow_utc_iso = tomorrow_local_start.astimezone(timezone.utc).isoformat()
+        yesterday_utc_iso = yesterday_local_start.astimezone(timezone.utc).isoformat()
+
+        # Posts scheduled for today only (bounded range)
         sched_res = (
             sb.table("scheduled_posts")
             .select("id")
             .eq("user_id", user_id)
             .eq("status", "scheduled")
-            .gte("scheduled_time", today_start.isoformat())
+            .gte("scheduled_time", today_utc_iso)
+            .lt("scheduled_time", tomorrow_utc_iso)
             .execute()
         )
         scheduled_today = len(sched_res.data or [])
@@ -375,8 +407,8 @@ def _send_daily_summary_for_user(user_id: str) -> None:
             sb.table("published_posts")
             .select("facebook_post_id,likes,shares,comments,reach,published_at")
             .eq("user_id", user_id)
-            .gte("published_at", yesterday_start.isoformat())
-            .lt("published_at", today_start.isoformat())
+            .gte("published_at", yesterday_utc_iso)
+            .lt("published_at", today_utc_iso)
             .execute()
         )
         pub_rows = pub_res.data or []
@@ -390,20 +422,27 @@ def _send_daily_summary_for_user(user_id: str) -> None:
                 best_score = score
                 best = row
 
-        # Next scheduled post time
+        # Next scheduled post time (display in user's local timezone)
         next_res = (
             sb.table("scheduled_posts")
             .select("scheduled_time")
             .eq("user_id", user_id)
             .eq("status", "scheduled")
-            .gte("scheduled_time", now.isoformat())
+            .gte("scheduled_time", now_utc.isoformat())
             .order("scheduled_time")
             .limit(1)
             .execute()
         )
         next_post_time = ""
         if next_res.data:
-            next_post_time = next_res.data[0].get("scheduled_time", "")[:16].replace("T", " ")
+            raw_time = next_res.data[0].get("scheduled_time", "")
+            try:
+                from datetime import datetime as _dt
+                raw_dt = _dt.fromisoformat(raw_time.replace("Z", "+00:00"))
+                local_dt = raw_dt.astimezone(user_tz if "user_tz" in dir() else timezone.utc)
+                next_post_time = local_dt.strftime("%Y-%m-%d %H:%M") + f" ({user_tz_str})"
+            except Exception:
+                next_post_time = raw_time[:16].replace("T", " ") + " UTC"
 
         # Build message
         lines = ["📊 <b>ملخص اليوم</b>\n"]
@@ -419,7 +458,7 @@ def _send_daily_summary_for_user(user_id: str) -> None:
             lines.append("\n📭 لا توجد منشورات نُشرت أمس.")
 
         if next_post_time:
-            lines.append(f"\n⏰ المنشور القادم: <b>{next_post_time} UTC</b>")
+            lines.append(f"\n⏰ المنشور القادم: <b>{next_post_time}</b>")
 
         _send_message_sync(chat_id, "\n".join(lines))
     except Exception as exc:
@@ -469,14 +508,14 @@ def run_daily_summaries() -> None:
                 else:
                     summary_time = "08:00"
 
-                # Look up user timezone from managed_pages (default UTC)
+                # Look up user timezone from scheduled_posts.timezone (most recent row)
                 user_tz_str = "UTC"
                 try:
                     tz_res = (
-                        sb.table("managed_pages")
+                        sb.table("scheduled_posts")
                         .select("timezone")
                         .eq("user_id", uid)
-                        .eq("status", "active")
+                        .order("created_at", desc=True)
                         .limit(1)
                         .execute()
                     )
