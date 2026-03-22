@@ -71,6 +71,7 @@ class SQLiteDB:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS raw_articles (
                     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                    user_id TEXT,
                     source_name TEXT NOT NULL,
                     title TEXT NOT NULL,
                     url TEXT UNIQUE NOT NULL,
@@ -87,6 +88,7 @@ class SQLiteDB:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS processed_content (
                     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                    user_id TEXT,
                     article_id TEXT,
                     post_type TEXT NOT NULL,
                     generated_text TEXT NOT NULL,
@@ -109,11 +111,12 @@ class SQLiteDB:
                     FOREIGN KEY (article_id) REFERENCES raw_articles(id)
                 )
             """)
-            
+
             # scheduled_posts
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS scheduled_posts (
                     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                    user_id TEXT,
                     content_id TEXT,
                     scheduled_time TEXT NOT NULL,
                     timezone TEXT DEFAULT 'America/New_York',
@@ -123,11 +126,12 @@ class SQLiteDB:
                     FOREIGN KEY (content_id) REFERENCES processed_content(id)
                 )
             """)
-            
+
             # published_posts
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS published_posts (
                     id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+                    user_id TEXT,
                     content_id TEXT,
                     facebook_post_id TEXT UNIQUE,
                     facebook_status TEXT DEFAULT NULL,
@@ -143,22 +147,22 @@ class SQLiteDB:
                     FOREIGN KEY (content_id) REFERENCES processed_content(id)
                 )
             """)
-            # Migration: add new columns to published_posts if missing
+            # Migrations: add new columns to existing tables if missing
             for col_sql in [
+                "ALTER TABLE raw_articles ADD COLUMN user_id TEXT",
+                "ALTER TABLE processed_content ADD COLUMN user_id TEXT",
+                "ALTER TABLE scheduled_posts ADD COLUMN user_id TEXT",
+                "ALTER TABLE published_posts ADD COLUMN user_id TEXT",
                 "ALTER TABLE published_posts ADD COLUMN instagram_post_id TEXT",
                 "ALTER TABLE published_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'",
                 "ALTER TABLE published_posts ADD COLUMN facebook_status TEXT DEFAULT NULL",
                 "ALTER TABLE published_posts ADD COLUMN instagram_status TEXT DEFAULT NULL",
+                "ALTER TABLE scheduled_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'",
             ]:
                 try:
                     cursor.execute(col_sql)
                 except Exception:
-                    pass
-            # Migration: add platforms to scheduled_posts if missing
-            try:
-                cursor.execute("ALTER TABLE scheduled_posts ADD COLUMN platforms TEXT DEFAULT 'facebook'")
-            except Exception:
-                pass
+                    pass  # Column already exists — safe to ignore
 
             # managed_pages (Added for Content Factory v2.0 Dashboard)
             # posts_per_day and posting_times intentionally default to NULL

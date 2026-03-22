@@ -37,3 +37,9 @@ externalPort = 80
 [deployment]
 deploymentTarget = "autoscale"
 run = ["gunicorn", "--bind=0.0.0.0:5000", "--reuse-port", "dashboard_app:app"]
+
+[userenv]
+
+[userenv.shared]
+SUPABASE_URL = "https://dewmelbhdnurpuamyylp.supabase.co"
+DB_MODE = "supabase"
