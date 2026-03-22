@@ -126,5 +126,49 @@ def create_app() -> Flask:
     # ── Startup tasks ──────────────────────────────────────────────────────
     with _app.app_context():
         _init_smart_defaults(_app)
+        _validate_db_config(_app)
 
     return _app
+
+
+def _validate_db_config(app: Flask) -> None:
+    """
+    Validate that the database/auth backend configuration is consistent.
+
+    Phase 1 (multi-tenant SaaS) requires Supabase for:
+      - The `users` table (login sessions / user_loader)
+      - The `activation_codes` table (Gumroad registration gate)
+      - All tenant data tables (user_id-scoped rows)
+
+    SQLite mode is supported for single-user local development only.
+    In SQLite mode the auth endpoints (/auth/login, /auth/register) will
+    always fail because the users/activation_codes tables only exist in
+    Supabase.  A clear startup warning is logged to surface this early.
+    """
+    db_mode = os.getenv("DB_MODE", "sqlite").lower()
+    supabase_url = os.getenv("SUPABASE_URL", "").strip()
+    supabase_key = os.getenv("SUPABASE_KEY", "").strip()
+
+    if db_mode == "supabase":
+        if not supabase_url or not supabase_key:
+            logger.error(
+                "STARTUP ERROR: DB_MODE=supabase but SUPABASE_URL or SUPABASE_KEY is missing. "
+                "Auth and all API routes will fail. Set both in your environment secrets."
+            )
+        else:
+            logger.info(
+                "✅ DB mode: Supabase (multi-tenant). "
+                "All tenant data and auth routed through %s", supabase_url
+            )
+    else:
+        if supabase_url or supabase_key:
+            logger.warning(
+                "⚠️  DB_MODE=sqlite but SUPABASE_URL/SUPABASE_KEY are set. "
+                "Auth routes require Supabase — set DB_MODE=supabase to enable login."
+            )
+        else:
+            logger.warning(
+                "⚠️  DB_MODE=sqlite (single-user dev mode). "
+                "Auth (login/register/activation) is DISABLED — Supabase is required for SaaS. "
+                "Set SUPABASE_URL, SUPABASE_KEY, and DB_MODE=supabase to enable multi-tenant mode."
+            )
