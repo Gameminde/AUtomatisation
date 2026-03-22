@@ -203,6 +203,19 @@ BEGIN
     END IF;
 END $$;
 
+-- !! user_id on all content tables (existing DBs that predate multi-tenant) !!
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'user_id') THEN ALTER TABLE processed_content ADD COLUMN user_id UUID REFERENCES users(id); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'scheduled_posts'   AND column_name = 'user_id') THEN ALTER TABLE scheduled_posts   ADD COLUMN user_id UUID REFERENCES users(id); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'published_posts'   AND column_name = 'user_id') THEN ALTER TABLE published_posts   ADD COLUMN user_id UUID REFERENCES users(id); END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'raw_articles'      AND column_name = 'user_id') THEN ALTER TABLE raw_articles      ADD COLUMN user_id UUID REFERENCES users(id); END IF; END $$;
+
+-- Indexes for user_id lookups (safe to re-run)
+CREATE INDEX IF NOT EXISTS idx_processed_content_user ON processed_content(user_id);
+CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user   ON scheduled_posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_published_posts_user   ON published_posts(user_id);
+CREATE INDEX IF NOT EXISTS idx_managed_pages_user     ON managed_pages(user_id);
+CREATE INDEX IF NOT EXISTS idx_raw_articles_user      ON raw_articles(user_id);
+
 -- processed_content: AI-generated content fields (existing DBs)
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'article_id') THEN ALTER TABLE processed_content ADD COLUMN article_id UUID; END IF; END $$;
 DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'generated_at') THEN ALTER TABLE processed_content ADD COLUMN generated_at TIMESTAMPTZ; END IF; END $$;
