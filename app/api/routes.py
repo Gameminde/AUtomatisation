@@ -437,12 +437,49 @@ def stop_agent():
 @api_bp.route("/api/facebook/status", methods=["GET"])
 @api_login_required
 def get_facebook_status():
+    """Return connection status for the current user's Facebook page (DB-scoped)."""
     try:
-        from facebook_oauth import get_token_status, test_connection
-        status = get_token_status()
-        if status["connected"] and request.args.get("test"):
-            status["test"] = test_connection()
-        return jsonify(status)
+        from app.utils import _get_supabase_client, decrypt_value
+        sb = _get_supabase_client()
+        result = (
+            sb.table("managed_pages")
+            .select("page_id, page_name, status, created_at")
+            .eq("user_id", current_user.id)
+            .eq("status", "active")
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return jsonify({"connected": False, "reason": "No Facebook page connected"})
+        page = result.data[0]
+        status_payload = {
+            "connected": True,
+            "page_id": page["page_id"],
+            "page_name": page.get("page_name", ""),
+            "status": page.get("status", "active"),
+        }
+        if request.args.get("test"):
+            try:
+                from app.utils import decrypt_value as _dv
+                token_row = (
+                    sb.table("managed_pages")
+                    .select("access_token")
+                    .eq("user_id", current_user.id)
+                    .eq("page_id", page["page_id"])
+                    .single()
+                    .execute()
+                )
+                raw_token = _dv(token_row.data["access_token"]) if token_row.data else ""
+                import requests as _req
+                resp = _req.get(
+                    f"https://graph.facebook.com/{page['page_id']}",
+                    params={"access_token": raw_token, "fields": "id,name"},
+                    timeout=8,
+                )
+                status_payload["test"] = {"ok": resp.status_code == 200}
+            except Exception as exc:
+                status_payload["test"] = {"ok": False, "error": str(exc)}
+        return jsonify(status_payload)
     except Exception as e:
         logger.error("Facebook status error: %s", e)
         return jsonify({"error": str(e)}), 500
@@ -451,10 +488,13 @@ def get_facebook_status():
 @api_bp.route("/api/facebook/disconnect", methods=["POST"])
 @api_login_required
 def disconnect_facebook():
+    """Mark all of the current user's Facebook pages as inactive in the DB."""
     try:
-        token_file = Path(__file__).parent.parent.parent / ".fb_tokens.json"
-        if token_file.exists():
-            token_file.unlink()
+        from app.utils import _get_supabase_client
+        sb = _get_supabase_client()
+        sb.table("managed_pages").update({"status": "inactive"}).eq(
+            "user_id", current_user.id
+        ).execute()
         return jsonify({"success": True})
     except Exception as e:
         logger.error("Disconnect error: %s", e)
@@ -464,22 +504,51 @@ def disconnect_facebook():
 @api_bp.route("/api/instagram/status", methods=["GET"])
 @api_login_required
 def get_instagram_status():
+    """Return Instagram connection status for the current user (DB-scoped)."""
     try:
-        from facebook_oauth import load_tokens, get_instagram_account_for_page
-        tokens = load_tokens()
-        if not tokens:
-            return jsonify({"connected": False, "reason": "No Facebook tokens saved"})
-        page_id = tokens.get("page_id")
-        page_token = tokens.get("page_token")
-        if not page_id or not page_token:
-            return jsonify({"connected": False, "reason": "Incomplete token data"})
-        stored_ig_id = tokens.get("instagram_account_id", "")
+        from app.utils import _get_supabase_client, decrypt_value
+        sb = _get_supabase_client()
+        result = (
+            sb.table("managed_pages")
+            .select("page_id, page_name, access_token, instagram_account_id, status")
+            .eq("user_id", current_user.id)
+            .eq("status", "active")
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return jsonify({"connected": False, "reason": "No Facebook page connected"})
+        page = result.data[0]
+        stored_ig_id = page.get("instagram_account_id") or ""
         if stored_ig_id:
-            return jsonify({"connected": True, "instagram_account_id": stored_ig_id, "username": tokens.get("instagram_username", ""), "facebook_page_id": page_id})
-        ig_info = get_instagram_account_for_page(page_id, page_token)
-        if not ig_info:
-            return jsonify({"connected": False, "facebook_page_id": page_id, "reason": "No Instagram Business Account linked to this Facebook Page."})
-        return jsonify({"connected": True, "instagram_account_id": ig_info["instagram_account_id"], "username": ig_info.get("username", ""), "facebook_page_id": page_id})
+            return jsonify({
+                "connected": True,
+                "instagram_account_id": stored_ig_id,
+                "facebook_page_id": page["page_id"],
+            })
+        # No IG account stored — try live lookup
+        try:
+            raw_token = decrypt_value(page["access_token"]) if page.get("access_token") else ""
+            from facebook_oauth import get_instagram_account_for_page
+            ig_info = get_instagram_account_for_page(page["page_id"], raw_token)
+            if not ig_info:
+                return jsonify({
+                    "connected": False,
+                    "facebook_page_id": page["page_id"],
+                    "reason": "No Instagram Business Account linked to this Facebook Page.",
+                })
+            # Cache the IG account id for future calls
+            sb.table("managed_pages").update(
+                {"instagram_account_id": ig_info["instagram_account_id"]}
+            ).eq("user_id", current_user.id).eq("page_id", page["page_id"]).execute()
+            return jsonify({
+                "connected": True,
+                "instagram_account_id": ig_info["instagram_account_id"],
+                "username": ig_info.get("username", ""),
+                "facebook_page_id": page["page_id"],
+            })
+        except Exception as exc:
+            return jsonify({"connected": False, "reason": str(exc)})
     except Exception as e:
         logger.error("Error checking Instagram status: %s", e)
         return jsonify({"connected": False, "reason": str(e)}), 500
