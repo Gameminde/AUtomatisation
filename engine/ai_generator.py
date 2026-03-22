@@ -330,9 +330,19 @@ def generate_single(
 
 
 def save_processed_content(
-    article_id: str, post_type: str, payload: Dict, article_title: str = ""
+    article_id: str, post_type: str, payload: Dict,
+    article_title: str = "", user_id: Optional[str] = None
 ) -> None:
-    """Save generated content to Supabase and generate social image."""
+    """Save generated content to Supabase and generate social image.
+
+    Args:
+        article_id:    Source raw_article id.
+        post_type:     e.g. "text", "photo".
+        payload:       AI-generated content dict.
+        article_title: Used for image caption generation.
+        user_id:       Tenant ID — tags the row so only this user sees it.
+                       Required for multi-tenant operation.
+    """
     db_client = config.get_supabase_client()
 
     # Generate social media image
@@ -362,45 +372,64 @@ def save_processed_content(
         "image_path": image_path,
         "arabic_text": arabic_text,
     }
+    if user_id:
+        record["user_id"] = user_id
 
     db_client.table("processed_content").insert(record).execute()
-    logger.debug("Saved processed content for article %s", article_id)
+    logger.debug("Saved processed content for article %s (user_id=%s)", article_id, user_id)
 
 
-def mark_article_processed(article_id: str) -> None:
-    """Mark article as processed in database."""
-    client = config.get_supabase_client()
-    client.table("raw_articles").update({"status": "processed"}).eq("id", article_id).execute()
-
-
-def process_pending_articles(limit: int = 10, batch_size: int = 5) -> int:
-    """
-    Process pending articles with batching for efficiency.
+def mark_article_processed(article_id: str, user_id: Optional[str] = None) -> None:
+    """Mark article as processed in database.
 
     Args:
-        limit: Maximum number of articles to process
-        batch_size: Number of articles per batch (default 5)
+        article_id: Row id in raw_articles.
+        user_id:    Tenant scope — restricts the UPDATE to this user's rows.
+    """
+    client = config.get_supabase_client()
+    query = client.table("raw_articles").update({"status": "processed"}).eq("id", article_id)
+    if user_id:
+        query = query.eq("user_id", user_id)
+    query.execute()
+
+
+def process_pending_articles(
+    limit: int = 10, batch_size: int = 5, user_id: Optional[str] = None
+) -> int:
+    """Process pending articles with batching for efficiency.
+
+    Args:
+        limit:      Maximum number of articles to process.
+        batch_size: Number of articles per batch (default 5).
+        user_id:    Tenant ID — only process this user's pending articles and
+                    tag all generated content rows with their ID.
+                    Required for multi-tenant operation.
 
     Returns:
-        Number of articles processed
+        Number of articles processed.
     """
     db_client = config.get_supabase_client()
 
-    # Fetch pending articles
-    response = (
+    # Fetch pending articles — scoped to tenant if user_id provided
+    query = (
         db_client.table("raw_articles")
         .select("id,title,content")
         .eq("status", "pending")
         .limit(limit)
-        .execute()
     )
+    if user_id:
+        query = query.eq("user_id", user_id)
 
+    response = query.execute()
     rows = response.data or []
     if not rows:
-        logger.info("No pending articles to process")
+        logger.info("No pending articles to process (user_id=%s)", user_id)
         return 0
 
-    logger.info("Processing %d pending articles in batches of %d", len(rows), batch_size)
+    logger.info(
+        "Processing %d pending articles in batches of %d (user_id=%s)",
+        len(rows), batch_size, user_id
+    )
 
     ai_client = get_ai_client_instance()
     processed = 0
@@ -437,10 +466,12 @@ def process_pending_articles(limit: int = 10, batch_size: int = 5) -> int:
                         text_data.get("hook") or text_data.get("body")
                     ):
                         save_processed_content(
-                            article_id, "text", text_data, article_title=article.get("title", "")
+                            article_id, "text", text_data,
+                            article_title=article.get("title", ""),
+                            user_id=user_id,
                         )
 
-                    mark_article_processed(article_id)
+                    mark_article_processed(article_id, user_id=user_id)
                     processed += 1
                 except Exception as item_exc:
                     logger.error("Failed to save content for article %s: %s", article_id, item_exc)
@@ -458,7 +489,7 @@ def process_pending_articles(limit: int = 10, batch_size: int = 5) -> int:
             # Continue with next batch
             continue
 
-    logger.info("Processed %d articles total", processed)
+    logger.info("Processed %d articles total (user_id=%s)", processed, user_id)
     return processed
 
 

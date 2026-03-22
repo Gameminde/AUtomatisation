@@ -167,7 +167,14 @@ def dedupe_by_url(items: Iterable[dict]) -> List[dict]:
     return unique
 
 
-def save_articles(items: Iterable[dict]) -> int:
+def save_articles(items: Iterable[dict], user_id: Optional[str] = None) -> int:
+    """Save scraped articles to raw_articles.
+
+    Args:
+        items:   Iterable of article dicts from fetch_* functions.
+        user_id: Tenant ID — tag each row so the article belongs to a specific user.
+                 Required for multi-tenant operation; None only in single-user dev mode.
+    """
     client = config.get_supabase_client()
     saved = 0
     for item in items:
@@ -191,6 +198,8 @@ def save_articles(items: Iterable[dict]) -> int:
             "virality_score": score_virality(item),
             "status": "pending",
         }
+        if user_id:
+            payload["user_id"] = user_id
         try:
             client.table("raw_articles").insert(payload).execute()
             saved += 1
@@ -199,7 +208,14 @@ def save_articles(items: Iterable[dict]) -> int:
     return saved
 
 
-def run() -> int:
+def run(user_id: Optional[str] = None) -> int:
+    """Run the full scrape pipeline.
+
+    Args:
+        user_id: Tenant ID passed through to save_articles so all fetched
+                 articles are tagged with the owning user. Required for
+                 multi-tenant operation.
+    """
     items: List[dict] = []
     items.extend(fetch_newsdata_articles())
     for rss_url in get_feeds():
@@ -209,8 +225,8 @@ def run() -> int:
 
     filtered = filter_articles(items, config.DEFAULT_KEYWORDS)
     unique = dedupe_by_url(filtered)
-    saved = save_articles(unique)
-    logger.info("Scraper saved %s new articles", saved)
+    saved = save_articles(unique, user_id=user_id)
+    logger.info("Scraper saved %s new articles (user_id=%s)", saved, user_id)
     return saved
 
 
