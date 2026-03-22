@@ -235,12 +235,18 @@ def save_fb_page_for_user(
             .eq("user_id", user_id)
             .execute()
         )
+        # Facebook long-lived user tokens expire after ~60 days.
+        # Store an expiry timestamp so the token-expiry monitor can warn users.
+        from datetime import datetime, timedelta, timezone as _tz
+        token_expires_at = (datetime.now(_tz.utc) + timedelta(days=60)).isoformat()
+
         payload: Dict = {
             "page_id": page_id,
             "page_name": page_name,
             "access_token": encrypted_token,
             "user_id": user_id,
             "status": "active",
+            "token_expires_at": token_expires_at,
         }
         if instagram_account_id:
             payload["instagram_account_id"] = instagram_account_id

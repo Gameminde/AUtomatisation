@@ -291,6 +291,53 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
             skipped += 1
             continue
 
+        # ── Approval-mode gate ─────────────────────────────────────────
+        # If the user has approval_mode enabled, hold the content for review
+        # instead of publishing immediately. Telegram bot will send inline
+        # Approve/Reject buttons; auto-approve fires after 4 hours.
+        if row_user_id:
+            try:
+                from app.utils import _get_supabase_client as _sb_fn
+                _sb = _sb_fn()
+                _settings_res = (
+                    _sb.table("user_settings")
+                    .select("approval_mode")
+                    .eq("user_id", row_user_id)
+                    .limit(1)
+                    .execute()
+                )
+                _approval_mode = (
+                    _settings_res.data[0].get("approval_mode", False)
+                    if _settings_res.data
+                    else False
+                )
+            except Exception:
+                _approval_mode = False
+
+            if _approval_mode:
+                # Build preview text
+                _preview_text = (
+                    content.get("arabic_text")
+                    or content.get("generated_text")
+                    or ""
+                )
+                # Revert status to pending_approval and send approval request
+                try:
+                    _sb.table("processed_content").update(
+                        {"status": "pending_approval"}
+                    ).eq("id", content_id).execute()
+                    update_schedule_status(schedule_id, "pending_approval", user_id=row_user_id)
+                except Exception as _revert_exc:
+                    logger.warning("Could not set pending_approval status: %s", _revert_exc)
+                try:
+                    from tasks.telegram_bot import telegram_send_approval_request
+                    telegram_send_approval_request(row_user_id, content_id, _preview_text)
+                except Exception as _tg_exc:
+                    logger.debug("Approval request send failed: %s", _tg_exc)
+                logger.info("⏸️  %s held for Telegram approval (user=%s)", content_id[:8], row_user_id[:8])
+                skipped += 1
+                continue
+
         # ── Determine platform targets for this scheduled row ──────────
         platforms_field = (item.get("platforms") or "facebook").lower()
         publish_to_facebook = "facebook" in platforms_field

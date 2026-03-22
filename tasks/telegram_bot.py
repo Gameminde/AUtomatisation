@@ -427,9 +427,24 @@ def _send_daily_summary_for_user(user_id: str) -> None:
 
 
 def run_daily_summaries() -> None:
-    """Send daily summaries to all connected users. Called by APScheduler."""
+    """
+    Send daily summaries to connected users whose configured summary time matches now.
+
+    Runs every 5 minutes (replacing the old 08:00 UTC hard-coded cron).
+    Each connected user row joins `user_settings` to read `daily_summary_time`
+    (default "08:00") which is treated as a UTC time-of-day.
+
+    De-duplication: a `system_status` key `tg_summary_sent:<user_id>:<date>`
+    prevents a second send if the job fires multiple times within the same
+    5-minute window that straddles the target time.
+    """
     try:
         sb = _get_sb()
+        now_utc = datetime.now(timezone.utc)
+        current_hhmm = now_utc.strftime("%H:%M")
+        current_date = now_utc.strftime("%Y-%m-%d")
+
+        # Load all active connections with their user's summary time
         res = (
             sb.table("telegram_connections")
             .select("user_id")
@@ -438,11 +453,48 @@ def run_daily_summaries() -> None:
         )
         for row in res.data or []:
             uid = row.get("user_id")
-            if uid:
-                try:
-                    _send_daily_summary_for_user(uid)
-                except Exception as exc:
-                    logger.warning("Daily summary failed (user=%s): %s", uid[:8], exc)
+            if not uid:
+                continue
+            try:
+                # Read per-user summary time from user_settings
+                settings_res = (
+                    sb.table("user_settings")
+                    .select("daily_summary_time")
+                    .eq("user_id", uid)
+                    .limit(1)
+                    .execute()
+                )
+                if settings_res.data:
+                    summary_time = (settings_res.data[0].get("daily_summary_time") or "08:00")[:5]
+                else:
+                    summary_time = "08:00"
+
+                # Only send within the correct 5-minute window
+                if current_hhmm != summary_time:
+                    continue
+
+                # De-duplicate: skip if already sent today
+                dedup_key = f"tg_summary_sent:{uid}:{current_date}"
+                dedup_res = (
+                    sb.table("system_status")
+                    .select("value")
+                    .eq("key", dedup_key)
+                    .limit(1)
+                    .execute()
+                )
+                if dedup_res.data:
+                    continue  # Already sent today
+
+                # Mark sent (TTL via cron cleanup — just store today's key)
+                sb.table("system_status").upsert({
+                    "key": dedup_key,
+                    "value": now_utc.isoformat(),
+                }).execute()
+
+                _send_daily_summary_for_user(uid)
+
+            except Exception as exc:
+                logger.warning("Daily summary failed (user=%s): %s", uid[:8], exc)
     except Exception as exc:
         logger.error("run_daily_summaries failed: %s", exc)
 
@@ -755,16 +807,84 @@ def _run_bot_polling() -> None:
         logger.error("Telegram bot polling error: %s", exc, exc_info=True)
 
 
+_BOT_LEADER_KEY = "telegram_bot_leader"
+_BOT_LEADER_TTL_SECONDS = 30  # Heartbeat interval; leader renews every 20s
+
+
+def _acquire_bot_leader_lock() -> bool:
+    """
+    Try to claim the Telegram bot leader lock in system_status.
+
+    Uses a compare-and-insert / expiry strategy:
+    - If no leader key exists (or it's older than TTL) → this process wins.
+    - Otherwise → another process is already running the bot.
+
+    Returns True if this process should run the bot.
+    """
+    try:
+        sb = _get_sb()
+        now = datetime.now(timezone.utc)
+        cutoff = (now - timedelta(seconds=_BOT_LEADER_TTL_SECONDS)).isoformat()
+
+        # Check if a live leader heartbeat exists
+        res = (
+            sb.table("system_status")
+            .select("value, updated_at")
+            .eq("key", _BOT_LEADER_KEY)
+            .limit(1)
+            .execute()
+        )
+        if res.data:
+            row = res.data[0]
+            updated_at_raw = row.get("updated_at") or row.get("value") or ""
+            try:
+                updated_at = datetime.fromisoformat(updated_at_raw.replace("Z", "+00:00"))
+                if (now - updated_at).total_seconds() < _BOT_LEADER_TTL_SECONDS:
+                    return False  # Another live process is the leader
+            except Exception:
+                pass
+
+        # Claim leadership (upsert with current timestamp as value + updated_at)
+        sb.table("system_status").upsert({
+            "key": _BOT_LEADER_KEY,
+            "value": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }).execute()
+        return True
+    except Exception as exc:
+        logger.warning("Bot leader-lock check failed: %s — starting bot anyway", exc)
+        return True  # Fail open (better than never starting the bot)
+
+
+def _bot_leader_heartbeat(stop_event: threading.Event) -> None:
+    """Renew the leader lock every 20 seconds while the bot is running."""
+    while not stop_event.is_set():
+        try:
+            sb = _get_sb()
+            now_iso = datetime.now(timezone.utc).isoformat()
+            sb.table("system_status").upsert({
+                "key": _BOT_LEADER_KEY,
+                "value": now_iso,
+                "updated_at": now_iso,
+            }).execute()
+        except Exception as exc:
+            logger.debug("Heartbeat renewal failed: %s", exc)
+        stop_event.wait(20)
+
+
 def start_telegram_bot() -> None:
     """
     Start the Telegram bot long-polling loop as a daemon thread.
 
+    Uses a distributed leader-election lock (system_status table) to ensure
+    only ONE process runs the Telegram long-poll across multiple gunicorn workers.
+
     Also registers APScheduler jobs for:
-    - Daily summary (8:00 UTC, all connected users)
+    - Daily summary (per-user configured time, every 5min check)
     - Auto-approve expired approval requests (every 15 minutes)
     - Facebook token expiry check (daily at 7:00 UTC)
 
-    Safe to call multiple times — idempotent.
+    Safe to call multiple times — idempotent (in-process + distributed).
     """
     global _bot_started, _bot_thread
 
@@ -778,6 +898,11 @@ def start_telegram_bot() -> None:
         )
         return
 
+    # Distributed singleton: only one gunicorn worker should run the bot.
+    if not _acquire_bot_leader_lock():
+        logger.info("Telegram bot leader lock held by another process — this worker will skip polling")
+        return
+
     _bot_thread = threading.Thread(
         target=_run_bot_polling,
         daemon=True,
@@ -785,7 +910,17 @@ def start_telegram_bot() -> None:
     )
     _bot_thread.start()
     _bot_started = True
-    logger.info("Telegram bot thread started")
+    logger.info("Telegram bot thread started (leader)")
+
+    # Start heartbeat thread to renew leader lock
+    _hb_stop = threading.Event()
+    _hb_thread = threading.Thread(
+        target=_bot_leader_heartbeat,
+        args=(_hb_stop,),
+        daemon=True,
+        name="telegram-bot-heartbeat",
+    )
+    _hb_thread.start()
 
     # Register APScheduler jobs
     try:
@@ -806,7 +941,7 @@ def start_telegram_bot() -> None:
 
         sched.add_job(
             run_daily_summaries,
-            CronTrigger(hour=8, minute=0, timezone="UTC"),
+            IntervalTrigger(minutes=5),
             id="tg_daily_summary",
             replace_existing=True,
         )
