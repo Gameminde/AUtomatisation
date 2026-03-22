@@ -23,9 +23,11 @@ settings_bp = Blueprint("settings", __name__)
 @api_login_required
 def config_api_keys():
     if request.method == "GET":
+        from app.utils import get_user_settings
+        settings = get_user_settings(current_user.id)
         return jsonify({
             "facebook": bool(os.getenv("FACEBOOK_ACCESS_TOKEN")),
-            "gemini": bool(os.getenv("GEMINI_API_KEY")),
+            "gemini": bool(settings.get("gemini_api_key")),
             "openrouter": bool(os.getenv("OPENROUTER_API_KEY")),
             "pexels": bool(os.getenv("PEXELS_API_KEY")),
         })
@@ -36,7 +38,10 @@ def config_api_keys():
     if data.get("facebook_page_id"):
         existing["FACEBOOK_PAGE_ID"] = data["facebook_page_id"]
     if data.get("gemini_key"):
-        existing["GEMINI_API_KEY"] = data["gemini_key"]
+        from app.utils import encrypt_value, upsert_user_settings
+        encrypted = encrypt_value(data["gemini_key"])
+        upsert_user_settings(current_user.id, {"gemini_api_key": encrypted})
+        logger.info("Gemini key stored encrypted in DB for user %s", current_user.id)
     if data.get("openrouter_key"):
         existing["OPENROUTER_API_KEY"] = data["openrouter_key"]
     if data.get("pexels_key"):
@@ -161,15 +166,17 @@ def set_posts_limit():
 def save_settings_keys():
     data = request.get_json(force=True)
     env_path, existing = _read_env_file()
-    mapping = {
-        "ai_key": "GEMINI_API_KEY" if data.get("provider") == "gemini" else "OPENROUTER_API_KEY",
-        "fb_token": "FACEBOOK_ACCESS_TOKEN",
-        "pexels_key": "PEXELS_API_KEY",
-    }
-    for field, env_var in mapping.items():
-        val = data.get(field, "").strip()
-        if val:
-            existing[env_var] = val
+    ai_key = (data.get("ai_key") or "").strip()
+    if ai_key and data.get("provider") == "gemini":
+        from app.utils import encrypt_value, upsert_user_settings
+        upsert_user_settings(current_user.id, {"gemini_api_key": encrypt_value(ai_key)})
+        logger.info("Gemini key stored encrypted in DB for user %s", current_user.id)
+    elif ai_key:
+        existing["OPENROUTER_API_KEY"] = ai_key
+    if data.get("fb_token"):
+        existing["FACEBOOK_ACCESS_TOKEN"] = data["fb_token"].strip()
+    if data.get("pexels_key"):
+        existing["PEXELS_API_KEY"] = data["pexels_key"].strip()
     if data.get("provider"):
         existing["AI_PROVIDER"] = data["provider"]
     _write_env_file(env_path, existing)
@@ -199,8 +206,14 @@ def save_setup():
         if data.get("fb_token"):
             existing["FACEBOOK_ACCESS_TOKEN"] = data["fb_token"]
         ai_provider = data.get("ai_provider", "gemini")
-        if data.get("ai_key"):
-            existing["GEMINI_API_KEY" if ai_provider == "gemini" else "OPENROUTER_API_KEY"] = data["ai_key"]
+        ai_key = (data.get("ai_key") or "").strip()
+        if ai_key:
+            if ai_provider == "gemini":
+                from app.utils import encrypt_value, upsert_user_settings
+                upsert_user_settings(current_user.id, {"gemini_api_key": encrypt_value(ai_key)})
+                logger.info("Gemini key stored encrypted in DB for user %s", current_user.id)
+            else:
+                existing["OPENROUTER_API_KEY"] = ai_key
         if data.get("pexels_key"):
             existing["PEXELS_API_KEY"] = data["pexels_key"]
         _write_env_file(env_path, existing)
