@@ -76,6 +76,20 @@ def config_database():
 def config_approval_mode():
     data = request.json or {}
     enabled = bool(data.get("enabled"))
+
+    # Write per-user setting to user_settings (multi-tenant source of truth)
+    try:
+        from app.utils import _get_supabase_client
+        sb = _get_supabase_client()
+        sb.table("user_settings").upsert({
+            "user_id": current_user.id,
+            "approval_mode": enabled,
+        }).execute()
+    except Exception as exc:
+        import logging
+        logging.getLogger("settings").warning("Could not persist approval_mode to user_settings: %s", exc)
+
+    # Also update global env for backward-compat with any non-tenant code paths
     env_path, existing = _read_env_file()
     existing["APPROVAL_MODE"] = "on" if enabled else "off"
     _write_env_file(env_path, existing)

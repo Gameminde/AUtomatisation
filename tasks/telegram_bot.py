@@ -456,7 +456,7 @@ def run_daily_summaries() -> None:
             if not uid:
                 continue
             try:
-                # Read per-user summary time from user_settings
+                # Read per-user summary time + timezone from settings/pages
                 settings_res = (
                     sb.table("user_settings")
                     .select("daily_summary_time")
@@ -469,21 +469,46 @@ def run_daily_summaries() -> None:
                 else:
                     summary_time = "08:00"
 
-                # Parse the user's configured summary time (HH:MM, UTC)
+                # Look up user timezone from managed_pages (default UTC)
+                user_tz_str = "UTC"
+                try:
+                    tz_res = (
+                        sb.table("managed_pages")
+                        .select("timezone")
+                        .eq("user_id", uid)
+                        .eq("status", "active")
+                        .limit(1)
+                        .execute()
+                    )
+                    if tz_res.data and tz_res.data[0].get("timezone"):
+                        user_tz_str = tz_res.data[0]["timezone"]
+                except Exception:
+                    pass
+
+                # Convert now_utc to the user's local time for comparison
+                try:
+                    import zoneinfo
+                    user_tz = zoneinfo.ZoneInfo(user_tz_str)
+                    now_local = now_utc.astimezone(user_tz)
+                except Exception:
+                    now_local = now_utc  # Fall back to UTC
+
+                # Parse the user's configured summary time (HH:MM in local tz)
                 try:
                     target_h, target_m = (int(x) for x in summary_time.split(":")[:2])
                 except Exception:
                     target_h, target_m = 8, 0
 
                 target_minutes = target_h * 60 + target_m
-                current_minutes = now_utc.hour * 60 + now_utc.minute
+                current_minutes = now_local.hour * 60 + now_local.minute
 
                 # Use ±5-minute window to tolerate scheduler jitter
                 if abs(current_minutes - target_minutes) > 5:
                     continue
 
-                # De-duplicate: skip if already sent today
-                dedup_key = f"tg_summary_sent:{uid}:{current_date}"
+                # De-duplicate using local date so midnight resets the key
+                local_date = now_local.strftime("%Y-%m-%d")
+                dedup_key = f"tg_summary_sent:{uid}:{local_date}"
                 dedup_res = (
                     sb.table("system_status")
                     .select("value")
@@ -720,12 +745,18 @@ def _update_scheduled_post_for_content(sb, content_id: str, user_id: str, new_st
 
 
 def _approve_content(user_id: str, content_id: str) -> None:
-    """Transition content from pending_approval → scheduled (both tables)."""
+    """
+    Transition content from pending_approval → approved (processed_content)
+    and scheduled_posts → scheduled so the publisher picks it up.
+
+    'approved' status tells the publisher to bypass the approval gate on the
+    next pipeline cycle — preventing infinite re-gating.
+    """
     try:
         sb = _get_sb()
         (
             sb.table("processed_content")
-            .update({"status": "scheduled"})
+            .update({"status": "approved"})
             .eq("id", content_id)
             .eq("user_id", user_id)
             .eq("status", "pending_approval")
@@ -778,9 +809,11 @@ def auto_approve_expired_requests() -> None:
             try:
                 cid = row["id"]
                 uid = row.get("user_id") or ""
+                # Set processed_content to "approved" so the publisher skips
+                # the approval gate and publishes directly on next pipeline run.
                 (
                     sb.table("processed_content")
-                    .update({"status": "scheduled"})
+                    .update({"status": "approved"})
                     .eq("id", cid)
                     .eq("status", "pending_approval")
                     .execute()

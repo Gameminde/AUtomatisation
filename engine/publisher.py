@@ -280,8 +280,13 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
             continue
 
         # v2.1.1: CAS transition to 'publishing' (thread-safe)
+        # "approved" = post that has already passed Telegram approval and is
+        # ready to publish without re-gating (distinct from "scheduled" which
+        # has not yet been approved when approval_mode is enabled).
         content_status = content.get("status", "")
-        if content_status not in ["scheduled", "media_ready", "retry_scheduled"]:
+        _APPROVAL_BYPASS_STATUSES = {"approved"}
+        _SCHEDULABLE_STATUSES = {"scheduled", "media_ready", "retry_scheduled", "approved"}
+        if content_status not in _SCHEDULABLE_STATUSES:
             logger.warning("⏭️ Skipping %s: status is '%s' (not schedulable)", content_id[:8], content_status)
             skipped += 1
             continue
@@ -292,10 +297,11 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
             continue
 
         # ── Approval-mode gate ─────────────────────────────────────────
-        # If the user has approval_mode enabled, hold the content for review
-        # instead of publishing immediately. Telegram bot will send inline
-        # Approve/Reject buttons; auto-approve fires after 4 hours.
-        if row_user_id:
+        # Only gate content that has NOT already been through approval.
+        # content_status=="approved" means the user (or auto-approve) already
+        # reviewed this post — skip the gate and publish directly.
+        _skip_approval_gate = content_status in _APPROVAL_BYPASS_STATUSES
+        if row_user_id and not _skip_approval_gate:
             try:
                 from app.utils import _get_supabase_client as _sb_fn
                 _sb = _sb_fn()
