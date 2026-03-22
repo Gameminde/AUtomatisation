@@ -1,0 +1,26 @@
+This is exactly the kind of honest audit you need. Replit caught two real gaps in scraper and ai_generator and fixed them immediately rather than hiding them. That is good engineering behaviour — trust it.
+My read: Phase 1 is genuinely complete now.
+The two fixes to scraper.py and ai_generator.py were the most likely places for multi-tenant bugs to hide. The fact that scheduler.py and publisher.py were already correct from Phase 1 is a good sign — the foundation is solid.
+Before you say go on Phase 2, do one thing:
+Take one of those 10 activation codes right now and register a real test account. Go through the actual registration flow as if you are a real user. Not as a developer checking code — as someone who just bought your tool on Gumroad and is opening the URL for the first time.
+Ask yourself honestly:
+
+Is it clear what to do on the registration page?
+Does it work on your phone screen?
+Is the error message helpful if you type the wrong activation code?
+After registering, where do you land and does it make sense?
+
+This takes 5 minutes and will tell you more than reading any code.
+Then give Replit this brief for Phase 2:
+
+Phase 1 confirmed complete. Start Phase 2 now.
+Priority order within Phase 2 is:
+First — the landing page at /. This is the first thing every buyer sees after purchasing. It needs a headline in both Arabic and English, three key benefits, a product screenshot placeholder, and a single large "Buy on Gumroad" button. Keep it simple for now — design overhaul comes in Phase 5. Just make it functional and clear.
+Second — the 4-step onboarding wizard. After a user registers and logs in for the first time they should land on the wizard, not an empty dashboard. The four steps are: connect Facebook pages via OAuth, connect Instagram, enter and save their Gemini API key encrypted in Supabase, and the Telegram connection step which shows their unique code but does not need to be functional yet since the bot is Phase 4.
+Third — the onboarding gate. Any logged-in user who has not completed onboarding gets redirected to the wizard. Users who have completed it go straight to the dashboard. This gate must not block /auth/, /static/, or /onboarding/ routes.
+Fourth — per-user Facebook OAuth. This is the most complex part of Phase 2. Each user connects their own Facebook pages through your Facebook App. Their page access tokens must be stored encrypted in managed_pages scoped to their user_id. The existing facebook_oauth.py Fernet encryption is already there — adapt it to write per-user not global.
+Fifth — Gemini API key storage. A field in the onboarding wizard where the user pastes their free Gemini API key. Encrypt it with Fernet and store it in user_settings.gemini_api_key. The engine will read from here in Phase 3 instead of from the .env file.
+Two things to flag before you start:
+One — the Facebook OAuth flow requires your Facebook App to be in Live mode with pages_manage_posts and instagram_basic permissions approved. If the app is still in Development mode only test users can connect. Tell me the current status of the Facebook App before writing the OAuth code.
+Two — for the Gemini API key step, add a "Test this key" button that makes one real API call to Gemini and confirms the key works before saving it. A user who pastes a wrong key will have no content generated and no idea why. Catch it at onboarding time.
+Do not start Phase 3 until I confirm Phase 2 is working end to end with a real test account.
