@@ -500,6 +500,15 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user_settings' AND column_name = 'niche_keywords'
+    ) THEN
+        ALTER TABLE user_settings ADD COLUMN niche_keywords TEXT;
+    END IF;
+END $$;
+
 -- ============================================
 -- Done! All tables ready.
 -- ============================================

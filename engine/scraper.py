@@ -167,22 +167,38 @@ def dedupe_by_url(items: Iterable[dict]) -> List[dict]:
     return unique
 
 
-def save_articles(items: Iterable[dict], user_id: Optional[str] = None) -> int:
+def save_articles(
+    items: Iterable[dict],
+    user_id: Optional[str] = None,
+    keywords: Optional[List[str]] = None,
+) -> int:
     """Save scraped articles to raw_articles.
 
+    Per-tenant isolation: when user_id is provided, the deduplication check
+    is scoped to that user so two tenants can both ingest the same URL
+    independently.
+
     Args:
-        items:   Iterable of article dicts from fetch_* functions.
-        user_id: Tenant ID — tag each row so the article belongs to a specific user.
-                 Required for multi-tenant operation; None only in single-user dev mode.
+        items:    Iterable of article dicts from fetch_* functions.
+        user_id:  Tenant ID — tag each row so the article belongs to a specific user.
+                  Required for multi-tenant operation; None only in single-user dev mode.
+        keywords: Override list of keywords to store on the row (per-user niche).
+                  Falls back to config.DEFAULT_KEYWORDS when not supplied.
     """
     client = config.get_supabase_client()
+    kw_list = keywords or config.DEFAULT_KEYWORDS
     saved = 0
     for item in items:
         url = item.get("url")
         if not url:
             continue
         try:
-            existing = client.table("raw_articles").select("id").eq("url", url).execute()
+            # Per-tenant deduplication: scope by user_id when available so
+            # different users can independently process the same URL.
+            query = client.table("raw_articles").select("id").eq("url", url)
+            if user_id:
+                query = query.eq("user_id", user_id)
+            existing = query.execute()
             if existing.data:
                 continue
         except Exception as exc:
@@ -194,7 +210,7 @@ def save_articles(items: Iterable[dict], user_id: Optional[str] = None) -> int:
             "url": url,
             "content": item.get("content"),
             "published_date": item.get("published_date"),
-            "keywords": config.DEFAULT_KEYWORDS,
+            "keywords": kw_list,
             "virality_score": score_virality(item),
             "status": "pending",
         }
@@ -208,26 +224,44 @@ def save_articles(items: Iterable[dict], user_id: Optional[str] = None) -> int:
     return saved
 
 
-def run(user_id: Optional[str] = None) -> int:
+def run(
+    user_id: Optional[str] = None,
+    newsdata_api_key: Optional[str] = None,
+    keywords: Optional[List[str]] = None,
+) -> int:
     """Run the full scrape pipeline.
 
     Args:
-        user_id: Tenant ID passed through to save_articles so all fetched
-                 articles are tagged with the owning user. Required for
-                 multi-tenant operation.
+        user_id:         Tenant ID passed through to save_articles so all fetched
+                         articles are tagged with the owning user. Required for
+                         multi-tenant operation.
+        newsdata_api_key: Per-user NewsData.io API key; overrides env var when set.
+        keywords:        Per-user keyword list for filtering; falls back to
+                         config.DEFAULT_KEYWORDS when not provided.
     """
-    items: List[dict] = []
-    items.extend(fetch_newsdata_articles())
-    for rss_url in get_feeds():
-        items.extend(fetch_rss_feed(rss_url))
-        time.sleep(config.REQUEST_SLEEP_SECONDS)
-    items.extend(fetch_hackernews_top())
+    # Temporarily override NEWSDATA key for this user if provided
+    _prev_key = None
+    if newsdata_api_key:
+        _prev_key = config.NEWSDATA_API_KEY
+        config.NEWSDATA_API_KEY = newsdata_api_key
 
-    filtered = filter_articles(items, config.DEFAULT_KEYWORDS)
-    unique = dedupe_by_url(filtered)
-    saved = save_articles(unique, user_id=user_id)
-    logger.info("Scraper saved %s new articles (user_id=%s)", saved, user_id)
-    return saved
+    try:
+        items: List[dict] = []
+        items.extend(fetch_newsdata_articles())
+        for rss_url in get_feeds():
+            items.extend(fetch_rss_feed(rss_url))
+            time.sleep(config.REQUEST_SLEEP_SECONDS)
+        items.extend(fetch_hackernews_top())
+
+        filter_kw = keywords or config.DEFAULT_KEYWORDS
+        filtered = filter_articles(items, filter_kw)
+        unique = dedupe_by_url(filtered)
+        saved = save_articles(unique, user_id=user_id, keywords=filter_kw)
+        logger.info("Scraper saved %s new articles (user_id=%s)", saved, user_id)
+        return saved
+    finally:
+        if _prev_key is not None:
+            config.NEWSDATA_API_KEY = _prev_key
 
 
 if __name__ == "__main__":

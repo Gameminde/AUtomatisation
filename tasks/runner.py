@@ -20,6 +20,18 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
+
+# Ensure the project root and engine/ are on sys.path so bare module imports
+# (scraper, publisher, scheduler, etc.) resolve correctly regardless of how
+# this module is first loaded (by dashboard_app, wsgi, or a test runner).
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_HERE)
+_ENGINE = os.path.join(_ROOT, "engine")
+for _p in (_ROOT, _ENGINE):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
@@ -41,12 +53,19 @@ _LOCK_KEY_PREFIX = "pipeline_lock:"
 
 def _acquire_user_lock(user_id: str) -> bool:
     """
-    Try to acquire a per-user pipeline lock using Supabase `system_status`.
+    Try to acquire a per-user pipeline lock using Supabase ``system_status``.
 
-    The lock is a row whose key is ``pipeline_lock:<user_id>`` and whose value
-    is a UTC ISO-8601 timestamp.  If a row already exists and was written less
-    than PIPELINE_TIMEOUT_SECONDS ago the lock is considered held and we return
-    False.  Otherwise we upsert the row with the current timestamp and return True.
+    Strategy (minimises race window):
+    1. Read the existing row.
+    2a. If no row → try INSERT; if INSERT succeeds we hold the lock.
+        If INSERT fails (unique conflict from another worker) → lock held, return False.
+    2b. If row exists and lock is fresh → return False immediately.
+    2c. If row exists but lock is expired → do a conditional UPDATE filtered by
+        the old ``updated_at`` timestamp. If 0 rows updated, another worker won
+        the race → return False.
+
+    On any DB error the lock is NOT granted (fail-closed) to prevent two workers
+    from running the same user concurrently.
 
     Parameters
     ----------
@@ -55,14 +74,15 @@ def _acquire_user_lock(user_id: str) -> bool:
     Returns
     -------
     bool
-        True if the lock was acquired, False if another worker already holds it.
+        True if the lock was acquired by this worker, False otherwise.
     """
     try:
         sb = _get_sb()
         key = f"{_LOCK_KEY_PREFIX}{user_id}"
         now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
 
-        # Check for an existing lock
+        # Step 1: Read existing lock row
         existing = (
             sb.table("system_status")
             .select("value, updated_at")
@@ -70,30 +90,54 @@ def _acquire_user_lock(user_id: str) -> bool:
             .limit(1)
             .execute()
         )
-        if existing.data:
-            row = existing.data[0]
-            try:
-                locked_at_str = row.get("updated_at") or row.get("value") or ""
-                locked_at = datetime.fromisoformat(locked_at_str.replace("Z", "+00:00"))
-                age_seconds = (now - locked_at).total_seconds()
-                if age_seconds < PIPELINE_TIMEOUT_SECONDS:
-                    logger.debug(
-                        "Lock held for user %s (age=%ds)", user_id[:8], int(age_seconds)
-                    )
-                    return False
-            except Exception:
-                pass  # Malformed timestamp — treat as expired, overwrite
 
-        # Acquire / refresh the lock
-        sb.table("system_status").upsert(
-            {"key": key, "value": now.isoformat(), "updated_at": now.isoformat()},
-            on_conflict="key",
-        ).execute()
-        return True
+        if not existing.data:
+            # Step 2a: No lock — try to INSERT (atomic; fails on conflict)
+            try:
+                sb.table("system_status").insert(
+                    {"key": key, "value": now_iso, "updated_at": now_iso}
+                ).execute()
+                return True
+            except Exception:
+                # Another worker inserted between our read and insert
+                return False
+
+        # Step 2b/2c: Lock row exists — check freshness
+        row = existing.data[0]
+        old_ts = row.get("updated_at") or row.get("value") or ""
+        try:
+            locked_at = datetime.fromisoformat(old_ts.replace("Z", "+00:00"))
+            age_seconds = (now - locked_at).total_seconds()
+        except Exception:
+            # Malformed timestamp — treat as fully expired
+            age_seconds = PIPELINE_TIMEOUT_SECONDS + 1
+
+        if age_seconds < PIPELINE_TIMEOUT_SECONDS:
+            # Lock is fresh — another worker holds it
+            logger.debug(
+                "Lock held for user %s (age=%ds)", user_id[:8], int(age_seconds)
+            )
+            return False
+
+        # Step 2c: Lock is expired — conditional UPDATE (only if updated_at unchanged)
+        result = (
+            sb.table("system_status")
+            .update({"value": now_iso, "updated_at": now_iso})
+            .eq("key", key)
+            .eq("updated_at", old_ts)
+            .execute()
+        )
+        if result.data:
+            return True  # We won the conditional update race
+
+        # Another worker updated the row between our read and write
+        return False
 
     except Exception as exc:
-        logger.warning("Lock acquire failed for user %s: %s", user_id[:8], exc)
-        return True  # Fail open — better to run twice than never
+        logger.warning(
+            "Lock acquire failed (fail-closed) for user %s: %s", user_id[:8], exc
+        )
+        return False  # Fail closed — skip this user rather than risk double-run
 
 
 def _release_user_lock(user_id: str) -> None:
@@ -184,10 +228,14 @@ def _run_pipeline_for_user(user_config) -> Dict:
     try:
         logger.info("Pipeline start: user=%s", uid_short)
 
-        # Step 1: Scrape
+        # Step 1: Scrape — pass per-user API key and niche keywords
         try:
             from scraper import run as scrape_run
-            saved = scrape_run(user_id=uid)
+            saved = scrape_run(
+                user_id=uid,
+                newsdata_api_key=user_config.newsdata_api_key or None,
+                keywords=user_config.niche_keywords or None,
+            )
             result["articles"] = saved or 0
             logger.info("  Scraped %d articles (user=%s)", result["articles"], uid_short)
         except Exception as exc:

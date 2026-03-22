@@ -74,6 +74,14 @@ class UserConfig:
                 or os.getenv("PEXELS_API_KEY", "")
             )
 
+            # niche_keywords: comma-separated string in DB → list
+            raw_kw = settings.get("niche_keywords") or ""
+            niche_kw: List[str] = (
+                [k.strip() for k in raw_kw.split(",") if k.strip()]
+                if raw_kw
+                else []
+            )
+
             return cls(
                 user_id=user_id,
                 gemini_api_key=gemini_key,
@@ -86,6 +94,7 @@ class UserConfig:
                 posting_times=settings.get("posting_times") or "08:00,13:00,19:00",
                 language_ratio=float(settings.get("language_ratio") or 0.7),
                 telegram_chat_id=settings.get("telegram_chat_id") or "",
+                niche_keywords=niche_kw,
             )
         except Exception as exc:
             logger.error("UserConfig.from_db failed for user %s: %s", user_id[:8], exc)
