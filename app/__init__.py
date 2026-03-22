@@ -123,6 +123,23 @@ def create_app() -> Flask:
     _app.register_blueprint(studio_bp)
     _app.register_blueprint(settings_bp)
 
+    # ── Top-level auth aliases (/login → /auth/login etc.) ─────────────────
+    # Allows canonical short URLs in links/templates while keeping the blueprint
+    # prefix (/auth/*) as the authoritative route for url_for() calls.
+    from flask import redirect, url_for as _url_for
+
+    @_app.route("/login")
+    def _login_alias():
+        return redirect(_url_for("auth.login"))
+
+    @_app.route("/register")
+    def _register_alias():
+        return redirect(_url_for("auth.register"))
+
+    @_app.route("/logout")
+    def _logout_alias():
+        return redirect(_url_for("auth.logout"))
+
     # ── Startup tasks ──────────────────────────────────────────────────────
     with _app.app_context():
         _init_smart_defaults(_app)

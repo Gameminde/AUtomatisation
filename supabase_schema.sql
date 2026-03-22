@@ -1,15 +1,17 @@
 -- ============================================
 -- Content Factory SaaS - Supabase Schema
 -- ============================================
--- Run this SQL in Supabase SQL Editor
--- Run each section separately if you get errors
+-- Run this SQL in Supabase SQL Editor.
+-- Safe to run on both fresh and existing databases.
+-- All statements are fully idempotent (CREATE/ALTER IF NOT EXISTS).
 -- ============================================
 
 
 -- ============================================
--- SECTION 0: Multi-tenant user system (NEW)
+-- SECTION 0: Auth & multi-tenant tables
 -- ============================================
 
+-- Users table (custom bcrypt auth, not Supabase Auth)
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     email TEXT UNIQUE NOT NULL,
@@ -18,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Activation codes (Gumroad one-time unlock gates)
 CREATE TABLE IF NOT EXISTS activation_codes (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code TEXT UNIQUE NOT NULL,
@@ -33,67 +36,12 @@ CREATE TABLE IF NOT EXISTS activation_codes (
 --   (gen_random_uuid()::text);
 -- Then share the 'code' values with buyers.
 
--- Add user_id to content tables
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'processed_content' AND column_name = 'user_id'
-    ) THEN
-        ALTER TABLE processed_content ADD COLUMN user_id UUID REFERENCES users(id);
-    END IF;
-END $$;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'scheduled_posts' AND column_name = 'user_id'
-    ) THEN
-        ALTER TABLE scheduled_posts ADD COLUMN user_id UUID REFERENCES users(id);
-    END IF;
-END $$;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'published_posts' AND column_name = 'user_id'
-    ) THEN
-        ALTER TABLE published_posts ADD COLUMN user_id UUID REFERENCES users(id);
-    END IF;
-END $$;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'raw_articles' AND column_name = 'user_id'
-    ) THEN
-        ALTER TABLE raw_articles ADD COLUMN user_id UUID REFERENCES users(id);
-    END IF;
-END $$;
-
-DO $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'managed_pages' AND column_name = 'user_id'
-    ) THEN
-        ALTER TABLE managed_pages ADD COLUMN user_id UUID REFERENCES users(id);
-    END IF;
-END $$;
-
--- Indexes for user_id lookups
-CREATE INDEX IF NOT EXISTS idx_processed_content_user ON processed_content(user_id);
-CREATE INDEX IF NOT EXISTS idx_scheduled_posts_user ON scheduled_posts(user_id);
-CREATE INDEX IF NOT EXISTS idx_published_posts_user ON published_posts(user_id);
-CREATE INDEX IF NOT EXISTS idx_managed_pages_user ON managed_pages(user_id);
-
 
 -- ============================================
--- SECTION 1: Create managed_pages table (if new)
+-- SECTION 1: Core content tables
+-- (CREATE before any ALTER statements below)
 -- ============================================
+
 CREATE TABLE IF NOT EXISTS managed_pages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     page_id TEXT UNIQUE NOT NULL,
@@ -104,6 +52,54 @@ CREATE TABLE IF NOT EXISTS managed_pages (
     language TEXT DEFAULT 'ar',
     status TEXT DEFAULT 'active',
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS raw_articles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    url TEXT,
+    title TEXT,
+    content TEXT,
+    source TEXT,
+    fetched_at TIMESTAMPTZ DEFAULT NOW(),
+    status TEXT DEFAULT 'new',
+    user_id UUID REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS processed_content (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    raw_article_id UUID,
+    content TEXT,
+    image_url TEXT,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    ab_test_id TEXT,
+    ab_variant_style TEXT,
+    virality_score FLOAT,
+    user_id UUID REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS scheduled_posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    content_id UUID,
+    page_id TEXT,
+    scheduled_time TIMESTAMPTZ,
+    status TEXT DEFAULT 'pending',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    platforms TEXT DEFAULT 'facebook',
+    user_id UUID REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS published_posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    content_id UUID,
+    page_id TEXT,
+    facebook_post_id TEXT,
+    instagram_post_id TEXT,
+    published_at TIMESTAMPTZ DEFAULT NOW(),
+    platforms TEXT DEFAULT 'facebook',
+    facebook_status TEXT,
+    instagram_status TEXT,
+    user_id UUID REFERENCES users(id)
 );
 
 -- Migration: add posting_times to existing managed_pages (run if column missing)
