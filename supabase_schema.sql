@@ -69,10 +69,30 @@ CREATE TABLE IF NOT EXISTS raw_articles (
 CREATE TABLE IF NOT EXISTS processed_content (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     raw_article_id UUID,
+    article_id UUID,
+    -- Original pipeline fields
     content TEXT,
     image_url TEXT,
     status TEXT DEFAULT 'pending',
     created_at TIMESTAMPTZ DEFAULT NOW(),
+    generated_at TIMESTAMPTZ,
+    -- AI-generated content fields
+    post_type TEXT,
+    generated_text TEXT,
+    hook TEXT,
+    call_to_action TEXT,
+    hashtags TEXT,
+    script_for_reel TEXT,
+    arabic_text TEXT,
+    target_audience TEXT,
+    -- Image fields
+    image_path TEXT,
+    local_image_path TEXT,
+    template_id TEXT,
+    -- Publishing fields
+    fb_post_id TEXT,
+    rejected_reason TEXT,
+    -- A/B testing + analytics
     ab_test_id TEXT,
     ab_variant_style TEXT,
     virality_score FLOAT,
@@ -87,6 +107,7 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
     status TEXT DEFAULT 'pending',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     platforms TEXT DEFAULT 'facebook',
+    timezone TEXT DEFAULT 'UTC',
     user_id UUID REFERENCES users(id)
 );
 
@@ -100,7 +121,19 @@ CREATE TABLE IF NOT EXISTS published_posts (
     platforms TEXT DEFAULT 'facebook',
     facebook_status TEXT,
     instagram_status TEXT,
+    -- Engagement metrics (synced from Facebook Graph API)
+    likes INTEGER DEFAULT 0,
+    shares INTEGER DEFAULT 0,
+    comments INTEGER DEFAULT 0,
+    reach INTEGER DEFAULT 0,
     user_id UUID REFERENCES users(id)
+);
+
+-- System-wide status/health key-value store (not tenant-scoped)
+CREATE TABLE IF NOT EXISTS system_status (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Migration: add posting_times to existing managed_pages
@@ -169,6 +202,32 @@ BEGIN
         ALTER TABLE scheduled_posts ADD COLUMN created_at TIMESTAMPTZ DEFAULT NOW();
     END IF;
 END $$;
+
+-- processed_content: AI-generated content fields (existing DBs)
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'article_id') THEN ALTER TABLE processed_content ADD COLUMN article_id UUID; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'generated_at') THEN ALTER TABLE processed_content ADD COLUMN generated_at TIMESTAMPTZ; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'post_type') THEN ALTER TABLE processed_content ADD COLUMN post_type TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'generated_text') THEN ALTER TABLE processed_content ADD COLUMN generated_text TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'hook') THEN ALTER TABLE processed_content ADD COLUMN hook TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'call_to_action') THEN ALTER TABLE processed_content ADD COLUMN call_to_action TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'hashtags') THEN ALTER TABLE processed_content ADD COLUMN hashtags TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'script_for_reel') THEN ALTER TABLE processed_content ADD COLUMN script_for_reel TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'arabic_text') THEN ALTER TABLE processed_content ADD COLUMN arabic_text TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'target_audience') THEN ALTER TABLE processed_content ADD COLUMN target_audience TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'image_path') THEN ALTER TABLE processed_content ADD COLUMN image_path TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'local_image_path') THEN ALTER TABLE processed_content ADD COLUMN local_image_path TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'template_id') THEN ALTER TABLE processed_content ADD COLUMN template_id TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'fb_post_id') THEN ALTER TABLE processed_content ADD COLUMN fb_post_id TEXT; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'processed_content' AND column_name = 'rejected_reason') THEN ALTER TABLE processed_content ADD COLUMN rejected_reason TEXT; END IF; END $$;
+
+-- scheduled_posts: timezone field (existing DBs)
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'scheduled_posts' AND column_name = 'timezone') THEN ALTER TABLE scheduled_posts ADD COLUMN timezone TEXT DEFAULT 'UTC'; END IF; END $$;
+
+-- published_posts: engagement metrics (existing DBs)
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'published_posts' AND column_name = 'likes') THEN ALTER TABLE published_posts ADD COLUMN likes INTEGER DEFAULT 0; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'published_posts' AND column_name = 'shares') THEN ALTER TABLE published_posts ADD COLUMN shares INTEGER DEFAULT 0; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'published_posts' AND column_name = 'comments') THEN ALTER TABLE published_posts ADD COLUMN comments INTEGER DEFAULT 0; END IF; END $$;
+DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'published_posts' AND column_name = 'reach') THEN ALTER TABLE published_posts ADD COLUMN reach INTEGER DEFAULT 0; END IF; END $$;
 
 -- ============================================
 -- SECTION 3: Indexes
