@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
 import config
@@ -158,13 +158,23 @@ def process_retries() -> int:
         return 0
 
 
-def fetch_content_pool(limit: int = 100):
+def fetch_content_pool(limit: int = 100, user_id: Optional[str] = None):
+    """Return unscheduled content items, optionally scoped to a single tenant."""
     client = config.get_supabase_client()
-    response = client.table("processed_content").select("id,post_type").limit(limit).execute()
+    query = (
+        client.table("processed_content")
+        .select("id,post_type,user_id")
+        .eq("status", "drafted")
+        .limit(limit)
+    )
+    if user_id:
+        query = query.eq("user_id", user_id)
+    response = query.execute()
     return response.data or []
 
 
-def schedule_posts(days: int = 7, max_per_day: int = 5, platforms: str = "facebook") -> int:
+def schedule_posts(days: int = 7, max_per_day: int = 5, platforms: str = "facebook",
+                   user_id: Optional[str] = None) -> int:
     """
     Schedule posts for the next N days.
 
@@ -172,17 +182,19 @@ def schedule_posts(days: int = 7, max_per_day: int = 5, platforms: str = "facebo
         days: Number of days to schedule
         max_per_day: Maximum posts per day (configurable 1-5 for Gumroad users)
         platforms: Comma-separated platforms to publish to, e.g. "facebook" or "facebook,instagram"
+        user_id: Tenant ID — only schedule this user's content and tag rows with their ID.
+                 Always pass current_user.id from the request context.
 
     Returns:
         Number of posts scheduled
     """
-    content_items = fetch_content_pool()
+    content_items = fetch_content_pool(user_id=user_id)
     if not content_items:
-        logger.warning("No content found in processed_content")
+        logger.warning("No content found in processed_content (user_id=%s)", user_id)
         return 0
 
     # Simplified: All posts are text/photo (no Reels)
-    text_items = [item for item in content_items if item["post_type"] == "text"]
+    text_items = [item for item in content_items if item.get("post_type") == "text"]
 
     client = config.get_supabase_client()
     scheduled = 0
@@ -197,12 +209,14 @@ def schedule_posts(days: int = 7, max_per_day: int = 5, platforms: str = "facebo
 
         for slot in slots:
             if not text_items:
-                logger.warning("Not enough content to fill schedule")
+                logger.warning("Not enough content to fill schedule (user_id=%s)", user_id)
                 break
 
             content = text_items.pop(0)
+            # Use the content row's own user_id as the canonical tenant tag
+            row_user_id = content.get("user_id") or user_id
 
-            payload = {
+            payload: Dict = {
                 "content_id": content["id"],
                 "scheduled_time": slot["scheduled_time"],
                 "timezone": slot["timezone"],
@@ -210,10 +224,15 @@ def schedule_posts(days: int = 7, max_per_day: int = 5, platforms: str = "facebo
                 "status": "scheduled",
                 "platforms": platforms,
             }
+            if row_user_id:
+                payload["user_id"] = row_user_id
             client.table("scheduled_posts").insert(payload).execute()
             scheduled += 1
 
-    logger.info("Scheduled %s posts over %s days (max %s/day, platforms=%s)", scheduled, days, max_per_day, platforms)
+    logger.info(
+        "Scheduled %s posts over %s days (max %s/day, platforms=%s, user_id=%s)",
+        scheduled, days, max_per_day, platforms, user_id,
+    )
     return scheduled
 
 

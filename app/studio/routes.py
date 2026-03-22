@@ -628,7 +628,7 @@ def run_scheduler():
         days = int(data.get("days", 7))
         platforms_raw = data.get("platforms", "facebook")
         platforms_str = ",".join(p.strip() for p in platforms_raw) if isinstance(platforms_raw, list) else str(platforms_raw).strip() or "facebook"
-        scheduled = schedule_posts(days=days, platforms=platforms_str)
+        scheduled = schedule_posts(days=days, platforms=platforms_str, user_id=current_user.id)
         return jsonify({"success": True, "scheduled_count": scheduled, "platforms": platforms_str})
     except Exception as e:
         logger.error("Error scheduling: %s", e)
