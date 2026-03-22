@@ -469,8 +469,17 @@ def run_daily_summaries() -> None:
                 else:
                     summary_time = "08:00"
 
-                # Only send within the correct 5-minute window
-                if current_hhmm != summary_time:
+                # Parse the user's configured summary time (HH:MM, UTC)
+                try:
+                    target_h, target_m = (int(x) for x in summary_time.split(":")[:2])
+                except Exception:
+                    target_h, target_m = 8, 0
+
+                target_minutes = target_h * 60 + target_m
+                current_minutes = now_utc.hour * 60 + now_utc.minute
+
+                # Use ±5-minute window to tolerate scheduler jitter
+                if abs(current_minutes - target_minutes) > 5:
                     continue
 
                 # De-duplicate: skip if already sent today
@@ -485,10 +494,11 @@ def run_daily_summaries() -> None:
                 if dedup_res.data:
                     continue  # Already sent today
 
-                # Mark sent (TTL via cron cleanup — just store today's key)
+                # Mark sent (use today's UTC date as dedup key)
                 sb.table("system_status").upsert({
                     "key": dedup_key,
                     "value": now_utc.isoformat(),
+                    "updated_at": now_utc.isoformat(),
                 }).execute()
 
                 _send_daily_summary_for_user(uid)
@@ -689,8 +699,28 @@ async def _callback_query_handler(update, context):
         await query.edit_message_text(f"❌ تم رفض المنشور وحذفه من القائمة.")
 
 
+def _update_scheduled_post_for_content(sb, content_id: str, user_id: str, new_status: str) -> None:
+    """
+    Update the matching scheduled_posts row for a content_id to new_status.
+
+    This must be called alongside any processed_content status change so that
+    fetch_due_posts() (which reads scheduled_posts.status == 'scheduled') can
+    pick up newly-approved content.
+    """
+    try:
+        (
+            sb.table("scheduled_posts")
+            .update({"status": new_status})
+            .eq("content_id", content_id)
+            .eq("user_id", user_id)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning("_update_scheduled_post_for_content failed: %s", exc)
+
+
 def _approve_content(user_id: str, content_id: str) -> None:
-    """Transition content from pending_approval → scheduled."""
+    """Transition content from pending_approval → scheduled (both tables)."""
     try:
         sb = _get_sb()
         (
@@ -701,13 +731,14 @@ def _approve_content(user_id: str, content_id: str) -> None:
             .eq("status", "pending_approval")
             .execute()
         )
+        _update_scheduled_post_for_content(sb, content_id, user_id, "scheduled")
         logger.info("Content approved: %s (user=%s)", content_id[:8], user_id[:8])
     except Exception as exc:
         logger.error("_approve_content failed: %s", exc)
 
 
 def _reject_content(user_id: str, content_id: str) -> None:
-    """Transition content from pending_approval → rejected."""
+    """Transition content from pending_approval → rejected (both tables)."""
     try:
         sb = _get_sb()
         (
@@ -718,6 +749,7 @@ def _reject_content(user_id: str, content_id: str) -> None:
             .eq("status", "pending_approval")
             .execute()
         )
+        _update_scheduled_post_for_content(sb, content_id, user_id, "rejected")
         logger.info("Content rejected: %s (user=%s)", content_id[:8], user_id[:8])
     except Exception as exc:
         logger.error("_reject_content failed: %s", exc)
@@ -729,6 +761,8 @@ def auto_approve_expired_requests() -> None:
 
     Content stuck at pending_approval for more than 4h is transitioned to
     'scheduled' so it enters the normal publish queue.
+    Both processed_content and scheduled_posts rows are updated so the
+    publisher can proceed.
     """
     try:
         sb = _get_sb()
@@ -742,19 +776,22 @@ def auto_approve_expired_requests() -> None:
         )
         for row in res.data or []:
             try:
+                cid = row["id"]
+                uid = row.get("user_id") or ""
                 (
                     sb.table("processed_content")
                     .update({"status": "scheduled"})
-                    .eq("id", row["id"])
+                    .eq("id", cid)
                     .eq("status", "pending_approval")
                     .execute()
                 )
+                if uid:
+                    _update_scheduled_post_for_content(sb, cid, uid, "scheduled")
                 logger.info(
                     "Auto-approved content %s for user=%s (4h timeout)",
-                    row["id"][:8],
-                    (row.get("user_id") or "?")[:8],
+                    cid[:8],
+                    uid[:8] if uid else "?",
                 )
-                uid = row.get("user_id")
                 if uid:
                     chat_id = get_chat_id_for_user(uid)
                     if chat_id:
@@ -813,20 +850,47 @@ _BOT_LEADER_TTL_SECONDS = 30  # Heartbeat interval; leader renews every 20s
 
 def _acquire_bot_leader_lock() -> bool:
     """
-    Try to claim the Telegram bot leader lock in system_status.
+    Try to atomically claim the Telegram bot leader lock in system_status.
 
-    Uses a compare-and-insert / expiry strategy:
-    - If no leader key exists (or it's older than TTL) → this process wins.
-    - Otherwise → another process is already running the bot.
+    Strategy (fail-closed on uncertainty):
+    1. DELETE expired rows where updated_at is older than TTL — this makes
+       room for a new leader while being idempotent if the row doesn't exist.
+    2. Attempt INSERT with ON CONFLICT DO NOTHING (via upsert-like logic).
+       Supabase upsert always succeeds, so we simulate atomic-ness by:
+       a. Delete the row only if it is expired (conditional delete via filter).
+       b. Attempt to insert. If we don't have the row after insert, another
+          process won — fail closed.
+    3. Read back the row to verify we own it (our process_id written as value).
 
-    Returns True if this process should run the bot.
+    Returns the process_id string if this process won the lock, or None if
+    another live process already holds it.
+    Fails closed (returns None) on DB errors to prevent split-brain.
     """
+    import uuid as _uuid
+    process_id = str(_uuid.uuid4())
     try:
         sb = _get_sb()
         now = datetime.now(timezone.utc)
         cutoff = (now - timedelta(seconds=_BOT_LEADER_TTL_SECONDS)).isoformat()
 
-        # Check if a live leader heartbeat exists
+        # Step 1: Remove expired lock (conditional on staleness)
+        # This is safe to do concurrently — only the row older than TTL is deleted.
+        sb.table("system_status").delete().eq("key", _BOT_LEADER_KEY).lt("updated_at", cutoff).execute()
+
+        # Step 2: Try to insert our process_id as the leader.
+        # Supabase upsert doesn't give us conflict info, so we use insert with
+        # ignore_duplicates=True (via on_conflict). If the row already exists
+        # (another process just inserted), our insert silently fails.
+        try:
+            sb.table("system_status").insert({
+                "key": _BOT_LEADER_KEY,
+                "value": process_id,
+                "updated_at": now.isoformat(),
+            }).execute()
+        except Exception:
+            pass  # Row already exists — another process may have inserted first
+
+        # Step 3: Read back and verify we own the row
         res = (
             sb.table("system_status")
             .select("value, updated_at")
@@ -834,39 +898,40 @@ def _acquire_bot_leader_lock() -> bool:
             .limit(1)
             .execute()
         )
-        if res.data:
-            row = res.data[0]
-            updated_at_raw = row.get("updated_at") or row.get("value") or ""
-            try:
-                updated_at = datetime.fromisoformat(updated_at_raw.replace("Z", "+00:00"))
-                if (now - updated_at).total_seconds() < _BOT_LEADER_TTL_SECONDS:
-                    return False  # Another live process is the leader
-            except Exception:
-                pass
-
-        # Claim leadership (upsert with current timestamp as value + updated_at)
-        sb.table("system_status").upsert({
-            "key": _BOT_LEADER_KEY,
-            "value": now.isoformat(),
-            "updated_at": now.isoformat(),
-        }).execute()
-        return True
+        if not res.data:
+            return None  # Can't verify — fail closed
+        row = res.data[0]
+        if row.get("value") == process_id:
+            return process_id  # We won the lock
+        # Another process owns the lock — check if it's stale
+        try:
+            updated_at = datetime.fromisoformat(
+                (row.get("updated_at") or "").replace("Z", "+00:00")
+            )
+            if (now - updated_at).total_seconds() < _BOT_LEADER_TTL_SECONDS:
+                return None  # Live leader — defer to them
+        except Exception:
+            pass
+        return None  # Fail closed on uncertainty
     except Exception as exc:
-        logger.warning("Bot leader-lock check failed: %s — starting bot anyway", exc)
-        return True  # Fail open (better than never starting the bot)
+        logger.warning("Bot leader-lock check failed: %s — deferring (fail-closed)", exc)
+        return None  # Fail closed: don't risk two pollers
 
 
-def _bot_leader_heartbeat(stop_event: threading.Event) -> None:
-    """Renew the leader lock every 20 seconds while the bot is running."""
+def _bot_leader_heartbeat(stop_event: threading.Event, process_id: str) -> None:
+    """Renew the leader lock every 20 seconds while the bot is running.
+
+    Writes the same process_id as the lock value and updates updated_at
+    so the TTL check knows the lock is still alive.
+    """
     while not stop_event.is_set():
         try:
             sb = _get_sb()
             now_iso = datetime.now(timezone.utc).isoformat()
-            sb.table("system_status").upsert({
-                "key": _BOT_LEADER_KEY,
-                "value": now_iso,
+            sb.table("system_status").update({
+                "value": process_id,
                 "updated_at": now_iso,
-            }).execute()
+            }).eq("key", _BOT_LEADER_KEY).eq("value", process_id).execute()
         except Exception as exc:
             logger.debug("Heartbeat renewal failed: %s", exc)
         stop_event.wait(20)
@@ -899,7 +964,8 @@ def start_telegram_bot() -> None:
         return
 
     # Distributed singleton: only one gunicorn worker should run the bot.
-    if not _acquire_bot_leader_lock():
+    leader_process_id = _acquire_bot_leader_lock()
+    if not leader_process_id:
         logger.info("Telegram bot leader lock held by another process — this worker will skip polling")
         return
 
@@ -910,13 +976,13 @@ def start_telegram_bot() -> None:
     )
     _bot_thread.start()
     _bot_started = True
-    logger.info("Telegram bot thread started (leader)")
+    logger.info("Telegram bot thread started (leader, process=%s)", leader_process_id[:8])
 
-    # Start heartbeat thread to renew leader lock
+    # Start heartbeat thread to renew leader lock with our process_id
     _hb_stop = threading.Event()
     _hb_thread = threading.Thread(
         target=_bot_leader_heartbeat,
-        args=(_hb_stop,),
+        args=(_hb_stop, leader_process_id),
         daemon=True,
         name="telegram-bot-heartbeat",
     )
