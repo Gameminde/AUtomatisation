@@ -8,8 +8,6 @@ object so `python dashboard_app.py` and `gunicorn wsgi:app` both work.
 
 import logging
 import os
-import threading
-import time
 
 from dotenv import load_dotenv
 
@@ -20,51 +18,16 @@ from app import create_app  # noqa: E402
 
 app = create_app()
 
-_pipeline_log = logging.getLogger("pipeline_scheduler")
-
-PIPELINE_INTERVAL_SECONDS = int(os.getenv("PIPELINE_INTERVAL_SECONDS", "1800"))
-PIPELINE_STARTUP_DELAY_SECONDS = int(os.getenv("PIPELINE_STARTUP_DELAY", "90"))
-
-
-def _pipeline_scheduler_loop() -> None:
-    """
-    Background daemon thread: run the automation pipeline for all active
-    tenants every PIPELINE_INTERVAL_SECONDS (default 30 min).
-
-    A startup delay gives the Flask app time to finish booting before the
-    first pipeline run hits the database.
-    """
-    _pipeline_log.info(
-        "Pipeline scheduler started — first run in %ds, then every %ds",
-        PIPELINE_STARTUP_DELAY_SECONDS,
-        PIPELINE_INTERVAL_SECONDS,
-    )
-    time.sleep(PIPELINE_STARTUP_DELAY_SECONDS)
-
-    while True:
-        try:
-            from auto_runner import run_all_users  # noqa: PLC0415 — lazy import intentional
-            summary = run_all_users()
-            _pipeline_log.info(
-                "Pipeline cycle done: users=%d published=%d",
-                summary.get("users", 0),
-                summary.get("published_total", 0),
-            )
-        except Exception as exc:
-            _pipeline_log.error("Pipeline scheduler error: %s", exc, exc_info=True)
-
-        time.sleep(PIPELINE_INTERVAL_SECONDS)
+_log = logging.getLogger("dashboard_app")
 
 
 def _start_pipeline_scheduler() -> None:
-    """Start the background pipeline thread if not already running."""
-    thread = threading.Thread(
-        target=_pipeline_scheduler_loop,
-        daemon=True,
-        name="pipeline-scheduler",
-    )
-    thread.start()
-    _pipeline_log.info("Background pipeline scheduler thread started (daemon=True)")
+    """Start the APScheduler-based multi-tenant pipeline scheduler."""
+    try:
+        from tasks.runner import start_scheduler
+        start_scheduler()
+    except Exception as exc:
+        _log.error("Could not start pipeline scheduler: %s", exc, exc_info=True)
 
 
 if __name__ == "__main__":

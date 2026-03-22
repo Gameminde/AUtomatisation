@@ -49,6 +49,39 @@ def get_adaptive_interval(base_min: int = 2, base_max: int = 4) -> Tuple[int, in
     return (base_min, base_max)
 
 
+def _build_slots_from_times(day: date, posting_times: str) -> List[Dict]:
+    """
+    Build UTC posting slots from a user-supplied comma-separated HH:MM string.
+
+    Each time token is interpreted as UTC.  A random 0–10 min jitter is applied
+    to avoid exact-hour posting.  Returns at most len(tokens) slots sorted by time.
+
+    Args:
+        day:          Target date.
+        posting_times: e.g. "08:00,13:00,19:00"
+    """
+    import random
+    slots: List[Dict] = []
+    tokens = [t.strip() for t in posting_times.split(",") if t.strip()]
+    for token in tokens:
+        try:
+            hour, minute = int(token.split(":")[0]), int(token.split(":")[1])
+        except (ValueError, IndexError):
+            continue
+        jitter_min = random.randint(0, 10)
+        utc_dt = datetime(day.year, day.month, day.day, hour, minute + jitter_min, tzinfo=timezone.utc)
+        # Clamp minute overflow
+        if utc_dt.minute >= 60:
+            from datetime import timedelta as _td
+            utc_dt = utc_dt.replace(minute=utc_dt.minute - 60) + _td(hours=1)
+        slots.append({
+            "scheduled_time": utc_dt.replace(tzinfo=None).isoformat(),
+            "timezone": "UTC",
+        })
+    slots.sort(key=lambda s: s["scheduled_time"])
+    return slots
+
+
 def build_slots_for_day(day: date) -> List[Dict]:
     randomizer = get_randomizer()
     slots: List[Dict] = []
@@ -173,8 +206,13 @@ def fetch_content_pool(limit: int = 100, user_id: Optional[str] = None):
     return response.data or []
 
 
-def schedule_posts(days: int = 7, max_per_day: int = 5, platforms: str = "facebook",
-                   user_id: Optional[str] = None) -> int:
+def schedule_posts(
+    days: int = 7,
+    max_per_day: int = 5,
+    platforms: str = "facebook",
+    user_id: Optional[str] = None,
+    posting_times_override: Optional[str] = None,
+) -> int:
     """
     Schedule posts for the next N days.
 
@@ -184,6 +222,8 @@ def schedule_posts(days: int = 7, max_per_day: int = 5, platforms: str = "facebo
         platforms: Comma-separated platforms to publish to, e.g. "facebook" or "facebook,instagram"
         user_id: Tenant ID — only schedule this user's content and tag rows with their ID.
                  Always pass current_user.id from the request context.
+        posting_times_override: Comma-separated HH:MM slot string from UserConfig.posting_times,
+                 e.g. "08:00,13:00,19:00".  When set, replaces the global PEAK_HOURS slot logic.
 
     Returns:
         Number of posts scheduled
@@ -202,7 +242,10 @@ def schedule_posts(days: int = 7, max_per_day: int = 5, platforms: str = "facebo
 
     for offset in range(days):
         day = start_day + timedelta(days=offset)
-        slots = build_slots_for_day(day)
+        if posting_times_override:
+            slots = _build_slots_from_times(day, posting_times_override)
+        else:
+            slots = build_slots_for_day(day)
 
         # Limit slots to max_per_day
         slots = slots[:max_per_day]

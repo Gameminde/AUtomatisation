@@ -482,6 +482,24 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user_settings' AND column_name = 'newsdata_api_key'
+    ) THEN
+        ALTER TABLE user_settings ADD COLUMN newsdata_api_key TEXT;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user_settings' AND column_name = 'language_ratio'
+    ) THEN
+        ALTER TABLE user_settings ADD COLUMN language_ratio NUMERIC(3,2) DEFAULT 0.70;
+    END IF;
+END $$;
+
 -- ============================================
 -- Done! All tables ready.
 -- ============================================

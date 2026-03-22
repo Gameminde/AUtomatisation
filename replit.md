@@ -66,10 +66,29 @@ gunicorn wsgi:app         # production
 - `SECRET_KEY` — Flask session secret (set in production)
 - `DB_MODE` — `sqlite` (default) or `supabase`
 
+## Phase 3 — Engine Multi-tenancy (DONE)
+
+Key additions:
+- `engine/user_config.py`: `UserConfig` dataclass loaded from Supabase per tenant
+  (gemini_api_key, fb_access_token, fb_page_id, instagram_account_id,
+   newsdata_api_key, pexels_api_key, posts_per_day, posting_times,
+   language_ratio, telegram_chat_id, niche_keywords)
+- `engine/analytics_sync.py`: Syncs Facebook engagement metrics to published_posts
+- `engine/scheduler.py`: `schedule_posts()` now accepts `posting_times_override`
+  (honors per-user posting schedule from UserConfig)
+- `engine/publisher.py`: `publish_text_post()` / `publish_photo_post()` accept
+  optional `access_token` + `page_id` params for per-user credentials;
+  `publish_due_posts()` loads per-user tokens via `load_tokens_for_user()`
+- `tasks/runner.py` (NEW): APScheduler-based orchestrator — loads active tenants,
+  acquires per-user distributed locks via `system_status`, runs 5-step pipeline
+  (scrape → generate → schedule → publish → analytics sync) in ThreadPoolExecutor
+- `dashboard_app.py` + `wsgi.py`: Call `tasks.runner.start_scheduler()` at boot
+- `supabase_schema.sql`: Migrations for `last_error`, `retry_count`,
+  `posts_per_day`, `posting_times`, `newsdata_api_key`, `language_ratio`
+
 ## SaaS Phases Roadmap
 - **Phase 1 (DONE):** Foundation — user system, auth, activation codes, route protection
-- **Phase 2 (DONE):** Instagram publishing support
-- **Phase 3:** Per-user Facebook OAuth + Gemini key storage + onboarding wizard
-- **Phase 4:** Engine multi-tenancy (UserConfig dataclass, per-user scheduling)
-- **Phase 5:** Telegram Bot notifications
-- **Phase 6:** RTL/Arabic design polish, Three.js landing
+- **Phase 2 (DONE):** Onboarding wizard + per-user Gemini key + managed FB pages
+- **Phase 3 (DONE):** Engine multi-tenancy (UserConfig, APScheduler runner, analytics sync)
+- **Phase 4 (DONE):** Landing page — Three.js hero, Arabic RTL, FAQ, pricing
+- **Phase 5 (PENDING):** Design, mobile & RTL polish
