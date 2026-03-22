@@ -157,6 +157,40 @@ def upsert_user_settings(user_id: str, updates: Dict) -> bool:
         return False
 
 
+def load_tokens_for_user(user_id: str) -> Optional[Dict]:
+    """
+    Load the active Facebook page token for a user from `managed_pages`.
+    Returns a dict compatible with the legacy `load_tokens()` signature:
+    {"page_id": ..., "page_token": ..., "instagram_account_id": ...}
+    or None if no active page is found.
+    """
+    try:
+        sb = _get_supabase_client()
+        result = (
+            sb.table("managed_pages")
+            .select("page_id, page_name, access_token, instagram_account_id, status")
+            .eq("user_id", user_id)
+            .eq("status", "active")
+            .limit(1)
+            .execute()
+        )
+        if not result.data:
+            return None
+        row = result.data[0]
+        encrypted_token = row.get("access_token") or ""
+        page_token = decrypt_value(encrypted_token) if encrypted_token else ""
+        return {
+            "page_id": row["page_id"],
+            "page_name": row.get("page_name", ""),
+            "page_token": page_token,
+            "instagram_account_id": row.get("instagram_account_id") or "",
+            "user_token": page_token,
+        }
+    except Exception as exc:
+        logging.getLogger("utils").error("load_tokens_for_user failed: %s", exc)
+        return None
+
+
 def get_gemini_key_for_user(user_id: str) -> Optional[str]:
     """
     Return the decrypted Gemini API key for a user from user_settings.

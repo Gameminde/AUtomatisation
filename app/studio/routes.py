@@ -488,18 +488,23 @@ def update_glossary():
 def _publish_to_instagram(content_id: str) -> Dict:
     """Internal: publish content to Instagram, scoped to current user."""
     try:
-        from facebook_oauth import load_tokens, get_instagram_account_for_page
+        from app.utils import load_tokens_for_user
+        from facebook_oauth import get_instagram_account_for_page
         from instagram_publisher import publish_photo_to_instagram, get_public_image_url, get_app_base_url
 
-        tokens = load_tokens()
+        tokens = load_tokens_for_user(current_user.id)
         if not tokens:
             return {"success": False, "error": "No Facebook/Instagram tokens configured"}
         page_id = tokens.get("page_id")
         page_token = tokens.get("page_token")
-        ig_info = get_instagram_account_for_page(page_id, page_token)
-        if not ig_info:
-            return {"success": False, "error": "No Instagram Business Account linked"}
-        ig_user_id = ig_info["instagram_account_id"]
+        stored_ig_id = tokens.get("instagram_account_id", "")
+        if stored_ig_id:
+            ig_user_id = stored_ig_id
+        else:
+            ig_info = get_instagram_account_for_page(page_id, page_token)
+            if not ig_info:
+                return {"success": False, "error": "No Instagram Business Account linked"}
+            ig_user_id = ig_info["instagram_account_id"]
 
         c = _client()
         result = c.table("processed_content").select("*").eq("id", content_id).eq("user_id", current_user.id).single().execute()

@@ -316,7 +316,7 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
 
         # ── Instagram publish (isolated — does NOT depend on FB) ─────
         if publish_to_instagram:
-            ig_result = _publish_to_instagram_if_configured(content, fb_post_id)
+            ig_result = _publish_to_instagram_if_configured(content, fb_post_id, user_id=row_user_id)
             ig_ok = ig_result["success"]
             ig_error = ig_result.get("error") or ""
             ig_post_id = ig_result.get("post_id") or ""
@@ -600,22 +600,40 @@ def _persist_publish_outcome(
         logger.warning("_persist_publish_outcome: DB write failed: %s", err)
 
 
-def _publish_to_instagram_if_configured(content: Dict, fb_post_id: str) -> Dict:
+def _publish_to_instagram_if_configured(
+    content: Dict, fb_post_id: str, user_id: Optional[str] = None
+) -> Dict:
     """
     Attempt to publish content to Instagram.
     Always returns a structured result dict — never raises.
 
+    Args:
+        content:    Processed-content row dict.
+        fb_post_id: Corresponding Facebook post ID (may be empty).
+        user_id:    Tenant ID — loads tokens from managed_pages when provided.
+
     Returns:
         {"success": bool, "post_id": str|None, "error": str|None}
     """
-    from facebook_oauth import load_tokens, get_instagram_account_for_page
+    from facebook_oauth import get_instagram_account_for_page
     from instagram_publisher import publish_photo_to_instagram, get_public_image_url, get_app_base_url
 
     def _fail(reason: str) -> Dict:
         logger.warning("Instagram publish skipped/failed: %s", reason)
         return {"success": False, "post_id": None, "error": reason}
 
-    tokens = load_tokens()
+    if user_id:
+        try:
+            from app.utils import load_tokens_for_user
+            tokens = load_tokens_for_user(user_id)
+        except Exception as exc:
+            logger.warning("load_tokens_for_user failed, falling back: %s", exc)
+            from facebook_oauth import load_tokens
+            tokens = load_tokens()
+    else:
+        from facebook_oauth import load_tokens
+        tokens = load_tokens()
+
     if not tokens:
         return _fail("no Facebook tokens configured")
 
