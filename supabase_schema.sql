@@ -440,5 +440,48 @@ DO $$ BEGIN
 END $$;
 
 -- ============================================
+-- SECTION 7: Engine multi-tenancy additions (Phase 3)
+-- ============================================
+
+-- Migration: add last_error to processed_content for publish failure tracking
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'processed_content' AND column_name = 'last_error'
+    ) THEN
+        ALTER TABLE processed_content ADD COLUMN last_error TEXT;
+    END IF;
+END $$;
+
+-- Migration: add retry_count to processed_content for retry logic
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'processed_content' AND column_name = 'retry_count'
+    ) THEN
+        ALTER TABLE processed_content ADD COLUMN retry_count INTEGER DEFAULT 0;
+    END IF;
+END $$;
+
+-- Migration: add posts_per_day and posting_times to user_settings if missing
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user_settings' AND column_name = 'posts_per_day'
+    ) THEN
+        ALTER TABLE user_settings ADD COLUMN posts_per_day INTEGER DEFAULT 3;
+    END IF;
+END $$;
+
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user_settings' AND column_name = 'posting_times'
+    ) THEN
+        ALTER TABLE user_settings ADD COLUMN posting_times TEXT DEFAULT '08:00,13:00,19:00';
+    END IF;
+END $$;
+
+-- ============================================
 -- Done! All tables ready.
 -- ============================================

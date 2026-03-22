@@ -39,9 +39,15 @@ def _graph_url(path: str) -> str:
     return f"https://graph.facebook.com/{GRAPH_API_VERSION}/{path.lstrip('/')}"
 
 
-def publish_text_post(message: str) -> str:
-    access_token = config.require_env("FACEBOOK_ACCESS_TOKEN")
-    page_id = config.require_env("FACEBOOK_PAGE_ID")
+def publish_text_post(
+    message: str,
+    access_token: str = "",
+    page_id: str = "",
+) -> str:
+    if not access_token:
+        access_token = config.require_env("FACEBOOK_ACCESS_TOKEN")
+    if not page_id:
+        page_id = config.require_env("FACEBOOK_PAGE_ID")
     url = _graph_url(f"{page_id}/feed")
     payload = {"message": message, "access_token": access_token}
     try:
@@ -61,19 +67,28 @@ def publish_text_post(message: str) -> str:
     return post_id
 
 
-def publish_photo_post(message: str, image_path: str) -> str:
+def publish_photo_post(
+    message: str,
+    image_path: str,
+    access_token: str = "",
+    page_id: str = "",
+) -> str:
     """
     Publish a post with a photo to Facebook.
 
     Args:
         message: Caption for the photo
         image_path: Local path to the image file
+        access_token: Page access token (falls back to env var)
+        page_id: Facebook page ID (falls back to env var)
 
     Returns:
         Post ID
     """
-    access_token = config.require_env("FACEBOOK_ACCESS_TOKEN")
-    page_id = config.require_env("FACEBOOK_PAGE_ID")
+    if not access_token:
+        access_token = config.require_env("FACEBOOK_ACCESS_TOKEN")
+    if not page_id:
+        page_id = config.require_env("FACEBOOK_PAGE_ID")
     url = _graph_url(f"{page_id}/photos")
 
     try:
@@ -285,6 +300,18 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
             cta = content.get("call_to_action", "")
             message = f"{hook}\n\n{body}\n\n{cta}\n\n{hashtag_str}".strip()
 
+        # ── Load per-user Facebook tokens (multi-tenant) ──────────────
+        row_fb_token: str = ""
+        row_fb_page_id: str = ""
+        if row_user_id:
+            try:
+                from app.utils import load_tokens_for_user as _ltu
+                _toks = _ltu(row_user_id) or {}
+                row_fb_token = _toks.get("page_token", "")
+                row_fb_page_id = _toks.get("page_id", "")
+            except Exception as _tok_exc:
+                logger.warning("Could not load per-user tokens (user=%s): %s", row_user_id[:8] if row_user_id else "?", _tok_exc)
+
         # ── Per-platform results (tracked independently) ───────────────
         fb_post_id: str = ""
         fb_ok: bool = False
@@ -298,10 +325,18 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
             try:
                 if image_path and os.path.exists(image_path):
                     logger.info("📷 Publishing to Facebook with image: %s", image_path)
-                    fb_post_id = publish_photo_post(message, image_path)
+                    fb_post_id = publish_photo_post(
+                        message, image_path,
+                        access_token=row_fb_token,
+                        page_id=row_fb_page_id,
+                    )
                 else:
                     logger.info("📝 Publishing text-only to Facebook")
-                    fb_post_id = publish_text_post(message)
+                    fb_post_id = publish_text_post(
+                        message,
+                        access_token=row_fb_token,
+                        page_id=row_fb_page_id,
+                    )
 
                 mark_published(content["id"], fb_post_id, user_id=row_user_id)
                 record_publication(content["id"], fb_post_id)
