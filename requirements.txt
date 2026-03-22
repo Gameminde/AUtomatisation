@@ -1,62 +1,33 @@
 # ==============================================
-# Content Factory v2.0 - Gumroad Edition
+# Content Factory SaaS - Dependencies
 # ==============================================
 # Python 3.10+ required
-# Install: pip install -r requirements.txt
 # ==============================================
 
-# ============ CORE (Required) ============
-python-dotenv>=1.0.0        # Environment variable management
-requests>=2.31.0            # HTTP client
+# ============ CORE ============
+python-dotenv>=1.0.0
+requests>=2.31.0
 
 # ============ DATABASE ============
-# SQLite is built-in (default, no install needed)
-supabase>=2.0.0             # Optional: cloud database (if DB_MODE=supabase)
+supabase>=2.0.0
 
 # ============ CONTENT SOURCES ============
-feedparser>=6.0.10          # RSS feed parsing
-pytrends>=4.9.0             # Google Trends (free)
+feedparser>=6.0.10
+pytrends>=4.9.0
 
 # ============ IMAGE PROCESSING ============
-Pillow>=10.0.0              # Image processing
-arabic-reshaper>=3.0.0      # Arabic text rendering
-python-bidi>=0.4.2          # Bidirectional text support
+Pillow>=10.0.0
+arabic-reshaper>=3.0.0
+python-bidi>=0.4.2
 
 # ============ WEB DASHBOARD ============
-flask>=3.0.0                # Web framework
-flask-cors>=4.0.0           # CORS support
+flask>=3.0.0
+flask-cors>=4.0.0
+flask-login>=0.6.3
+bcrypt>=4.0.0
 
 # ============ SECURITY ============
-cryptography>=41.0.0        # Token encryption (optional, fallback exists)
+cryptography>=41.0.0
 
-# ============ PACKAGING ============
-pyinstaller>=6.0.0          # Create .exe (for building only)
-
-# ==============================================
-# Quick Setup (3 API keys only):
-# 
-# 1. FACEBOOK: Use OAuth button in dashboard (automatic!)
-#    - Or manual: developers.facebook.com/tools/explorer
-#
-# 2. AI (choose one - Gemini recommended, it's FREE):
-#    - GEMINI_API_KEY: makersuite.google.com/app/apikey
-#    - OPENROUTER_API_KEY: openrouter.ai/keys
-#
-# 3. IMAGES (optional):
-#    - PEXELS_API_KEY: pexels.com/api (free, 200 req/hour)
-#    - Works without it (fallback images)
-# ==============================================
-arabic-reshaper
-cryptography
-feedparser
-flask
-flask-cors
-pandas
-Pillow
-python-bidi
-python-dotenv
-pytrends
-requests
-streamlit
-supabase
+# ============ SERVING ============
 gunicorn

@@ -1,52 +1,56 @@
-# Content Factory - Facebook Automation Dashboard
+# Content Factory SaaS — Arabic Social Media Automation
 
 ## Overview
-A Python-based web dashboard for automating social media content creation and publishing to Facebook. Features AI-powered content generation, news scraping, image handling, and scheduling.
+A multi-tenant SaaS web application for Arabic-speaking content creators. Automates Facebook (and Instagram) content creation and publishing. Sold via Gumroad with activation codes. Features AI-powered content generation, news scraping, image handling, and scheduling.
 
 ## Architecture
-- **Framework:** Flask (Python 3.10)
-- **Database:** SQLite (default, local) or Supabase (optional cloud)
-- **Frontend:** Vanilla JS + Bootstrap-style CSS served by Flask templates
+- **Framework:** Flask (Python 3.10) with `create_app()` factory pattern
+- **Auth:** Flask-Login + bcrypt; custom `users` table in Supabase (not GoTrue)
+- **Database:** SQLite (default, local) or Supabase (cloud, set `DB_MODE=supabase`)
+- **Frontend:** Vanilla JS + custom CSS (RTL-ready, theme_v3)
 - **AI:** Google Gemini (primary) or OpenRouter/Claude (fallback)
+- **Entry Points:** `python dashboard_app.py` (dev) or `gunicorn wsgi:app` (prod)
 
 ## Key Files
-- `dashboard_app.py` - Main Flask application entry point
-- `config.py` - Centralized configuration and environment variable handling
-- `database.py` - Database abstraction layer (SQLite/Supabase)
-- `ai_generator.py` - AI content generation
-- `scraper.py` - News/RSS scraping
-- `publisher.py` - Facebook Graph API publishing
-- `scheduler.py` - Post scheduling
-- `templates/` - HTML templates for the dashboard
-- `static/` - CSS, JS, and other frontend assets
+- `dashboard_app.py` — Main Flask app with `create_app()` factory; all routes protected
+- `wsgi.py` — Gunicorn entry point
+- `models.py` — `User(UserMixin)` class for Flask-Login
+- `app/auth/routes.py` — Auth blueprint: `/auth/login`, `/auth/register`, `/auth/logout`
+- `config.py` — Centralized configuration and environment variable handling
+- `database.py` — Database abstraction layer (SQLite/Supabase)
+- `supabase_schema.sql` — Full schema including `users`, `activation_codes`, `user_id` FKs
+- `templates/auth/` — Login and register pages
+- `templates/layout_v3.html` — Sidebar layout with user email + sign out button
+- `ai_generator.py` — AI content generation
+- `scraper.py` — News/RSS scraping
+- `publisher.py` — Facebook/Instagram Graph API publishing
+- `scheduler.py` — Post scheduling
+
+## Auth Flow
+1. Unauthenticated users hitting any web route → redirect to `/auth/login`
+2. Unauthenticated API calls → 401 JSON response
+3. Registration requires a valid activation code (pre-seeded in Supabase `activation_codes`)
+4. Passwords hashed with bcrypt, stored in `users` table
+5. Flask-Login session manages login state
 
 ## Running the App
-The app runs via `python dashboard_app.py` on port 5000. It serves on `0.0.0.0` for Replit proxy compatibility.
+```
+python dashboard_app.py   # dev (port 5000)
+gunicorn wsgi:app         # production
+```
 
 ## Environment Variables
-See `.env.example` / `env.example` for required variables:
-- `GEMINI_API_KEY` - Google Gemini API key (recommended, free)
-- `FACEBOOK_ACCESS_TOKEN` - Facebook Graph API token
-- `FACEBOOK_PAGE_ID` - Facebook page ID to publish to
-- `PEXELS_API_KEY` - Pexels image API (optional)
-- `SUPABASE_URL` / `SUPABASE_KEY` - Only if using Supabase instead of SQLite
-- `DASHBOARD_API_KEY` - Optional API key for dashboard auth
-- `FLASK_SECRET_KEY` - Flask session key (auto-generated if not set)
+- `GEMINI_API_KEY` — Google Gemini API key (recommended, free)
+- `FACEBOOK_ACCESS_TOKEN` — Facebook Graph API token
+- `FACEBOOK_PAGE_ID` — Facebook page to publish to
+- `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` — if using Supabase (DB_MODE=supabase)
+- `SECRET_KEY` — Flask session secret (set in production)
+- `DB_MODE` — `sqlite` (default) or `supabase`
 
-## Key Features
-- **Instagram Publishing**: Two-step Graph API publisher in `instagram_publisher.py`; outcomes persisted via `_persist_publish_outcome()` in `publisher.py`; per-platform badges shown in dashboard
-- **What's Working Card** (`/api/insights`): Pure SQLite intelligence card on the dashboard showing 2-3 plain-language insights — best post type by engagement, best posting time by reach, and weekly trend. Falls back to a "keep posting" + smart-defaults state when fewer than 5 posts exist. No Supabase required. Card rendered by `loadInsights()` in `static/js/dashboard_v3.js`.
-
-## Deployment
-- Production server: gunicorn via `gunicorn --bind=0.0.0.0:5000 --reuse-port dashboard_app:app`
-- Deployment target: autoscale
-
-## Dependencies
-All dependencies are in `requirements.txt`. Key packages:
-- flask, flask-cors
-- python-dotenv
-- Pillow (image processing)
-- feedparser, pytrends (content sources)
-- supabase (optional cloud DB)
-- cryptography
-- gunicorn (production server)
+## SaaS Phases Roadmap
+- **Phase 1 (DONE):** Foundation — user system, auth, activation codes, route protection
+- **Phase 2 (DONE):** Instagram publishing support
+- **Phase 3:** Per-user Facebook OAuth + Gemini key storage + onboarding wizard
+- **Phase 4:** Engine multi-tenancy (UserConfig dataclass, per-user scheduling)
+- **Phase 5:** Telegram Bot notifications
+- **Phase 6:** RTL/Arabic design polish, Three.js landing
