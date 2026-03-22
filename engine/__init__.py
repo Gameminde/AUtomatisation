@@ -75,3 +75,31 @@ def get_instagram_publisher():
 
 def get_facebook_oauth():
     return _lazy("facebook_oauth")
+
+
+def get_unified_content_creator():
+    return _lazy("unified_content_creator")
+
+
+def get_ml_virality_scorer():
+    return _lazy("ml_virality_scorer")
+
+
+def get_ab_tester():
+    return _lazy("ab_tester")
+
+
+def get_ai_image_fallback():
+    return _lazy("ai_image_fallback")
+
+
+def get_version_checker():
+    return _lazy("version_checker")
+
+
+def get_ai_provider():
+    return _lazy("ai_provider")
+
+
+def get_license_validator():
+    return _lazy("license_validator")

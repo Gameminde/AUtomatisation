@@ -559,7 +559,7 @@ def publish_specific_content():
 
         per_platform: Dict = {}
         if "facebook" in platforms:
-            per_platform["facebook"] = publish_content_by_id(content_id)
+            per_platform["facebook"] = publish_content_by_id(content_id, user_id=current_user.id)
         if "instagram" in platforms:
             per_platform["instagram"] = _publish_to_instagram(content_id)
 
