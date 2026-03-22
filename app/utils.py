@@ -11,7 +11,18 @@ from flask_login import current_user
 
 
 def api_login_required(f):
-    """Decorator for JSON API routes: returns 401 JSON instead of redirect."""
+    """
+    Auth guard for JSON API routes — the API-endpoint equivalent of Flask-Login's
+    @login_required decorator.
+
+    Flask-Login's built-in @login_required redirects unauthenticated requests to the
+    login page (HTML redirect), which is appropriate for browser page routes but wrong
+    for JSON API consumers who expect a 401 status code and a JSON error body.
+
+    This decorator checks current_user.is_authenticated (the same Flask-Login session
+    check used by @login_required) and returns {"error": "..."} / 401 instead of a
+    redirect, preserving correct API semantics while sharing the same auth backend.
+    """
     @wraps(f)
     def decorated(*args, **kwargs):
         if not current_user.is_authenticated:

@@ -96,47 +96,65 @@ def register():
         try:
             client = _get_supabase()
 
-            # Validate activation code
-            code_result = (
-                client.table("activation_codes")
-                .select("id, code, used")
-                .eq("code", code)
-                .eq("used", False)
-                .execute()
-            )
-            if not code_result.data:
-                error = "invalid_code"
-                return render_template("auth/register.html", error=error)
-
-            # Check email uniqueness
+            # Check email uniqueness before touching the activation code
             existing = client.table("users").select("id").eq("email", email).execute()
             if existing.data:
                 error = "email_exists"
                 return render_template("auth/register.html", error=error)
 
-            # Create user
+            # Atomically claim the activation code (test-and-set pattern).
+            # A single UPDATE with WHERE used=false ensures no two concurrent requests
+            # can both claim the same code.  If 0 rows are updated the code is invalid
+            # or was already consumed by another request.
+            claim_result = (
+                client.table("activation_codes")
+                .update({
+                    "used": True,
+                    "used_at": datetime.now(timezone.utc).isoformat(),
+                })
+                .eq("code", code)
+                .eq("used", False)
+                .execute()
+            )
+            if not claim_result.data:
+                error = "invalid_code"
+                return render_template("auth/register.html", error=error)
+
+            claimed_code_id = claim_result.data[0]["id"]
+
+            # Create user — if this fails we release the code so it can be retried
             password_hash = bcrypt.hashpw(
                 password.encode("utf-8"), bcrypt.gensalt()
             ).decode("utf-8")
 
-            user_result = client.table("users").insert({
-                "email": email,
-                "password_hash": password_hash,
-                "is_active": True,
-            }).execute()
+            try:
+                user_result = client.table("users").insert({
+                    "email": email,
+                    "password_hash": password_hash,
+                    "is_active": True,
+                }).execute()
+            except Exception as insert_exc:
+                # Release the activation code so the user can retry
+                client.table("activation_codes").update({
+                    "used": False,
+                    "used_at": None,
+                }).eq("id", claimed_code_id).execute()
+                raise insert_exc
 
             if not user_result.data:
+                client.table("activation_codes").update({
+                    "used": False,
+                    "used_at": None,
+                }).eq("id", claimed_code_id).execute()
                 error = "registration_failed"
                 return render_template("auth/register.html", error=error)
 
             new_user = user_result.data[0]
 
-            # Mark activation code as used
+            # Record which user consumed the code
             client.table("activation_codes").update({
-                "used": True,
                 "used_by": new_user["id"],
-                "used_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("code", code).execute()
+            }).eq("id", claimed_code_id).execute()
 
             from models import User
             user = User(new_user["id"], new_user["email"])
