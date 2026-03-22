@@ -1059,9 +1059,47 @@ def start_telegram_bot() -> None:
         logger.debug("Telegram bot already started — skipping")
         return
 
+    # ── Register background jobs that do NOT require the bot token ──────────
+    # These run regardless of whether TELEGRAM_BOT_TOKEN is configured so that
+    # auto-approve and token-expiry checks keep working even without a bot.
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+        from apscheduler.triggers.interval import IntervalTrigger
+
+        try:
+            from tasks.runner import _scheduler_instance
+            sched = _scheduler_instance
+        except (ImportError, AttributeError):
+            sched = None
+
+        if sched is None or not sched.running:
+            sched = BackgroundScheduler(daemon=True, timezone="UTC")
+            sched.start()
+
+        # Auto-approve stale approval requests — does not need bot token
+        sched.add_job(
+            auto_approve_expired_requests,
+            IntervalTrigger(minutes=15),
+            id="tg_auto_approve",
+            replace_existing=True,
+        )
+        # Token-expiry check — sends Telegram alert only if bot token is set
+        sched.add_job(
+            run_token_expiry_check,
+            CronTrigger(hour=7, minute=0, timezone="UTC"),
+            id="tg_token_expiry",
+            replace_existing=True,
+        )
+        logger.info("Telegram background jobs registered (auto-approve + token-expiry)")
+    except Exception as exc:
+        logger.warning("Could not register Telegram background jobs: %s", exc)
+
+    # ── Bot-token dependent features ─────────────────────────────────────────
     if not TELEGRAM_BOT_TOKEN:
         logger.warning(
-            "TELEGRAM_BOT_TOKEN not set — Telegram bot and notifications disabled"
+            "TELEGRAM_BOT_TOKEN not set — Telegram bot polling, notifications, "
+            "and daily summaries disabled (background jobs still running)"
         )
         return
 
@@ -1090,13 +1128,11 @@ def start_telegram_bot() -> None:
     )
     _hb_thread.start()
 
-    # Register APScheduler jobs
+    # Register polling-dependent APScheduler jobs
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
-        from apscheduler.triggers.cron import CronTrigger
         from apscheduler.triggers.interval import IntervalTrigger
 
-        # Attempt to reuse existing scheduler; create one if not available
         try:
             from tasks.runner import _scheduler_instance
             sched = _scheduler_instance
@@ -1107,26 +1143,15 @@ def start_telegram_bot() -> None:
             sched = BackgroundScheduler(daemon=True, timezone="UTC")
             sched.start()
 
+        # Daily summary requires bot token to send messages
         sched.add_job(
             run_daily_summaries,
             IntervalTrigger(minutes=5),
             id="tg_daily_summary",
             replace_existing=True,
         )
-        sched.add_job(
-            auto_approve_expired_requests,
-            IntervalTrigger(minutes=15),
-            id="tg_auto_approve",
-            replace_existing=True,
-        )
-        sched.add_job(
-            run_token_expiry_check,
-            CronTrigger(hour=7, minute=0, timezone="UTC"),
-            id="tg_token_expiry",
-            replace_existing=True,
-        )
 
-        # Watchdog: restart polling thread if leader dies (e.g. crash without process exit)
+        # Watchdog: restart polling thread if leader dies
         def _bot_polling_watchdog() -> None:
             global _bot_thread, _bot_started
             if not _bot_started:
@@ -1152,6 +1177,6 @@ def start_telegram_bot() -> None:
             id="tg_bot_watchdog",
             replace_existing=True,
         )
-        logger.info("Telegram APScheduler jobs registered (incl. polling watchdog)")
+        logger.info("Telegram polling-dependent jobs registered (daily-summary + watchdog)")
     except Exception as exc:
-        logger.warning("Could not register Telegram APScheduler jobs: %s", exc)
+        logger.warning("Could not register Telegram polling jobs: %s", exc)
