@@ -220,10 +220,19 @@ def save_fb_page_for_user(
     page_name: str,
     page_token: str,
     instagram_account_id: str = "",
+    token_expires_in_seconds: int = 0,
 ) -> bool:
     """
     Save a Facebook page access token to managed_pages, scoped to user_id.
     The token is Fernet-encrypted before storage.
+
+    Parameters
+    ----------
+    token_expires_in_seconds : int
+        OAuth-provided ``expires_in`` value in seconds.  When non-zero, the
+        actual OAuth expiry is used for monitoring accuracy.  Defaults to 0,
+        in which case a 60-day fallback is used (Facebook long-lived tokens
+        typically expire after ~60 days).
     """
     try:
         sb = _get_supabase_client()
@@ -235,10 +244,14 @@ def save_fb_page_for_user(
             .eq("user_id", user_id)
             .execute()
         )
-        # Facebook long-lived user tokens expire after ~60 days.
-        # Store an expiry timestamp so the token-expiry monitor can warn users.
         from datetime import datetime, timedelta, timezone as _tz
-        token_expires_at = (datetime.now(_tz.utc) + timedelta(days=60)).isoformat()
+        if token_expires_in_seconds and token_expires_in_seconds > 0:
+            token_expires_at = (
+                datetime.now(_tz.utc) + timedelta(seconds=token_expires_in_seconds)
+            ).isoformat()
+        else:
+            # Facebook long-lived user tokens expire after ~60 days.
+            token_expires_at = (datetime.now(_tz.utc) + timedelta(days=60)).isoformat()
 
         payload: Dict = {
             "page_id": page_id,

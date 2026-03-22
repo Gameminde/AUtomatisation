@@ -306,6 +306,7 @@ def handle_callback(code: str) -> Dict:
     result = {
         "user_token": long_token,
         "expires_at": expiry_date.isoformat(),
+        "expires_in": expires_in,  # seconds — passed to save_fb_page_for_user
         "expires_in_days": expires_in // 86400,
         "pages": pages,
     }

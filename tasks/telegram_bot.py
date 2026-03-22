@@ -609,16 +609,20 @@ def run_token_expiry_check() -> None:
             except Exception:
                 continue
 
-            days_remaining = (expires_at - now).days
+            delta = expires_at - now
+            # Use total_seconds() to avoid floor-to-days truncation; a token
+            # with 23h left would give .days == 0 which is misleading.
+            seconds_remaining = delta.total_seconds()
+            days_remaining = int(seconds_remaining // 86400)  # for alert message only
 
-            if days_remaining <= 0:
-                # Expired — pause automation and alert
+            if seconds_remaining <= 0:
+                # Truly expired — pause automation and alert
                 set_automation_paused(uid, True)
-                _check_and_send_expiry_alert(sb, uid, days_remaining)
+                _check_and_send_expiry_alert(sb, uid, 0)
 
-            elif days_remaining <= 7:
-                # About to expire — warn once per day
-                _check_and_send_expiry_alert(sb, uid, days_remaining)
+            elif seconds_remaining <= 7 * 86400:
+                # Less than 7 days remaining — warn once per day
+                _check_and_send_expiry_alert(sb, uid, max(1, days_remaining))
 
     except Exception as exc:
         logger.error("run_token_expiry_check failed: %s", exc)

@@ -504,12 +504,20 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
                     if ig_ok:
                         platforms_published.append("instagram")
                     platform_label = ", ".join(platforms_published)
+
+                    # Prefer Facebook post URL (always resolvable).
+                    # For IG-only posts, fetch the permalink via Graph API
+                    # (returns a real instagram.com/p/<shortcode>/ URL).
                     post_url = ""
                     if fb_post_id:
                         post_url = f"https://www.facebook.com/{fb_post_id}"
-                    # Note: IG media IDs from Graph API are not shortcodes and
-                    # cannot be directly used in instagram.com/p/ URLs.
-                    # We omit IG URL to avoid broken links.
+                    elif ig_ok and ig_post_id and row_fb_token:
+                        try:
+                            from engine.instagram_publisher import get_ig_media_permalink
+                            post_url = get_ig_media_permalink(ig_post_id, row_fb_token)
+                        except Exception as _pl_exc:
+                            logger.debug("IG permalink fetch skipped: %s", _pl_exc)
+
                     telegram_notify_published(
                         row_user_id,
                         platform_label,

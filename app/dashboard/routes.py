@@ -195,6 +195,7 @@ def oauth_select_page():
             page_name=page_name or "My Page",
             page_token=page_token,
             instagram_account_id=ig_account_id,
+            token_expires_in_seconds=int(result.get("expires_in") or 0),
         )
         session.pop("fb_oauth_result", None)
         logger.info("Connected page %s for user %s", page_name, _cu.id)

@@ -147,6 +147,22 @@ def publish_media_container(
         raise RuntimeError(f"Instagram media_publish request failed: {exc}") from exc
 
 
+def get_ig_media_permalink(post_id: str, page_access_token: str) -> str:
+    """
+    Fetch the public permalink for an Instagram media object via Graph API.
+
+    Returns empty string on failure (non-fatal — permalink is optional).
+    """
+    try:
+        url = _graph_url(post_id)
+        resp = requests.get(url, params={"fields": "permalink", "access_token": page_access_token}, timeout=15)
+        data = resp.json()
+        return data.get("permalink", "")
+    except Exception as exc:
+        logger.debug("Could not fetch IG permalink for %s: %s", post_id, exc)
+        return ""
+
+
 def publish_photo_to_instagram(
     ig_user_id: str,
     page_access_token: str,
