@@ -1,1390 +1,850 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Content Factory — Design System v4</title>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    /* ═══════════════════════════════════════════════════════
-       DESIGN TOKENS
-    ═══════════════════════════════════════════════════════ */
-    :root {
-      /* Colors */
-      --bg:           #0a0a0f;
-      --surface:      #0f1117;
-      --glass:        rgba(255,255,255,0.04);
-      --glass-border: rgba(255,255,255,0.08);
-      --primary:      #6366f1;
-      --primary-end:  #818cf8;
-      --secondary:    #22d3ee;
-      --success:      #10b981;
-      --warning:      #f59e0b;
-      --danger:       #ef4444;
-      --text:         #f1f5f9;
-      --text-muted:   #94a3b8;
-      --text-faint:   #475569;
-
-      /* Typography */
-      --font-display: "Space Grotesk", system-ui, sans-serif;
-      --font-body:    "Inter", system-ui, sans-serif;
-      --font-ar:      "IBM Plex Sans Arabic", system-ui, sans-serif;
-
-      /* Radii */
-      --r-sm:  8px;
-      --r-md:  12px;
-      --r-lg:  16px;
-      --r-xl:  24px;
-
-      /* Shadows */
-      --shadow-glass:   0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
-      --shadow-glow:    0 0 24px rgba(99,102,241,0.35);
-      --shadow-deep:    0 20px 60px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08);
-
-      /* Transitions */
-      --ease: cubic-bezier(0.4, 0, 0.2, 1);
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       RESET & BASE
-    ═══════════════════════════════════════════════════════ */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html { scroll-behavior: smooth; }
-
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-body);
-      font-size: 16px;
-      line-height: 1.6;
-      overflow-x: hidden;
-      min-height: 100vh;
-    }
-
-    body[dir="rtl"] { font-family: var(--font-ar); }
-
-    /* ═══════════════════════════════════════════════════════
-       FLOATING BACKGROUND ORBS
-    ═══════════════════════════════════════════════════════ */
-    .orb-field {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 0;
-      overflow: hidden;
-    }
-
-    .orb {
-      position: absolute;
-      border-radius: 50%;
-      filter: blur(120px);
-      opacity: 0.12;
-      will-change: transform;
-      transition: transform 0.1s linear;
-    }
-
-    .orb-1 {
-      width: 600px; height: 600px;
-      background: var(--primary);
-      top: -200px; left: -150px;
-    }
-
-    .orb-2 {
-      width: 500px; height: 500px;
-      background: var(--secondary);
-      top: 40%; right: -200px;
-    }
-
-    .orb-3 {
-      width: 400px; height: 400px;
-      background: #a855f7;
-      bottom: -100px; left: 30%;
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       PAGE SHELL
-    ═══════════════════════════════════════════════════════ */
-    .page {
-      position: relative;
-      z-index: 1;
-      display: grid;
-      grid-template-columns: 260px 1fr;
-      min-height: 100vh;
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       SIDEBAR NAV
-    ═══════════════════════════════════════════════════════ */
-    .sidebar {
-      background: rgba(15,17,23,0.8);
-      backdrop-filter: blur(20px);
-      border-inline-end: 1px solid var(--glass-border);
-      padding: 1.75rem 1.25rem;
-      display: flex;
-      flex-direction: column;
-      gap: 2rem;
-      position: sticky;
-      inset-block-start: 0;
-      block-size: 100vh;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-
-    .brand-icon {
-      width: 44px; height: 44px;
-      border-radius: var(--r-md);
-      background: linear-gradient(135deg, var(--primary), var(--secondary));
-      display: grid;
-      place-items: center;
-      font-size: 1.1rem;
-      flex-shrink: 0;
-      box-shadow: 0 0 20px rgba(99,102,241,0.4);
-    }
-
-    .brand-name {
-      font-family: var(--font-display);
-      font-weight: 700;
-      font-size: 1rem;
-      letter-spacing: -0.01em;
-    }
-
-    .brand-sub {
-      color: var(--text-muted);
-      font-size: 0.75rem;
-      margin-block-start: 0.1rem;
-    }
-
-    .nav {
-      display: flex;
-      flex-direction: column;
-      gap: 0.3rem;
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      padding: 0.7rem 0.9rem;
-      border-radius: var(--r-md);
-      color: var(--text-muted);
-      text-decoration: none;
-      font-size: 0.9rem;
-      font-weight: 500;
-      transition: all 0.2s var(--ease);
-      border-inline-start: 2px solid transparent;
-      position: relative;
-    }
-
-    .nav-item:hover {
-      color: var(--text);
-      background: var(--glass);
-      border-inline-start-color: rgba(99,102,241,0.4);
-    }
-
-    .nav-item.active {
-      color: var(--text);
-      background: rgba(99,102,241,0.12);
-      border-inline-start-color: var(--primary);
-      box-shadow: inset 0 0 20px rgba(99,102,241,0.08);
-    }
-
-    .nav-icon {
-      width: 20px;
-      text-align: center;
-      font-size: 0.9rem;
-      flex-shrink: 0;
-    }
-
-    .nav-badge {
-      margin-inline-start: auto;
-      background: var(--primary);
-      color: #fff;
-      font-size: 0.65rem;
-      font-weight: 700;
-      padding: 0.1rem 0.45rem;
-      border-radius: 999px;
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       MAIN CONTENT
-    ═══════════════════════════════════════════════════════ */
-    .main {
-      padding: clamp(1.25rem, 3vw, 2.5rem);
-      overflow-y: auto;
-    }
-
-    .section-label {
-      font-family: var(--font-display);
-      font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
-      text-transform: uppercase;
-      color: var(--text-faint);
-      margin-block-end: 1rem;
-      margin-block-start: 2.5rem;
-      padding-block-start: 2rem;
-      border-block-start: 1px solid var(--glass-border);
-    }
-
-    .section-label:first-child {
-      border-block-start: none;
-      padding-block-start: 0;
-      margin-block-start: 0;
-    }
-
-    .section-title {
-      font-family: var(--font-display);
-      font-size: clamp(1.3rem, 3vw, 2rem);
-      font-weight: 700;
-      letter-spacing: -0.02em;
-      margin-block-end: 0.35rem;
-      background: linear-gradient(135deg, var(--text) 40%, var(--text-muted));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .section-desc {
-      color: var(--text-muted);
-      font-size: 0.92rem;
-      margin-block-end: 1.75rem;
-    }
-
-    .showcase {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      align-items: flex-start;
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       GLASS CARD — THE CORE COMPONENT
-    ═══════════════════════════════════════════════════════ */
-    .card {
-      background: var(--glass);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--r-lg);
-      backdrop-filter: blur(20px) saturate(180%);
-      -webkit-backdrop-filter: blur(20px) saturate(180%);
-      box-shadow: var(--shadow-glass);
-      transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease);
-      transform-style: preserve-3d;
-      will-change: transform;
-    }
-
-    .card:hover {
-      transform: translateY(-2px) scale(1.01);
-      box-shadow: var(--shadow-deep);
-    }
-
-    .card-sm {
-      padding: 1rem;
-      border-radius: var(--r-md);
-    }
-
-    .card-md {
-      padding: 1.5rem;
-    }
-
-    .card-lg {
-      padding: 2rem;
-    }
-
-    /* Tilt container */
-    .tilt-wrap {
-      perspective: 1000px;
-      display: inline-block;
-    }
-
-    .card-tilt {
-      transform-origin: center;
-      transition: transform 0.1s linear;
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       STAT CARD
-    ═══════════════════════════════════════════════════════ */
-    .stat-card {
-      min-width: 160px;
-    }
-
-    .stat-label {
-      font-size: 0.8rem;
-      color: var(--text-muted);
-      font-weight: 500;
-      margin-block-end: 0.6rem;
-    }
-
-    .stat-value {
-      font-family: var(--font-display);
-      font-size: clamp(1.6rem, 3vw, 2.2rem);
-      font-weight: 700;
-      letter-spacing: -0.03em;
-      line-height: 1;
-      margin-block-end: 0.5rem;
-    }
-
-    .stat-change {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.25rem;
-      font-size: 0.78rem;
-      font-weight: 600;
-      padding: 0.15rem 0.5rem;
-      border-radius: 999px;
-    }
-
-    .stat-change.up {
-      background: rgba(16,185,129,0.15);
-      color: var(--success);
-    }
-
-    .stat-change.down {
-      background: rgba(239,68,68,0.15);
-      color: var(--danger);
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       BUTTONS
-    ═══════════════════════════════════════════════════════ */
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5rem;
-      padding: 0.65rem 1.35rem;
-      border-radius: var(--r-md);
-      font-family: var(--font-body);
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      border: none;
-      text-decoration: none;
-      transition: all 0.25s var(--ease);
-      position: relative;
-      overflow: hidden;
-    }
-
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-      color: #fff;
-      box-shadow: 0 4px 20px rgba(99,102,241,0.4);
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 30px rgba(99,102,241,0.55);
-    }
-
-    .btn-primary:active { transform: translateY(0) scale(0.98); }
-
-    .btn-primary.loading {
-      pointer-events: none;
-      opacity: 0.8;
-    }
-
-    .btn-primary.loading .btn-text { opacity: 0; }
-
-    .btn-primary.loading::after {
-      content: "";
-      position: absolute;
-      width: 18px; height: 18px;
-      border: 2px solid rgba(255,255,255,0.4);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 0.65s linear infinite;
-    }
-
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .btn-ghost {
-      background: var(--glass);
-      color: var(--text-muted);
-      border: 1px solid var(--glass-border);
-      backdrop-filter: blur(10px);
-    }
-
-    .btn-ghost:hover {
-      color: var(--text);
-      background: rgba(255,255,255,0.07);
-      border-color: rgba(255,255,255,0.15);
-      transform: translateY(-1px);
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       INPUT FIELD
-    ═══════════════════════════════════════════════════════ */
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 0.45rem;
-    }
-
-    .field-label {
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--text-muted);
-    }
-
-    .input {
-      width: 100%;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--r-md);
-      padding: 0.65rem 0.9rem;
-      color: var(--text);
-      font-family: var(--font-body);
-      font-size: 0.92rem;
-      transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
-      outline: none;
-    }
-
-    .input::placeholder { color: var(--text-faint); }
-
-    .input:focus {
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(99,102,241,0.18);
-      background: rgba(99,102,241,0.05);
-    }
-
-    .input-ar { direction: rtl; font-family: var(--font-ar); }
-
-    /* ═══════════════════════════════════════════════════════
-       BADGES
-    ═══════════════════════════════════════════════════════ */
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3rem;
-      padding: 0.2rem 0.6rem;
-      border-radius: 999px;
-      font-size: 0.75rem;
-      font-weight: 600;
-    }
-
-    .badge-success {
-      background: rgba(16,185,129,0.15);
-      color: var(--success);
-      border: 1px solid rgba(16,185,129,0.25);
-    }
-
-    .badge-warning {
-      background: rgba(245,158,11,0.15);
-      color: var(--warning);
-      border: 1px solid rgba(245,158,11,0.25);
-    }
-
-    .badge-danger {
-      background: rgba(239,68,68,0.15);
-      color: var(--danger);
-      border: 1px solid rgba(239,68,68,0.25);
-    }
-
-    .badge-info {
-      background: rgba(34,211,238,0.12);
-      color: var(--secondary);
-      border: 1px solid rgba(34,211,238,0.25);
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       SKELETON LOADING
-    ═══════════════════════════════════════════════════════ */
-    .skeleton {
-      background: linear-gradient(90deg,
-        rgba(255,255,255,0.04) 25%,
-        rgba(255,255,255,0.09) 50%,
-        rgba(255,255,255,0.04) 75%
-      );
-      background-size: 200% 100%;
-      animation: shimmer 1.6s ease-in-out infinite;
-      border-radius: var(--r-sm);
-    }
-
-    @keyframes shimmer {
-      0%   { background-position: 200% 0; }
-      100% { background-position: -200% 0; }
-    }
-
-    .skel-line {
-      height: 12px;
-      margin-block-end: 0.5rem;
-    }
-
-    .skel-line.short { width: 55%; }
-    .skel-line.medium { width: 80%; }
-    .skel-line.full { width: 100%; }
-    .skel-avatar { width: 44px; height: 44px; border-radius: 50%; flex-shrink: 0; }
-    .skel-header { height: 18px; width: 60%; margin-block-end: 0.75rem; }
-    .skel-img { height: 120px; width: 100%; margin-block-end: 0.75rem; border-radius: var(--r-md); }
-
-    /* ═══════════════════════════════════════════════════════
-       TOAST NOTIFICATION
-    ═══════════════════════════════════════════════════════ */
-    .toast-stack {
-      position: fixed;
-      inset-block-start: 1.25rem;
-      inset-inline-end: 1.25rem;
-      display: flex;
-      flex-direction: column;
-      gap: 0.65rem;
-      z-index: 9999;
-    }
-
-    .toast {
-      display: flex;
-      align-items: flex-start;
-      gap: 0.75rem;
-      padding: 0.9rem 1rem;
-      background: rgba(15,17,23,0.92);
-      border: 1px solid var(--glass-border);
-      border-radius: var(--r-lg);
-      backdrop-filter: blur(24px);
-      -webkit-backdrop-filter: blur(24px);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-      min-width: 280px;
-      max-width: 360px;
-      animation: toast-in 0.35s var(--ease);
-    }
-
-    .toast.success { border-inline-start: 3px solid var(--success); }
-    .toast.warning { border-inline-start: 3px solid var(--warning); }
-    .toast.danger  { border-inline-start: 3px solid var(--danger); }
-    .toast.info    { border-inline-start: 3px solid var(--secondary); }
-
-    @keyframes toast-in {
-      from { opacity: 0; transform: translateX(40px) scale(0.95); }
-      to   { opacity: 1; transform: translateX(0) scale(1); }
-    }
-
-    .toast-icon {
-      width: 28px; height: 28px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      flex-shrink: 0;
-      font-size: 0.8rem;
-    }
-
-    .toast.success .toast-icon { background: rgba(16,185,129,0.2); color: var(--success); }
-    .toast.warning .toast-icon { background: rgba(245,158,11,0.2); color: var(--warning); }
-    .toast.danger  .toast-icon { background: rgba(239,68,68,0.2);  color: var(--danger); }
-    .toast.info    .toast-icon { background: rgba(34,211,238,0.15); color: var(--secondary); }
-
-    .toast-body { flex: 1; }
-    .toast-title { font-weight: 600; font-size: 0.88rem; margin-block-end: 0.15rem; }
-    .toast-msg   { font-size: 0.8rem; color: var(--text-muted); }
-
-    .toast-dismiss {
-      background: none; border: none; color: var(--text-faint);
-      cursor: pointer; font-size: 1rem; line-height: 1;
-      padding: 0.2rem; transition: color 0.15s;
-    }
-    .toast-dismiss:hover { color: var(--text); }
-
-    /* ═══════════════════════════════════════════════════════
-       PROGRESS BAR
-    ═══════════════════════════════════════════════════════ */
-    .progress-wrap {
-      background: rgba(255,255,255,0.06);
-      border-radius: 999px;
-      height: 8px;
-      overflow: hidden;
-      position: relative;
-    }
-
-    .progress-fill {
-      height: 100%;
-      border-radius: 999px;
-      background: linear-gradient(90deg, var(--primary), var(--secondary));
-      position: relative;
-      overflow: hidden;
-      transition: width 0.8s var(--ease);
-    }
-
-    .progress-fill::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(90deg,
-        transparent 0%,
-        rgba(255,255,255,0.35) 50%,
-        transparent 100%
-      );
-      background-size: 200% 100%;
-      animation: shimmer 1.6s ease-in-out infinite;
-    }
-
-    .progress-label {
-      display: flex;
-      justify-content: space-between;
-      font-size: 0.78rem;
-      color: var(--text-muted);
-      margin-block-end: 0.4rem;
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       TOGGLE SWITCH
-    ═══════════════════════════════════════════════════════ */
-    .toggle-row {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-      cursor: pointer;
-      user-select: none;
-    }
-
-    [dir="rtl"] .toggle-row { flex-direction: row-reverse; }
-
-    .toggle-label { font-size: 0.9rem; font-weight: 500; }
-    .toggle-sub   { font-size: 0.78rem; color: var(--text-muted); margin-block-start: 0.1rem; }
-
-    .toggle-switch {
-      position: relative;
-      width: 44px; height: 24px;
-      flex-shrink: 0;
-    }
-
-    .toggle-switch input { opacity: 0; width: 0; height: 0; }
-
-    .toggle-track {
-      position: absolute;
-      inset: 0;
-      background: rgba(255,255,255,0.1);
-      border: 1px solid var(--glass-border);
-      border-radius: 999px;
-      cursor: pointer;
-      transition: background 0.25s var(--ease);
-    }
-
-    .toggle-track::before {
-      content: "";
-      position: absolute;
-      width: 16px; height: 16px;
-      background: var(--text-muted);
-      border-radius: 50%;
-      inset-block-start: 3px;
-      inset-inline-start: 3px;
-      transition: all 0.25s var(--ease);
-    }
-
-    .toggle-switch input:checked + .toggle-track {
-      background: var(--primary);
-      border-color: var(--primary);
-    }
-
-    .toggle-switch input:checked + .toggle-track::before {
-      inset-inline-start: 21px;
-      background: #fff;
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       BOTTOM TAB BAR (Mobile)
-    ═══════════════════════════════════════════════════════ */
-    .bottom-tabs {
-      display: flex;
-      background: rgba(15,17,23,0.95);
-      border-block-start: 1px solid var(--glass-border);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-    }
-
-    .tab-item {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.25rem;
-      padding: 0.75rem 0.5rem;
-      color: var(--text-faint);
-      text-decoration: none;
-      font-size: 0.65rem;
-      font-weight: 600;
-      transition: color 0.2s var(--ease);
-      position: relative;
-    }
-
-    .tab-item.active { color: var(--primary); }
-
-    .tab-item.active::before {
-      content: "";
-      position: absolute;
-      inset-block-start: 0;
-      inset-inline-start: 50%;
-      transform: translateX(-50%);
-      width: 36px; height: 2px;
-      background: var(--primary);
-      border-radius: 0 0 4px 4px;
-    }
-
-    .tab-icon { font-size: 1.1rem; }
-
-    /* ═══════════════════════════════════════════════════════
-       COLOR PALETTE SWATCHES
-    ═══════════════════════════════════════════════════════ */
-    .swatch-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.75rem;
-    }
-
-    .swatch {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .swatch-dot {
-      width: 56px; height: 56px;
-      border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.1);
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-
-    .swatch-hex {
-      font-size: 0.65rem;
-      font-family: monospace;
-      color: var(--text-muted);
-    }
-
-    .swatch-name {
-      font-size: 0.7rem;
-      font-weight: 600;
-      color: var(--text-faint);
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       TYPOGRAPHY SHOWCASE
-    ═══════════════════════════════════════════════════════ */
-    .type-sample {
-      margin-block-end: 1.25rem;
-      padding-block-end: 1.25rem;
-      border-block-end: 1px solid var(--glass-border);
-    }
-
-    .type-meta {
-      font-size: 0.72rem;
-      color: var(--text-faint);
-      font-family: monospace;
-      margin-block-end: 0.3rem;
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       STAGGER FADE-IN
-    ═══════════════════════════════════════════════════════ */
-    .fade-item {
-      opacity: 0;
-      transform: translateY(20px);
-      transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
-    }
-
-    .fade-item.visible {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    /* ═══════════════════════════════════════════════════════
-       UTILITY
-    ═══════════════════════════════════════════════════════ */
-    .row   { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-    .col   { display: flex; flex-direction: column; gap: 0.5rem; }
-    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; }
-    .mt    { margin-block-start: 1rem; }
-    .w-full { width: 100%; }
-    .counter { display: inline-block; }
-
-    /* RTL demo */
-    .rtl-demo { direction: rtl; font-family: var(--font-ar); }
-
-    /* ═══════════════════════════════════════════════════════
-       RESPONSIVE
-    ═══════════════════════════════════════════════════════ */
-    @media (max-width: 768px) {
-      .page { grid-template-columns: 1fr; }
-      .sidebar { display: none; }
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Content Factory — Dashboard 2026</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ── TOKENS ─────────────────────────────────── */
+:root {
+  --bg:     #f0ede8;
+  --bg2:    #e5e1db;
+  --cream:  #faf8f5;
+  --ink:    #0f0e0d;
+  --ink2:   #5c5854;
+  --ink3:   #a09b96;
+  --card:   #ffffff;
+  --purple: #6d4fc7;
+  --orange: #e05c24;
+  --green:  #18956a;
+  --blue:   #2563eb;
+  --yellow: #e8940e;
+  --r24: 24px; --r20: 20px; --r14: 14px; --r10: 10px;
+}
+
+/* ── RESET ───────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  color: var(--ink);
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* ── GRAIN TEXTURE ───────────────────────────── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 200px 200px;
+}
+
+/* ── AURORA HERO ─────────────────────────────── */
+.aurora {
+  position: relative;
+  overflow: hidden;
+  background: #100e0c;
+  padding: 2.5rem 1.5rem 3rem;
+  border-radius: 0 0 36px 36px;
+  margin-bottom: 1px;
+}
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  pointer-events: none;
+}
+.b1 { width: 360px; height: 360px; background: #6d4fc7; opacity: .5; top: -100px; left: -80px; animation: drift 9s ease-in-out infinite; }
+.b2 { width: 280px; height: 280px; background: #e05c24; opacity: .4; top: -50px; right: -40px; animation: drift 11s ease-in-out infinite reverse; }
+.b3 { width: 220px; height: 220px; background: #2563eb; opacity: .35; bottom: -70px; left: 35%; animation: drift 14s ease-in-out infinite 3s; }
+.b4 { width: 160px; height: 160px; background: #18956a; opacity: .3; bottom: 10px; right: 20%; animation: drift 8s ease-in-out infinite 1s reverse; }
+
+@keyframes drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33%       { transform: translate(18px, -20px) scale(1.08); }
+  66%       { transform: translate(-12px, 12px) scale(0.95); }
+}
+
+.aurora-inner { position: relative; z-index: 2; }
+
+.live-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 30px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,.65);
+  letter-spacing: .04em;
+  margin-bottom: 1.25rem;
+  backdrop-filter: blur(12px);
+}
+.live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #18956a;
+  box-shadow: 0 0 8px #18956a;
+  animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.3;} }
+
+.hero-title {
+  font-size: clamp(38px, 10vw, 64px);
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.0;
+  letter-spacing: -2px;
+  margin-bottom: .4rem;
+}
+.hero-title em {
+  font-style: normal;
+  background: linear-gradient(100deg, #c084fc 0%, #fb923c 50%, #f9d44b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-ar {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: clamp(13px, 3.5vw, 18px);
+  color: rgba(255,255,255,.45);
+  direction: rtl;
+  margin-top: 6px;
+  margin-bottom: 1.5rem;
+}
+
+.hero-stats {
+  display: flex;
+  gap: 1.25rem;
+  margin-bottom: 1.75rem;
+  flex-wrap: wrap;
+}
+.hero-stat {
+  display: flex;
+  flex-direction: column;
+}
+.hero-stat-num {
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+.hero-stat-lbl {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255,255,255,.35);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  margin-top: 3px;
+}
+.hero-divider {
+  width: 1px;
+  background: rgba(255,255,255,.1);
+  align-self: stretch;
+}
+
+.cta-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.cta {
+  padding: 11px 22px;
+  border-radius: 30px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all .22s cubic-bezier(.34,1.56,.64,1);
+  letter-spacing: .01em;
+}
+.cta-primary {
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 4px 20px rgba(255,255,255,.2);
+}
+.cta-primary:hover { transform: scale(1.04) translateY(-1px); box-shadow: 0 8px 32px rgba(255,255,255,.3); }
+.cta-ghost {
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.8);
+  border: 1px solid rgba(255,255,255,.15);
+  backdrop-filter: blur(10px);
+}
+.cta-ghost:hover { background: rgba(255,255,255,.14); }
+
+/* ── BENTO GRID ──────────────────────────────── */
+.bento {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 10px;
+  perspective: 1400px;
+}
+
+/* ── CLAY CARD ───────────────────────────────── */
+.clay {
+  background: var(--card);
+  border-radius: var(--r24);
+  padding: 1.25rem;
+  position: relative;
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.95) inset,
+    0 -1px 0 rgba(0,0,0,.07) inset,
+    0 2px 0 rgba(0,0,0,.04),
+    0 6px 24px rgba(0,0,0,.08),
+    0 1px 4px rgba(0,0,0,.05);
+  transition: transform .35s cubic-bezier(.34,1.56,.64,1), box-shadow .35s;
+  transform-style: preserve-3d;
+  will-change: transform;
+  cursor: default;
+}
+.clay::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(255,255,255,.9) 0%, transparent 60%);
+  pointer-events: none;
+  opacity: .5;
+  z-index: 0;
+}
+.clay > * { position: relative; z-index: 1; }
+
+.clay:hover {
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.95) inset,
+    0 -1px 0 rgba(0,0,0,.07) inset,
+    0 14px 48px rgba(0,0,0,.13),
+    0 4px 12px rgba(0,0,0,.08);
+}
+
+.span2 { grid-column: span 2; }
+.span1 { grid-column: span 1; }
+
+/* ── SECTION LABEL ───────────────────────────── */
+.slbl {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-bottom: 8px;
+}
+
+/* ── BIG STAT ────────────────────────────────── */
+.stat-n {
+  font-size: clamp(40px, 9vw, 58px);
+  font-weight: 800;
+  letter-spacing: -2.5px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 30px;
+}
+
+/* Color card variants */
+.card-purple {
+  background: var(--purple);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.25) inset,
+    0 -1px 0 rgba(0,0,0,.15) inset,
+    0 8px 40px rgba(109,79,199,.45),
+    0 2px 8px rgba(109,79,199,.3);
+}
+.card-orange {
+  background: var(--orange);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.25) inset,
+    0 -1px 0 rgba(0,0,0,.15) inset,
+    0 8px 40px rgba(224,92,36,.45),
+    0 2px 8px rgba(224,92,36,.3);
+}
+.card-dark {
+  background: var(--ink);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.08) inset,
+    0 -1px 0 rgba(0,0,0,.3) inset,
+    0 8px 40px rgba(0,0,0,.4),
+    0 2px 8px rgba(0,0,0,.2);
+}
+
+/* ── PIPELINE ────────────────────────────────── */
+.pipe-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(0,0,0,.05);
+}
+.pipe-row:last-child { border: none; padding-bottom: 0; }
+.pipe-ic {
+  width: 34px; height: 34px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  flex-shrink: 0;
+}
+.pipe-name { flex: 1; font-size: 13px; font-weight: 600; }
+.pipe-sub { font-size: 10px; color: var(--ink3); margin-top: 1px; }
+.pipe-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 20px;
+}
+.tag-done  { background: #e6f5ef; color: var(--green); }
+.tag-run   { background: #ede8f7; color: var(--purple); }
+.tag-wait  { background: var(--bg2); color: var(--ink3); }
+
+/* ── CONTENT APPROVAL ────────────────────────── */
+.post-body {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--ink2);
+  direction: rtl;
+  margin: 10px 0 14px;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: var(--r14);
+}
+.chip {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  margin-right: 5px;
+}
+.chip-fb { background: #e7f0fd; color: #1877f2; }
+.chip-ig { background: #fce8f3; color: #e1306c; }
+.act-row { display: flex; gap: 7px; }
+.act {
+  padding: 8px 15px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: transform .15s cubic-bezier(.34,1.56,.64,1);
+}
+.act:hover { transform: scale(1.05); }
+.act-y { background: #e6f5ef; color: var(--green); }
+.act-n { background: #fde8e8; color: #dc2626; }
+.act-e { background: var(--bg2); color: var(--ink2); }
+
+/* ── INSIGHTS ────────────────────────────────── */
+.ins-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+.ins-row:last-child { margin-bottom: 0; }
+.ins-lbl { font-size: 12px; font-weight: 600; min-width: 90px; }
+.ins-track { flex: 1; height: 7px; background: var(--bg2); border-radius: 10px; overflow: hidden; }
+.ins-fill { height: 100%; border-radius: 10px; transform: scaleX(0); transform-origin: left; transition: transform 1.1s cubic-bezier(.4,0,.2,1); }
+.ins-val { font-size: 12px; font-weight: 700; min-width: 30px; text-align: right; }
+
+/* ── HEALTH ──────────────────────────────────── */
+.health-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 8px;
+}
+.h-item {
+  background: var(--bg);
+  border-radius: var(--r14);
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.h-dot {
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.h-name { font-size: 12px; font-weight: 700; }
+.h-sub  { font-size: 10px; color: var(--ink3); margin-top: 1px; }
+
+/* ── SVG RING ────────────────────────────────── */
+.ring-wrap { display: flex; flex-direction: column; align-items: center; }
+.ring-val { font-size: 22px; font-weight: 800; letter-spacing: -1px; margin-top: 6px; }
+.ring-lbl { font-size: 10px; color: var(--ink3); font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+
+/* ── SPARKLINE ───────────────────────────────── */
+.spark { display: flex; align-items: flex-end; gap: 3px; height: 36px; margin-top: 8px; }
+.sp-bar {
+  flex: 1;
+  border-radius: 4px;
+  transition: height .6s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── PAGES LIST ──────────────────────────────── */
+.page-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.page-row:last-child { margin-bottom: 0; }
+.page-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.page-name { flex: 1; font-size: 12px; font-weight: 600; color: rgba(255,255,255,.7); }
+.page-reach { font-size: 11px; font-weight: 700; color: rgba(255,255,255,.4); }
+
+/* ── BOTTOM NAV ──────────────────────────────── */
+.bnav {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  background: var(--ink);
+  padding: 12px 8px 20px;
+  margin: 0;
+  position: sticky;
+  bottom: 0;
+  z-index: 100;
+  border-radius: 28px 28px 0 0;
+}
+.bnav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 16px;
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all .2s;
+}
+.bnav-item.active { background: rgba(255,255,255,.1); }
+.bnav-ic { font-size: 20px; line-height: 1; }
+.bnav-lbl { font-size: 9px; color: rgba(255,255,255,.4); font-weight: 600; letter-spacing: .04em; }
+.bnav-item.active .bnav-lbl { color: rgba(255,255,255,.9); }
+
+/* ── STAGGER ANIMATIONS ──────────────────────── */
+.fade-up {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity .55s var(--e,cubic-bezier(.4,0,.2,1)), transform .55s var(--e,cubic-bezier(.4,0,.2,1));
+}
+.fade-up.in { opacity: 1; transform: translateY(0); }
+
+/* ── SCROLL PROGRESS ─────────────────────────── */
+#scroll-line {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--purple), var(--orange));
+  width: 0%;
+  z-index: 9999;
+  transition: width .1s linear;
+}
+</style>
 </head>
 <body>
 
-<!-- Floating background orbs -->
-<div class="orb-field" aria-hidden="true">
-  <div class="orb orb-1" id="orb1"></div>
-  <div class="orb orb-2" id="orb2"></div>
-  <div class="orb orb-3" id="orb3"></div>
+<div id="scroll-line"></div>
+
+<!-- ══════════════ AURORA HERO ══════════════ -->
+<div class="aurora">
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+  <div class="blob b4"></div>
+
+  <div class="aurora-inner">
+    <div class="live-tag">
+      <span class="live-dot"></span>
+      3 pages active · scheduler running
+    </div>
+
+    <div class="hero-title">Content<br><em>Factory</em></div>
+    <div class="hero-ar">مصنع المحتوى العربي — تلقائي بالكامل</div>
+
+    <div class="hero-stats">
+      <div class="hero-stat">
+        <div class="hero-stat-num counter" data-target="2400">0</div>
+        <div class="hero-stat-lbl">Today's Reach</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-num counter" data-target="17">0</div>
+        <div class="hero-stat-lbl">Published</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-num counter" data-target="6">0</div>
+        <div class="hero-stat-lbl">Pending AI</div>
+      </div>
+      <div class="hero-divider"></div>
+      <div class="hero-stat">
+        <div class="hero-stat-num">14:00</div>
+        <div class="hero-stat-lbl">Next Post</div>
+      </div>
+    </div>
+
+    <div class="cta-row">
+      <button class="cta cta-primary">+ إنشاء محتوى</button>
+      <button class="cta cta-ghost">View analytics →</button>
+    </div>
+  </div>
 </div>
 
-<!-- Toast stack (rendered at top-right) -->
-<div class="toast-stack" id="toastStack">
-  <div class="toast success">
-    <div class="toast-icon">✓</div>
-    <div class="toast-body">
-      <div class="toast-title">Post published</div>
-      <div class="toast-msg">Your content went live on all 3 pages.</div>
+<!-- ══════════════ BENTO GRID ══════════════ -->
+<div class="bento">
+
+  <!-- STAT: Reach (purple) -->
+  <div class="clay card-purple fade-up" style="--delay:.05s">
+    <div class="slbl" style="color:rgba(255,255,255,.45);">Today's reach</div>
+    <div class="stat-n" style="color:#fff;">2.4K</div>
+    <div class="badge" style="background:rgba(255,255,255,.15);color:#fff;">↑ 31%</div>
+    <!-- Sparkline -->
+    <div class="spark" style="margin-top:12px;">
+      <div class="sp-bar" style="height:35%;background:rgba(255,255,255,.2);"></div>
+      <div class="sp-bar" style="height:55%;background:rgba(255,255,255,.2);"></div>
+      <div class="sp-bar" style="height:40%;background:rgba(255,255,255,.2);"></div>
+      <div class="sp-bar" style="height:70%;background:rgba(255,255,255,.25);"></div>
+      <div class="sp-bar" style="height:60%;background:rgba(255,255,255,.25);"></div>
+      <div class="sp-bar" style="height:85%;background:rgba(255,255,255,.35);"></div>
+      <div class="sp-bar" style="height:100%;background:rgba(255,255,255,.6);"></div>
     </div>
-    <button class="toast-dismiss" onclick="this.closest('.toast').remove()">✕</button>
   </div>
-  <div class="toast warning">
-    <div class="toast-icon">!</div>
-    <div class="toast-body">
-      <div class="toast-title">Token expiring soon</div>
-      <div class="toast-msg">Facebook token expires in 4 days.</div>
+
+  <!-- STAT: Posts (orange) -->
+  <div class="clay card-orange fade-up" style="--delay:.1s">
+    <div class="slbl" style="color:rgba(255,255,255,.45);">Published</div>
+    <div class="stat-n" style="color:#fff;">17</div>
+    <div class="badge" style="background:rgba(255,255,255,.15);color:#fff;">This week</div>
+    <div class="spark" style="margin-top:12px;">
+      <div class="sp-bar" style="height:60%;background:rgba(255,255,255,.2);"></div>
+      <div class="sp-bar" style="height:40%;background:rgba(255,255,255,.2);"></div>
+      <div class="sp-bar" style="height:80%;background:rgba(255,255,255,.25);"></div>
+      <div class="sp-bar" style="height:55%;background:rgba(255,255,255,.25);"></div>
+      <div class="sp-bar" style="height:70%;background:rgba(255,255,255,.3);"></div>
+      <div class="sp-bar" style="height:90%;background:rgba(255,255,255,.35);"></div>
+      <div class="sp-bar" style="height:100%;background:rgba(255,255,255,.6);"></div>
     </div>
-    <button class="toast-dismiss" onclick="this.closest('.toast').remove()">✕</button>
   </div>
-</div>
 
-<div class="page">
-  <!-- ── SIDEBAR ── -->
-  <aside class="sidebar">
-    <div class="brand">
-      <div class="brand-icon">✦</div>
-      <div>
-        <div class="brand-name">Content Factory</div>
-        <div class="brand-sub">Design System v4</div>
+  <!-- PIPELINE STATUS (full width) -->
+  <div class="clay span2 fade-up" style="--delay:.15s">
+    <div class="slbl">Pipeline status</div>
+    <div class="pipe-row">
+      <div class="pipe-ic" style="background:#e6f5ef;">📰</div>
+      <div style="flex:1;">
+        <div class="pipe-name">News scraping</div>
+        <div class="pipe-sub">34 sources · last run 08:42</div>
+      </div>
+      <span class="pipe-tag tag-done">✓ 34 articles</span>
+    </div>
+    <div class="pipe-row">
+      <div class="pipe-ic" style="background:#e6f5ef;">✨</div>
+      <div style="flex:1;">
+        <div class="pipe-name">AI generation</div>
+        <div class="pipe-sub">Gemini Flash 2.0</div>
+      </div>
+      <span class="pipe-tag tag-done">✓ 6 posts</span>
+    </div>
+    <div class="pipe-row">
+      <div class="pipe-ic" style="background:#ede8f7;">⚡</div>
+      <div style="flex:1;">
+        <div class="pipe-name">Scheduling</div>
+        <div class="pipe-sub">3 pages · optimal timing</div>
+      </div>
+      <span class="pipe-tag tag-run">● Running</span>
+    </div>
+    <div class="pipe-row">
+      <div class="pipe-ic" style="background:var(--bg2);">📤</div>
+      <div style="flex:1;">
+        <div class="pipe-name">Publishing</div>
+        <div class="pipe-sub">Facebook + Instagram</div>
+      </div>
+      <span class="pipe-tag tag-wait">Next 14:00</span>
+    </div>
+  </div>
+
+  <!-- CONTENT APPROVAL (full width) -->
+  <div class="clay span2 fade-up" style="background:var(--cream);--delay:.2s">
+    <div class="slbl">Needs approval</div>
+    <div style="margin-bottom:8px;">
+      <span class="chip chip-fb">Facebook</span>
+      <span class="chip chip-ig">Instagram</span>
+    </div>
+    <div class="post-body">
+      🚀 الذكاء الاصطناعي يغير عالم التسويق الرقمي — اكتشف كيف تنمو صفحتك تلقائياً بدون أي جهد يومي. هذه الأداة ستوفر عليك ساعات من العمل كل يوم...
+    </div>
+    <div class="act-row">
+      <button class="act act-y">✓ نشر</button>
+      <button class="act act-n">✕ رفض</button>
+      <button class="act act-e">✎ تعديل</button>
+    </div>
+  </div>
+
+  <!-- WHAT'S WORKING -->
+  <div class="clay span2 fade-up" style="--delay:.25s">
+    <div class="slbl">What's working this week</div>
+    <div style="margin-top:10px;">
+      <div class="ins-row">
+        <div class="ins-lbl">Question hooks</div>
+        <div class="ins-track"><div class="ins-fill" data-w="88" style="background:var(--purple);"></div></div>
+        <div class="ins-val" style="color:var(--purple);">4.2×</div>
+      </div>
+      <div class="ins-row">
+        <div class="ins-lbl">With image</div>
+        <div class="ins-track"><div class="ins-fill" data-w="72" style="background:var(--orange);"></div></div>
+        <div class="ins-val" style="color:var(--orange);">3.1×</div>
+      </div>
+      <div class="ins-row">
+        <div class="ins-lbl">Arabic only</div>
+        <div class="ins-track"><div class="ins-fill" data-w="65" style="background:var(--green);"></div></div>
+        <div class="ins-val" style="color:var(--green);">2.8×</div>
+      </div>
+      <div class="ins-row">
+        <div class="ins-lbl">Morning 8am</div>
+        <div class="ins-track"><div class="ins-fill" data-w="55" style="background:var(--blue);"></div></div>
+        <div class="ins-val" style="color:var(--blue);">2.1×</div>
       </div>
     </div>
+  </div>
 
-    <nav class="nav">
-      <a href="#" class="nav-item active">
-        <span class="nav-icon">⚡</span>
-        <span>Dashboard</span>
-      </a>
-      <a href="#" class="nav-item">
-        <span class="nav-icon">✦</span>
-        <span>Studio</span>
-        <span class="nav-badge">3</span>
-      </a>
-      <a href="#" class="nav-item">
-        <span class="nav-icon">◫</span>
-        <span>Templates</span>
-      </a>
-      <a href="#" class="nav-item">
-        <span class="nav-icon">⚙</span>
-        <span>Settings</span>
-      </a>
-      <a href="#" class="nav-item">
-        <span class="nav-icon">♥</span>
-        <span>Health</span>
-      </a>
-    </nav>
-
-    <div style="margin-block-start:auto;">
-      <div style="font-size:0.75rem;color:var(--text-faint);margin-block-end:0.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">user@example.com</div>
-      <button class="btn btn-ghost" style="width:100%;font-size:0.82rem;">Sign out</button>
-    </div>
-  </aside>
-
-  <!-- ── MAIN ── -->
-  <main class="main">
-
-    <!-- HEADER -->
-    <div style="margin-block-end:3rem;">
-      <p style="color:var(--primary);font-size:0.8rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;margin-block-end:0.5rem;">Design System</p>
-      <h1 style="font-family:var(--font-display);font-size:clamp(1.8rem,4vw,3rem);font-weight:700;letter-spacing:-0.03em;background:linear-gradient(135deg,#f1f5f9 30%,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Content Factory v4</h1>
-      <p style="color:var(--text-muted);margin-block-start:0.5rem;">Complete reference for every screen, component, and interaction.</p>
-    </div>
-
-    <!-- ── COLOR PALETTE ── -->
-    <p class="section-label">01 — Color Palette</p>
-    <h2 class="section-title">Tokens</h2>
-    <p class="section-desc">Every color used across the application. Never use raw hex in components — always use the variable.</p>
-
-    <div class="swatch-grid fade-item">
-      <div class="swatch">
-        <div class="swatch-dot" style="background:#0a0a0f;"></div>
-        <div class="swatch-hex">#0a0a0f</div>
-        <div class="swatch-name">Background</div>
+  <!-- HEALTH STATUS -->
+  <div class="clay fade-up" style="--delay:.3s">
+    <div class="slbl">System health</div>
+    <div class="health-grid">
+      <div class="h-item">
+        <div class="h-dot" style="background:var(--green);box-shadow:0 0 7px var(--green);"></div>
+        <div><div class="h-name">Facebook</div><div class="h-sub">Connected</div></div>
       </div>
-      <div class="swatch">
-        <div class="swatch-dot" style="background:#0f1117;"></div>
-        <div class="swatch-hex">#0f1117</div>
-        <div class="swatch-name">Surface</div>
+      <div class="h-item">
+        <div class="h-dot" style="background:var(--green);box-shadow:0 0 7px var(--green);"></div>
+        <div><div class="h-name">Instagram</div><div class="h-sub">Connected</div></div>
       </div>
-      <div class="swatch">
-        <div class="swatch-dot" style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.15);"></div>
-        <div class="swatch-hex">rgba 4%</div>
-        <div class="swatch-name">Glass</div>
+      <div class="h-item">
+        <div class="h-dot" style="background:var(--yellow);box-shadow:0 0 7px var(--yellow);"></div>
+        <div><div class="h-name">FB Token</div><div class="h-sub">4 days left</div></div>
       </div>
-      <div class="swatch">
-        <div class="swatch-dot" style="background:#6366f1;box-shadow:0 0 20px rgba(99,102,241,0.5);"></div>
-        <div class="swatch-hex">#6366f1</div>
-        <div class="swatch-name">Primary</div>
-      </div>
-      <div class="swatch">
-        <div class="swatch-dot" style="background:#22d3ee;box-shadow:0 0 20px rgba(34,211,238,0.4);"></div>
-        <div class="swatch-hex">#22d3ee</div>
-        <div class="swatch-name">Secondary</div>
-      </div>
-      <div class="swatch">
-        <div class="swatch-dot" style="background:#10b981;"></div>
-        <div class="swatch-hex">#10b981</div>
-        <div class="swatch-name">Success</div>
-      </div>
-      <div class="swatch">
-        <div class="swatch-dot" style="background:#f59e0b;"></div>
-        <div class="swatch-hex">#f59e0b</div>
-        <div class="swatch-name">Warning</div>
-      </div>
-      <div class="swatch">
-        <div class="swatch-dot" style="background:#ef4444;"></div>
-        <div class="swatch-hex">#ef4444</div>
-        <div class="swatch-name">Danger</div>
-      </div>
-      <div class="swatch">
-        <div class="swatch-dot" style="background:#f1f5f9;"></div>
-        <div class="swatch-hex">#f1f5f9</div>
-        <div class="swatch-name">Text</div>
-      </div>
-      <div class="swatch">
-        <div class="swatch-dot" style="background:#94a3b8;"></div>
-        <div class="swatch-hex">#94a3b8</div>
-        <div class="swatch-name">Muted</div>
-      </div>
-      <div class="swatch">
-        <div class="swatch-dot" style="background:#475569;"></div>
-        <div class="swatch-hex">#475569</div>
-        <div class="swatch-name">Faint</div>
+      <div class="h-item">
+        <div class="h-dot" style="background:var(--green);box-shadow:0 0 7px var(--green);"></div>
+        <div><div class="h-name">Gemini</div><div class="h-sub">Active</div></div>
       </div>
     </div>
+  </div>
 
-    <!-- ── TYPOGRAPHY ── -->
-    <p class="section-label">02 — Typography</p>
-    <h2 class="section-title">Type Scale</h2>
-    <p class="section-desc">Three typefaces: Space Grotesk for display, Inter for UI/body, IBM Plex Sans Arabic for Arabic text.</p>
-
-    <div class="card card-md fade-item">
-      <div class="type-sample">
-        <div class="type-meta">Space Grotesk 700 — Display Heading</div>
-        <div style="font-family:var(--font-display);font-size:clamp(1.8rem,4vw,3rem);font-weight:700;letter-spacing:-0.03em;line-height:1.1;">The Future of Arabic Content</div>
-      </div>
-      <div class="type-sample">
-        <div class="type-meta">Inter 600 — Section Title</div>
-        <div style="font-family:var(--font-body);font-size:1.4rem;font-weight:600;letter-spacing:-0.01em;">Dashboard Overview</div>
-      </div>
-      <div class="type-sample">
-        <div class="type-meta">Inter 400 — Body Text</div>
-        <div style="font-family:var(--font-body);font-size:1rem;font-weight:400;color:var(--text-muted);max-width:560px;">Create, schedule, and publish Arabic content at scale. Powered by Gemini AI with full support for Facebook and Instagram.</div>
-      </div>
-      <div class="type-sample">
-        <div class="type-meta">IBM Plex Sans Arabic 600 — Arabic UI</div>
-        <div style="font-family:var(--font-ar);font-size:1.2rem;font-weight:600;direction:rtl;text-align:start;">مرحباً بك في مصنع المحتوى</div>
-      </div>
-      <div>
-        <div class="type-meta">IBM Plex Sans Arabic 400 — Arabic Body</div>
-        <div style="font-family:var(--font-ar);font-size:0.95rem;font-weight:400;direction:rtl;text-align:start;color:var(--text-muted);max-width:500px;">أنشئ محتوى احترافياً بالذكاء الاصطناعي وانشره على فيسبوك وإنستجرام بنقرة واحدة.</div>
-      </div>
+  <!-- AI USAGE RING -->
+  <div class="clay fade-up" style="--delay:.35s">
+    <div class="slbl">AI usage</div>
+    <div class="ring-wrap" style="margin-top:6px;">
+      <svg width="88" height="88" viewBox="0 0 88 88" style="transform:rotate(-90deg);">
+        <circle cx="44" cy="44" r="36" fill="none" stroke="#f0ede8" stroke-width="9"/>
+        <circle cx="44" cy="44" r="36" fill="none"
+          stroke="url(#rg)" stroke-width="9"
+          stroke-linecap="round"
+          stroke-dasharray="226"
+          stroke-dashoffset="226"
+          id="ringCircle"/>
+        <defs>
+          <linearGradient id="rg" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%" stop-color="#6d4fc7"/>
+            <stop offset="100%" stop-color="#e05c24"/>
+          </linearGradient>
+        </defs>
+      </svg>
+      <div class="ring-val">67%</div>
+      <div class="ring-lbl">Quota used</div>
     </div>
+  </div>
 
-    <!-- ── GLASS CARDS ── -->
-    <p class="section-label">03 — Glass Cards</p>
-    <h2 class="section-title">Cards — 3 Sizes</h2>
-    <p class="section-desc">The core visual unit. Every card uses glassmorphism with a subtle 3D tilt on hover. Move your mouse over each card below.</p>
+  <!-- ACTIVE PAGES (dark card) -->
+  <div class="clay card-dark span2 fade-up" style="--delay:.4s">
+    <div class="slbl" style="color:rgba(255,255,255,.35);">Active pages</div>
+    <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:12px;">
+      <div class="stat-n" style="color:#fff;font-size:42px;">3</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.35);font-weight:600;">PAGES</div>
+    </div>
+    <div class="page-row">
+      <div class="page-dot" style="background:var(--purple);box-shadow:0 0 6px var(--purple);"></div>
+      <div class="page-name">Tech Arabic</div>
+      <div class="page-reach">1.2K reach/day</div>
+    </div>
+    <div class="page-row">
+      <div class="page-dot" style="background:var(--orange);box-shadow:0 0 6px var(--orange);"></div>
+      <div class="page-name">Business DZ</div>
+      <div class="page-reach">890 reach/day</div>
+    </div>
+    <div class="page-row">
+      <div class="page-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></div>
+      <div class="page-name">Startup AR</div>
+      <div class="page-reach">340 reach/day</div>
+    </div>
+  </div>
 
-    <div class="showcase">
-      <!-- Small -->
-      <div class="tilt-wrap">
-        <div class="card card-sm fade-item" style="width:180px;" data-tilt>
-          <div style="font-size:1.4rem;margin-block-end:0.5rem;">⚡</div>
-          <div style="font-size:0.85rem;font-weight:600;margin-block-end:0.25rem;">Small Card</div>
-          <div style="font-size:0.75rem;color:var(--text-muted);">Stat / quick info</div>
+  <!-- SCHEDULE PREVIEW -->
+  <div class="clay span2 fade-up" style="background:var(--bg2);--delay:.45s">
+    <div class="slbl">Today's schedule</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:11px;font-weight:700;color:var(--ink3);min-width:38px;">08:00</div>
+        <div style="flex:1;background:#fff;border-radius:10px;padding:8px 12px;box-shadow:0 1px 4px rgba(0,0,0,.06);">
+          <div style="font-size:12px;font-weight:700;">Tech Arabic — AI post</div>
+          <div style="font-size:10px;color:var(--ink3);margin-top:2px;">✓ Published 2h ago</div>
         </div>
       </div>
-
-      <!-- Medium -->
-      <div class="tilt-wrap">
-        <div class="card card-md fade-item" style="width:260px;" data-tilt>
-          <div style="display:flex;align-items:center;gap:0.6rem;margin-block-end:0.75rem;">
-            <div style="width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--secondary));display:grid;place-items:center;font-size:0.9rem;">✦</div>
-            <div>
-              <div style="font-size:0.9rem;font-weight:600;">Medium Card</div>
-              <div style="font-size:0.75rem;color:var(--text-muted);">Content blocks</div>
-            </div>
-          </div>
-          <div style="font-size:0.82rem;color:var(--text-muted);line-height:1.6;">Used for content previews, settings sections, and feature tiles throughout the app.</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:11px;font-weight:700;color:var(--purple);min-width:38px;">14:00</div>
+        <div style="flex:1;background:#fff;border-radius:10px;padding:8px 12px;box-shadow:0 1px 4px rgba(0,0,0,.06);border-left:3px solid var(--purple);">
+          <div style="font-size:12px;font-weight:700;">Business DZ — Trending</div>
+          <div style="font-size:10px;color:var(--purple);margin-top:2px;">● Scheduled · awaiting approval</div>
         </div>
       </div>
-
-      <!-- Large -->
-      <div class="tilt-wrap">
-        <div class="card card-lg fade-item" style="width:340px;" data-tilt>
-          <div style="font-size:0.75rem;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--primary);margin-block-end:0.75rem;">LARGE PANEL</div>
-          <div style="font-family:var(--font-display);font-size:1.5rem;font-weight:700;margin-block-end:0.6rem;">Full Feature Panel</div>
-          <div style="font-size:0.85rem;color:var(--text-muted);margin-block-end:1.25rem;">Used for the main content editor, analytics detail views, and onboarding steps.</div>
-          <div style="display:flex;gap:0.5rem;">
-            <span class="badge badge-success">✓ Active</span>
-            <span class="badge badge-info">Gemini</span>
-          </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:11px;font-weight:700;color:var(--ink3);min-width:38px;">19:00</div>
+        <div style="flex:1;background:#fff;border-radius:10px;padding:8px 12px;box-shadow:0 1px 4px rgba(0,0,0,.06);">
+          <div style="font-size:12px;font-weight:700;">Startup AR — Weekend recap</div>
+          <div style="font-size:10px;color:var(--ink3);margin-top:2px;">○ Queued · generating now</div>
         </div>
       </div>
     </div>
+  </div>
 
-    <!-- ── STAT CARDS ── -->
-    <p class="section-label">04 — Stat Cards</p>
-    <h2 class="section-title">KPI Counters</h2>
-    <p class="section-desc">Numbers count up from 0 when they enter the viewport.</p>
+</div><!-- /bento -->
 
-    <div class="grid2">
-      <div class="card card-md stat-card fade-item">
-        <div class="stat-label">Posts Published</div>
-        <div class="stat-value"><span class="counter" data-target="1284">0</span></div>
-        <span class="stat-change up">↑ 12.4%</span>
-      </div>
-      <div class="card card-md stat-card fade-item">
-        <div class="stat-label">Total Reach</div>
-        <div class="stat-value"><span class="counter" data-target="84200">0</span><span style="font-size:1.2rem;color:var(--text-muted);">k</span></div>
-        <span class="stat-change up">↑ 8.1%</span>
-      </div>
-      <div class="card card-md stat-card fade-item">
-        <div class="stat-label">AI Tokens Used</div>
-        <div class="stat-value"><span class="counter" data-target="2150000">0</span></div>
-        <span class="stat-change down">↓ 2.3%</span>
-      </div>
-      <div class="card card-md stat-card fade-item">
-        <div class="stat-label">Active Pages</div>
-        <div class="stat-value"><span class="counter" data-target="7">0</span></div>
-        <span class="stat-change up">↑ 1 new</span>
-      </div>
-    </div>
-
-    <!-- ── BUTTONS ── -->
-    <p class="section-label">05 — Buttons</p>
-    <h2 class="section-title">Actions</h2>
-    <p class="section-desc">Primary uses gradient fill; ghost uses glass border. Click "Publish" to see the loading state.</p>
-
-    <div class="showcase fade-item">
-      <button class="btn btn-primary" id="btnPublish" onclick="demoLoading(this)">
-        <span class="btn-text">⚡ Publish Now</span>
-      </button>
-      <button class="btn btn-primary">
-        <span class="btn-text">✦ Generate Content</span>
-      </button>
-      <button class="btn btn-ghost">← Back</button>
-      <button class="btn btn-ghost">Preview</button>
-      <button class="btn btn-primary loading">
-        <span class="btn-text">Saving...</span>
-      </button>
-    </div>
-
-    <!-- ── INPUTS ── -->
-    <p class="section-label">06 — Inputs</p>
-    <h2 class="section-title">Form Fields</h2>
-    <p class="section-desc">Glass border, dark fill, focus glow. Arabic placeholder shown on the second example.</p>
-
-    <div class="col fade-item" style="max-width:440px;">
-      <div class="field">
-        <label class="field-label">Gemini API Key</label>
-        <input class="input" type="text" placeholder="AIza...Xk9d">
-      </div>
-      <div class="field">
-        <label class="field-label" style="font-family:var(--font-ar);direction:rtl;text-align:start;">اسم الصفحة</label>
-        <input class="input input-ar" type="text" placeholder="أدخل اسم الصفحة هنا">
-      </div>
-      <div class="field">
-        <label class="field-label">Search</label>
-        <input class="input" type="text" placeholder="Search posts, templates…">
-      </div>
-    </div>
-
-    <!-- ── BADGES ── -->
-    <p class="section-label">07 — Badges</p>
-    <h2 class="section-title">Status Indicators</h2>
-    <p class="section-desc">Four variants for all status states.</p>
-
-    <div class="showcase fade-item">
-      <span class="badge badge-success">✓ Published</span>
-      <span class="badge badge-warning">⚠ Pending Review</span>
-      <span class="badge badge-danger">✕ Failed</span>
-      <span class="badge badge-info">◎ Processing</span>
-      <span class="badge badge-success">✓ Token Valid</span>
-      <span class="badge badge-warning">! Expiring Soon</span>
-    </div>
-
-    <!-- ── SKELETON ── -->
-    <p class="section-label">08 — Skeleton Loading</p>
-    <h2 class="section-title">Loading States</h2>
-    <p class="section-desc">Shimmer animation replaces content during async data loads.</p>
-
-    <div class="grid2">
-      <div class="card card-md fade-item">
-        <div class="skeleton skel-img"></div>
-        <div class="skeleton skel-header"></div>
-        <div class="skeleton skel-line full"></div>
-        <div class="skeleton skel-line medium"></div>
-        <div class="skeleton skel-line short"></div>
-      </div>
-      <div class="card card-md fade-item">
-        <div style="display:flex;gap:0.75rem;margin-block-end:1rem;align-items:center;">
-          <div class="skeleton skel-avatar"></div>
-          <div style="flex:1;">
-            <div class="skeleton skel-line medium" style="margin-block-end:0.4rem;"></div>
-            <div class="skeleton skel-line short"></div>
-          </div>
-        </div>
-        <div class="skeleton skel-line full"></div>
-        <div class="skeleton skel-line full" style="margin-block-end:0;"></div>
-      </div>
-    </div>
-
-    <!-- ── PROGRESS ── -->
-    <p class="section-label">09 — Progress Bars</p>
-    <h2 class="section-title">Progress</h2>
-    <p class="section-desc">Gradient fill with animated shimmer. Width transitions smoothly on update.</p>
-
-    <div class="card card-md fade-item" style="max-width:500px;">
-      <div style="margin-block-end:1.25rem;">
-        <div class="progress-label"><span>Posts generated this month</span><span>72%</span></div>
-        <div class="progress-wrap"><div class="progress-fill" style="width:72%"></div></div>
-      </div>
-      <div style="margin-block-end:1.25rem;">
-        <div class="progress-label"><span>Gemini quota</span><span>38%</span></div>
-        <div class="progress-wrap"><div class="progress-fill" style="width:38%"></div></div>
-      </div>
-      <div>
-        <div class="progress-label"><span>Storage used</span><span>91%</span></div>
-        <div class="progress-wrap"><div class="progress-fill" style="width:91%"></div></div>
-      </div>
-    </div>
-
-    <!-- ── TOGGLES ── -->
-    <p class="section-label">10 — Toggle Switches</p>
-    <h2 class="section-title">Toggles</h2>
-    <p class="section-desc">Using logical CSS — label position flips correctly in RTL without any extra JS.</p>
-
-    <div class="card card-md fade-item" style="max-width:400px;">
-      <div class="col">
-        <label class="toggle-row">
-          <div class="toggle-switch">
-            <input type="checkbox" checked>
-            <div class="toggle-track"></div>
-          </div>
-          <div>
-            <div class="toggle-label">Auto-publish</div>
-            <div class="toggle-sub">Publish approved posts automatically</div>
-          </div>
-        </label>
-        <label class="toggle-row">
-          <div class="toggle-switch">
-            <input type="checkbox">
-            <div class="toggle-track"></div>
-          </div>
-          <div>
-            <div class="toggle-label">Viral mode</div>
-            <div class="toggle-sub">Boost reach with trending hooks</div>
-          </div>
-        </label>
-        <!-- Arabic RTL toggle demo -->
-        <label class="toggle-row rtl-demo" style="margin-block-start:0.5rem;padding-block-start:0.75rem;border-block-start:1px solid var(--glass-border);">
-          <div class="toggle-switch">
-            <input type="checkbox" checked>
-            <div class="toggle-track"></div>
-          </div>
-          <div>
-            <div class="toggle-label">النشر التلقائي</div>
-            <div class="toggle-sub">يعمل بشكل صحيح مع RTL</div>
-          </div>
-        </label>
-      </div>
-    </div>
-
-    <!-- ── BOTTOM TAB BAR ── -->
-    <p class="section-label">11 — Bottom Tab Bar</p>
-    <h2 class="section-title">Mobile Navigation</h2>
-    <p class="section-desc">Replaces the sidebar at mobile widths. Active item shows an accent indicator line at the top.</p>
-
-    <div class="card fade-item" style="max-width:400px;overflow:hidden;">
-      <div class="bottom-tabs">
-        <a href="#" class="tab-item active">
-          <span class="tab-icon">⚡</span>
-          <span>Home</span>
-        </a>
-        <a href="#" class="tab-item">
-          <span class="tab-icon">✦</span>
-          <span>Studio</span>
-        </a>
-        <a href="#" class="tab-item">
-          <span class="tab-icon">◫</span>
-          <span>Templates</span>
-        </a>
-        <a href="#" class="tab-item">
-          <span class="tab-icon">⚙</span>
-          <span>Settings</span>
-        </a>
-        <a href="#" class="tab-item">
-          <span class="tab-icon">♥</span>
-          <span>Health</span>
-        </a>
-      </div>
-    </div>
-
-    <!-- ── 3D TILT SHOWCASE ── -->
-    <p class="section-label">12 — 3D Tilt Effect</p>
-    <h2 class="section-title">Interactive Depth</h2>
-    <p class="section-desc">Move your mouse over these cards. JavaScript tracks cursor position and applies up to 5° tilt on each axis using CSS perspective.</p>
-
-    <div class="showcase">
-      <div class="tilt-wrap">
-        <div class="card card-md fade-item" data-tilt style="width:220px;">
-          <div style="font-size:2rem;margin-block-end:0.75rem;">🧠</div>
-          <div style="font-weight:700;font-family:var(--font-display);margin-block-end:0.4rem;">Gemini AI</div>
-          <div style="font-size:0.82rem;color:var(--text-muted);">Tilt this card in 3D space</div>
-        </div>
-      </div>
-      <div class="tilt-wrap">
-        <div class="card card-md fade-item" data-tilt style="width:220px;background:linear-gradient(135deg,rgba(99,102,241,0.12),rgba(34,211,238,0.06));border-color:rgba(99,102,241,0.25);">
-          <div style="font-size:2rem;margin-block-end:0.75rem;">📱</div>
-          <div style="font-weight:700;font-family:var(--font-display);margin-block-end:0.4rem;">Facebook Pages</div>
-          <div style="font-size:0.82rem;color:var(--text-muted);">Connected &amp; active</div>
-        </div>
-      </div>
-      <div class="tilt-wrap">
-        <div class="card card-md fade-item" data-tilt style="width:220px;">
-          <div style="font-size:2rem;margin-block-end:0.75rem;">📡</div>
-          <div style="font-weight:700;font-family:var(--font-display);margin-block-end:0.4rem;">Telegram Bot</div>
-          <div style="font-size:0.82rem;color:var(--text-muted);">Real-time notifications</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ── TOASTS DEMO ── -->
-    <p class="section-label">13 — Toast Notifications</p>
-    <h2 class="section-title">Notifications</h2>
-    <p class="section-desc">Four variants. Glassmorphism style, animate in from the inline-end edge. Toasts are already visible top-right.</p>
-
-    <div class="showcase fade-item">
-      <button class="btn btn-ghost" onclick="showToast('success','Published!','Your content went live.')">Success Toast</button>
-      <button class="btn btn-ghost" onclick="showToast('warning','Warning','Token expires in 4 days.')">Warning Toast</button>
-      <button class="btn btn-ghost" onclick="showToast('danger','Error','Post failed to publish.')">Error Toast</button>
-      <button class="btn btn-ghost" onclick="showToast('info','Processing','AI is generating content…')">Info Toast</button>
-    </div>
-
-    <!-- ── SPACING AT BOTTOM ── -->
-    <div style="height:4rem;"></div>
-
-  </main>
+<!-- ══════════════ BOTTOM NAV ══════════════ -->
+<div class="bnav">
+  <div class="bnav-item active" onclick="setNav(this)">
+    <div class="bnav-ic">⚡</div>
+    <div class="bnav-lbl">Home</div>
+  </div>
+  <div class="bnav-item" onclick="setNav(this)">
+    <div class="bnav-ic">✦</div>
+    <div class="bnav-lbl">Studio</div>
+  </div>
+  <div class="bnav-item" onclick="setNav(this)">
+    <div class="bnav-ic">◫</div>
+    <div class="bnav-lbl">Pages</div>
+  </div>
+  <div class="bnav-item" onclick="setNav(this)">
+    <div class="bnav-ic">⚙</div>
+    <div class="bnav-lbl">Settings</div>
+  </div>
+  <div class="bnav-item" onclick="setNav(this)">
+    <div class="bnav-ic">♥</div>
+    <div class="bnav-lbl">Health</div>
+  </div>
 </div>
 
 <script>
-/* ═══════════════════════════════════════════════
-   STAGGER FADE-IN on scroll
-═══════════════════════════════════════════════ */
-const fadeItems = document.querySelectorAll('.fade-item');
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach((entry, i) => {
-    if (entry.isIntersecting) {
-      setTimeout(() => entry.target.classList.add('visible'), i * 80);
-      observer.unobserve(entry.target);
+/* ── SCROLL PROGRESS LINE ───────────────── */
+const sline = document.getElementById('scroll-line');
+window.addEventListener('scroll', () => {
+  const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight) * 100;
+  sline.style.width = pct + '%';
+}, { passive: true });
+
+/* ── STAGGER FADE-UP ────────────────────── */
+const fadeEls = document.querySelectorAll('.fade-up');
+const io = new IntersectionObserver(entries => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      const delay = parseFloat(e.target.style.getPropertyValue('--delay') || '0') * 1000;
+      setTimeout(() => e.target.classList.add('in'), delay);
+      io.unobserve(e.target);
     }
   });
-}, { threshold: 0.12 });
-fadeItems.forEach(el => observer.observe(el));
+}, { threshold: 0.08 });
+fadeEls.forEach(el => io.observe(el));
 
-/* ═══════════════════════════════════════════════
-   3D TILT — Mouse tracking
-═══════════════════════════════════════════════ */
-document.querySelectorAll('[data-tilt]').forEach(card => {
-  const wrap = card.closest('.tilt-wrap') || card;
-  card.classList.add('card-tilt');
-
-  wrap.addEventListener('mousemove', (e) => {
-    const rect = card.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    const dx = (e.clientX - cx) / (rect.width / 2);
-    const dy = (e.clientY - cy) / (rect.height / 2);
-    const rotY =  dx * 5;
-    const rotX = -dy * 5;
-    card.style.transform = `perspective(1000px) rotateX(${rotX}deg) rotateY(${rotY}deg) scale(1.02)`;
-    card.style.boxShadow = `${-rotY*2}px ${rotX*2}px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.1)`;
-    card.style.transition = 'transform 0.05s linear, box-shadow 0.05s linear';
+/* ── 3D CLAY TILT ───────────────────────── */
+document.querySelectorAll('.clay').forEach(card => {
+  card.addEventListener('mousemove', e => {
+    const r = card.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width - 0.5;
+    const y = (e.clientY - r.top)  / r.height - 0.5;
+    card.style.transform = `perspective(900px) rotateY(${x * 6}deg) rotateX(${-y * 6}deg) translateZ(8px)`;
+    card.style.transition = 'transform .05s linear';
   });
-
-  wrap.addEventListener('mouseleave', () => {
+  card.addEventListener('mouseleave', () => {
     card.style.transform = '';
-    card.style.boxShadow = '';
-    card.style.transition = 'transform 0.4s cubic-bezier(0.4,0,0.2,1), box-shadow 0.4s cubic-bezier(0.4,0,0.2,1)';
+    card.style.transition = 'transform .5s cubic-bezier(.34,1.56,.64,1)';
   });
 });
 
-/* ═══════════════════════════════════════════════
-   FLOATING ORBS — Parallax on scroll
-═══════════════════════════════════════════════ */
-const orb1 = document.getElementById('orb1');
-const orb2 = document.getElementById('orb2');
-const orb3 = document.getElementById('orb3');
-
-window.addEventListener('scroll', () => {
-  const y = window.scrollY;
-  if (orb1) orb1.style.transform = `translateY(${y * 0.15}px)`;
-  if (orb2) orb2.style.transform = `translateY(${y * -0.1}px)`;
-  if (orb3) orb3.style.transform = `translateY(${y * 0.08}px)`;
-}, { passive: true });
-
-/* ═══════════════════════════════════════════════
-   NUMBER COUNTERS — Count up on viewport entry
-═══════════════════════════════════════════════ */
-function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
-
-function animateCounter(el) {
-  const target = parseInt(el.dataset.target, 10);
-  const duration = 1200;
+/* ── COUNTER ANIMATION ──────────────────── */
+function animCount(el) {
+  const target = parseInt(el.dataset.target);
+  const dur = 1400;
   const start = performance.now();
-  function update(now) {
-    const elapsed = now - start;
-    const progress = Math.min(elapsed / duration, 1);
-    const value = Math.round(easeOut(progress) * target);
-    el.textContent = value.toLocaleString();
-    if (progress < 1) requestAnimationFrame(update);
+  function tick(now) {
+    const t = Math.min((now - start) / dur, 1);
+    const val = Math.round((1 - Math.pow(1 - t, 3)) * target);
+    el.textContent = val >= 1000 ? (val / 1000).toFixed(1) + 'K' : val;
+    if (t < 1) requestAnimationFrame(tick);
   }
-  requestAnimationFrame(update);
+  requestAnimationFrame(tick);
+}
+const cio = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) { animCount(e.target); cio.unobserve(e.target); }
+  });
+}, { threshold: .5 });
+document.querySelectorAll('.counter').forEach(el => cio.observe(el));
+
+/* ── SVG RING ANIMATION ─────────────────── */
+const ring = document.getElementById('ringCircle');
+if (ring) {
+  const circ = 2 * Math.PI * 36;
+  ring.setAttribute('stroke-dasharray', circ);
+  ring.setAttribute('stroke-dashoffset', circ);
+  const rio = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        ring.style.transition = 'stroke-dashoffset 1.4s cubic-bezier(.4,0,.2,1)';
+        ring.style.strokeDashoffset = circ * (1 - 0.67);
+        rio.unobserve(e.target);
+      }
+    });
+  }, { threshold: .5 });
+  rio.observe(ring);
 }
 
-const counterObserver = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      animateCounter(entry.target);
-      counterObserver.unobserve(entry.target);
+/* ── INSIGHT BARS ───────────────────────── */
+const bio = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.querySelectorAll('.ins-fill').forEach(bar => {
+        const w = bar.dataset.w;
+        bar.style.transform = `scaleX(${w / 100})`;
+      });
+      bio.unobserve(e.target);
     }
   });
-}, { threshold: 0.5 });
+}, { threshold: .3 });
+document.querySelectorAll('.clay').forEach(c => bio.observe(c));
 
-document.querySelectorAll('.counter').forEach(el => counterObserver.observe(el));
-
-/* ═══════════════════════════════════════════════
-   BUTTON LOADING STATE DEMO
-═══════════════════════════════════════════════ */
-function demoLoading(btn) {
-  btn.classList.add('loading');
-  setTimeout(() => {
-    btn.classList.remove('loading');
-    showToast('success', 'Published!', 'Your content is now live.');
-  }, 2000);
-}
-
-/* ═══════════════════════════════════════════════
-   TOAST SYSTEM
-═══════════════════════════════════════════════ */
-const iconMap = { success: '✓', warning: '!', danger: '✕', info: '◎' };
-
-function showToast(type, title, msg) {
-  const stack = document.getElementById('toastStack');
-  const t = document.createElement('div');
-  t.className = `toast ${type}`;
-  t.innerHTML = `
-    <div class="toast-icon">${iconMap[type] || '◎'}</div>
-    <div class="toast-body">
-      <div class="toast-title">${title}</div>
-      <div class="toast-msg">${msg}</div>
-    </div>
-    <button class="toast-dismiss" onclick="this.closest('.toast').remove()">✕</button>
-  `;
-  stack.prepend(t);
-  setTimeout(() => t.remove(), 5000);
+/* ── BOTTOM NAV ─────────────────────────── */
+function setNav(el) {
+  document.querySelectorAll('.bnav-item').forEach(i => i.classList.remove('active'));
+  el.classList.add('active');
 }
 </script>
 </body>

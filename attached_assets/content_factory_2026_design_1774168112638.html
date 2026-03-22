@@ -1,0 +1,329 @@
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;600;700&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#f0ede8;
+  --bg2:#e8e4de;
+  --ink:#0f0e0d;
+  --ink2:#6b6760;
+  --ink3:#b5b1aa;
+  --cream:#faf8f5;
+  --card:#ffffff;
+  --purple:#7c5cbf;
+  --purple-l:#ede8f7;
+  --orange:#e85d26;
+  --orange-l:#fdf0eb;
+  --green:#1a9e6e;
+  --green-l:#e6f7f2;
+  --blue:#2563eb;
+  --blue-l:#eff4ff;
+  --yellow:#f5a623;
+  --yellow-l:#fef8ec;
+  --r24:24px;
+  --r16:16px;
+  --r12:12px;
+}
+body{background:var(--bg);font-family:'Space Grotesk',sans-serif;color:var(--ink);padding:0;overflow-x:hidden;}
+
+/* AURORA TOP */
+.aurora{position:relative;overflow:hidden;background:var(--ink);padding:2rem 1.5rem 2.5rem;border-radius:0 0 32px 32px;}
+.aurora-blob{position:absolute;border-radius:50%;filter:blur(60px);pointer-events:none;}
+.ab1{width:300px;height:300px;background:#7c5cbf;opacity:.5;top:-80px;left:-60px;animation:ab 8s ease-in-out infinite;}
+.ab2{width:250px;height:250px;background:#e85d26;opacity:.4;top:-40px;right:0;animation:ab 10s ease-in-out infinite reverse;}
+.ab3{width:200px;height:200px;background:#2563eb;opacity:.35;bottom:-60px;left:30%;animation:ab 12s ease-in-out infinite 2s;}
+@keyframes ab{0%,100%{transform:scale(1) translate(0,0);}50%{transform:scale(1.15) translate(20px,-15px);}}
+.aurora-content{position:relative;z-index:1;}
+.aurora-tag{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);border-radius:20px;padding:5px 12px;font-size:11px;color:rgba(255,255,255,.7);margin-bottom:1rem;backdrop-filter:blur(10px);}
+.aurora-tag span{width:6px;height:6px;border-radius:50%;background:#1a9e6e;animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+.aurora-title{font-size:clamp(28px,7vw,52px);font-weight:800;color:#fff;line-height:1.05;margin-bottom:.5rem;letter-spacing:-1px;}
+.aurora-title em{font-style:normal;background:linear-gradient(90deg,#c084fc,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+.aurora-arabic{font-family:'IBM Plex Sans Arabic',sans-serif;font-size:clamp(14px,3vw,20px);color:rgba(255,255,255,.55);direction:rtl;margin-top:6px;}
+.aurora-pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:1.25rem;}
+.pill{padding:8px 18px;border-radius:30px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;}
+.pill-main{background:#fff;color:var(--ink);}
+.pill-main:hover{transform:scale(1.03);}
+.pill-ghost{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);}
+.pill-ghost:hover{background:rgba(255,255,255,.18);}
+
+/* BENTO GRID */
+.bento{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto;gap:10px;padding:12px;}
+
+/* CLAY CARD BASE */
+.clay{
+  background:var(--card);
+  border-radius:var(--r24);
+  padding:1.25rem;
+  position:relative;
+  overflow:hidden;
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.9) inset,
+    0 -1px 0 rgba(0,0,0,.06) inset,
+    0 4px 16px rgba(0,0,0,.08),
+    0 1px 3px rgba(0,0,0,.06);
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1), box-shadow .2s;
+  cursor:default;
+}
+.clay:hover{
+  transform:translateY(-3px) scale(1.01);
+  box-shadow:
+    0 1px 0 rgba(255,255,255,.9) inset,
+    0 -1px 0 rgba(0,0,0,.06) inset,
+    0 12px 40px rgba(0,0,0,.12),
+    0 4px 8px rgba(0,0,0,.08);
+}
+
+/* SPAN */
+.span2{grid-column:span 2;}
+
+/* STAT BIG */
+.stat-num{font-size:clamp(36px,8vw,56px);font-weight:800;letter-spacing:-2px;line-height:1;}
+.stat-lbl{font-size:12px;color:var(--ink2);font-weight:500;margin-top:4px;}
+.stat-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;margin-top:8px;}
+.up{background:var(--green-l);color:var(--green);}
+.warn{background:var(--yellow-l);color:var(--yellow);}
+.dot-accent{width:40px;height:40px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:.75rem;flex-shrink:0;}
+
+/* PIPELINE */
+.pipe-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid rgba(0,0,0,.05);}
+.pipe-row:last-child{border:none;}
+.pipe-ic{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.pipe-name{flex:1;font-size:13px;font-weight:600;}
+.pipe-val{font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;}
+.done-bg{background:var(--green-l);color:var(--green);}
+.run-bg{background:var(--purple-l);color:var(--purple);}
+.wait-bg{background:var(--bg2);color:var(--ink3);}
+
+/* POST CARD */
+.post-platforms{display:flex;gap:5px;margin-bottom:10px;}
+.p-chip{font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;}
+.fb-chip{background:#e7f0fd;color:#1877f2;}
+.ig-chip{background:#fce8f3;color:#e1306c;}
+.post-txt{font-size:13px;line-height:1.6;color:var(--ink2);margin-bottom:12px;direction:rtl;font-family:'IBM Plex Sans Arabic',sans-serif;}
+.post-actions{display:flex;gap:6px;}
+.act{padding:7px 14px;border-radius:12px;font-size:12px;font-weight:700;border:none;cursor:pointer;transition:transform .15s;}
+.act:hover{transform:scale(1.04);}
+.act-yes{background:var(--green-l);color:var(--green);}
+.act-no{background:#fee2e2;color:#dc2626;}
+.act-edit{background:var(--bg2);color:var(--ink2);}
+
+/* WHAT'S WORKING */
+.insight-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+.insight-bar-track{flex:1;height:6px;background:var(--bg2);border-radius:10px;overflow:hidden;}
+.insight-bar{height:100%;border-radius:10px;transition:width 1s cubic-bezier(.4,0,.2,1);}
+.insight-label{font-size:12px;font-weight:600;min-width:70px;}
+.insight-val{font-size:12px;font-weight:700;min-width:32px;text-align:end;}
+
+/* SECTION LABEL */
+.sec-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin-bottom:6px;}
+
+/* HEALTH DOTS */
+.health-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.health-item{background:var(--bg);border-radius:var(--r12);padding:10px;display:flex;align-items:center;gap:8px;}
+.h-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.h-name{font-size:12px;font-weight:600;}
+.h-val{font-size:11px;color:var(--ink3);margin-top:1px;}
+
+/* NAV BOTTOM */
+.bottom-nav{display:flex;justify-content:space-around;background:var(--ink);padding:12px 8px 16px;position:sticky;bottom:0;margin-top:8px;}
+.bn-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:6px 14px;border-radius:14px;transition:.2s;}
+.bn-item.active{background:rgba(255,255,255,.1);}
+.bn-ic{font-size:20px;line-height:1;}
+.bn-lbl{font-size:9px;color:rgba(255,255,255,.4);font-weight:600;}
+.bn-item.active .bn-lbl{color:rgba(255,255,255,.9);}
+
+/* PROGRESS RING */
+.ring-wrap{display:flex;align-items:center;justify-content:center;padding:.5rem 0;}
+.ring-label{text-align:center;margin-top:8px;font-size:11px;color:var(--ink2);}
+
+/* COLOR CHIP */
+.color-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:.75rem;}
+.color-chip{width:32px;height:32px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.12),inset 0 1px 0 rgba(255,255,255,.3);}
+</style>
+
+<!-- AURORA HERO -->
+<div class="aurora">
+  <div class="aurora-blob ab1"></div>
+  <div class="aurora-blob ab2"></div>
+  <div class="aurora-blob ab3"></div>
+  <div class="aurora-content">
+    <div class="aurora-tag"><span></span> 3 pages active</div>
+    <div class="aurora-title">Content<br><em>Factory</em></div>
+    <div class="aurora-arabic">مصنع المحتوى العربي — تلقائي بالكامل</div>
+    <div class="aurora-pills">
+      <button class="pill pill-main">+ إنشاء محتوى</button>
+      <button class="pill pill-ghost">View analytics</button>
+    </div>
+  </div>
+</div>
+
+<!-- BENTO GRID -->
+<div class="bento">
+
+  <!-- STAT: Reach -->
+  <div class="clay" style="background:var(--purple);box-shadow:0 1px 0 rgba(255,255,255,.2) inset,0 8px 32px rgba(124,92,191,.4);">
+    <div class="sec-lbl" style="color:rgba(255,255,255,.5);">Today's reach</div>
+    <div class="stat-num" style="color:#fff;">2.4K</div>
+    <div class="stat-badge up" style="background:rgba(255,255,255,.15);color:#fff;margin-top:8px;">↑ 31% vs yesterday</div>
+  </div>
+
+  <!-- STAT: Posts -->
+  <div class="clay" style="background:var(--orange);box-shadow:0 1px 0 rgba(255,255,255,.2) inset,0 8px 32px rgba(232,93,38,.4);">
+    <div class="sec-lbl" style="color:rgba(255,255,255,.5);">Published</div>
+    <div class="stat-num" style="color:#fff;">17</div>
+    <div class="stat-badge" style="background:rgba(255,255,255,.15);color:#fff;margin-top:8px;">This week</div>
+  </div>
+
+  <!-- PIPELINE STATUS -->
+  <div class="clay span2">
+    <div class="sec-lbl">Pipeline status</div>
+    <div class="pipe-row">
+      <div class="pipe-ic" style="background:var(--green-l);">📰</div>
+      <div class="pipe-name">News scraping</div>
+      <span class="pipe-val done-bg">✓ 34 articles</span>
+    </div>
+    <div class="pipe-row">
+      <div class="pipe-ic" style="background:var(--green-l);">✨</div>
+      <div class="pipe-name">AI generation</div>
+      <span class="pipe-val done-bg">✓ 6 posts</span>
+    </div>
+    <div class="pipe-row">
+      <div class="pipe-ic" style="background:var(--purple-l);">⚡</div>
+      <div class="pipe-name">Scheduling</div>
+      <span class="pipe-val run-bg">● Running</span>
+    </div>
+    <div class="pipe-row">
+      <div class="pipe-ic" style="background:var(--bg);">📤</div>
+      <div class="pipe-name">Publishing</div>
+      <span class="pipe-val wait-bg">Next 14:00</span>
+    </div>
+  </div>
+
+  <!-- CONTENT APPROVAL -->
+  <div class="clay span2" style="background:var(--cream);">
+    <div class="sec-lbl">Needs approval</div>
+    <div class="post-platforms">
+      <span class="p-chip fb-chip">Facebook</span>
+      <span class="p-chip ig-chip">Instagram</span>
+    </div>
+    <div class="post-txt">🚀 الذكاء الاصطناعي يغير عالم التسويق الرقمي — اكتشف كيف تنمو صفحتك تلقائياً بدون أي جهد يومي...</div>
+    <div class="post-actions">
+      <button class="act act-yes">✓ نشر</button>
+      <button class="act act-no">✕ رفض</button>
+      <button class="act act-edit">✎ تعديل</button>
+    </div>
+  </div>
+
+  <!-- WHAT'S WORKING -->
+  <div class="clay span2">
+    <div class="sec-lbl">What's working this week</div>
+    <div style="margin-top:10px;">
+      <div class="insight-row">
+        <div class="insight-label" style="font-size:12px;font-weight:600;">Question hooks</div>
+        <div class="insight-bar-track"><div class="insight-bar" style="width:88%;background:var(--purple);"></div></div>
+        <div class="insight-val" style="color:var(--purple);">4.2×</div>
+      </div>
+      <div class="insight-row">
+        <div class="insight-label" style="font-size:12px;font-weight:600;">With image</div>
+        <div class="insight-bar-track"><div class="insight-bar" style="width:72%;background:var(--orange);"></div></div>
+        <div class="insight-val" style="color:var(--orange);">3.1×</div>
+      </div>
+      <div class="insight-row">
+        <div class="insight-label" style="font-size:12px;font-weight:600;">Arabic only</div>
+        <div class="insight-bar-track"><div class="insight-bar" style="width:65%;background:var(--green);"></div></div>
+        <div class="insight-val" style="color:var(--green);">2.8×</div>
+      </div>
+      <div class="insight-row" style="margin-bottom:0;">
+        <div class="insight-label" style="font-size:12px;font-weight:600;">Morning (8am)</div>
+        <div class="insight-bar-track"><div class="insight-bar" style="width:55%;background:var(--blue);"></div></div>
+        <div class="insight-val" style="color:var(--blue);">2.1×</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SYSTEM HEALTH -->
+  <div class="clay">
+    <div class="sec-lbl">Health</div>
+    <div class="health-grid">
+      <div class="health-item">
+        <div class="h-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></div>
+        <div><div class="h-name">Facebook</div><div class="h-val">Connected</div></div>
+      </div>
+      <div class="health-item">
+        <div class="h-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></div>
+        <div><div class="h-name">Instagram</div><div class="h-val">Connected</div></div>
+      </div>
+      <div class="health-item">
+        <div class="h-dot" style="background:var(--yellow);box-shadow:0 0 6px var(--yellow);"></div>
+        <div><div class="h-name">FB Token</div><div class="h-val">4 days left</div></div>
+      </div>
+      <div class="health-item">
+        <div class="h-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);"></div>
+        <div><div class="h-name">Gemini</div><div class="h-val">Active</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGES STAT -->
+  <div class="clay" style="background:var(--ink);">
+    <div class="sec-lbl" style="color:rgba(255,255,255,.4);">Active pages</div>
+    <div class="stat-num" style="color:#fff;font-size:42px;">3</div>
+    <div style="margin-top:12px;display:flex;flex-direction:column;gap:6px;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--green);"></div>
+        <span style="font-size:12px;color:rgba(255,255,255,.6);">Tech Arabic — 1.2K reach</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--purple);"></div>
+        <span style="font-size:12px;color:rgba(255,255,255,.6);">Business DZ — 890 reach</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="width:8px;height:8px;border-radius:50%;background:var(--orange);"></div>
+        <span style="font-size:12px;color:rgba(255,255,255,.6);">Startup AR — 340 reach</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- COLOR PALETTE CARD -->
+  <div class="clay span2" style="background:var(--bg2);">
+    <div class="sec-lbl">Brand palette</div>
+    <div class="color-row">
+      <div class="color-chip" style="background:#7c5cbf;" title="Purple"></div>
+      <div class="color-chip" style="background:#e85d26;" title="Orange"></div>
+      <div class="color-chip" style="background:#1a9e6e;" title="Green"></div>
+      <div class="color-chip" style="background:#2563eb;" title="Blue"></div>
+      <div class="color-chip" style="background:#f5a623;" title="Yellow"></div>
+      <div class="color-chip" style="background:#0f0e0d;" title="Ink"></div>
+      <div class="color-chip" style="background:#ffffff;border:1px solid rgba(0,0,0,.1);" title="White"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottom-nav">
+  <div class="bn-item active"><div class="bn-ic">⚡</div><div class="bn-lbl">Home</div></div>
+  <div class="bn-item"><div class="bn-ic">✦</div><div class="bn-lbl">Studio</div></div>
+  <div class="bn-item"><div class="bn-ic">◫</div><div class="bn-lbl">Pages</div></div>
+  <div class="bn-item"><div class="bn-ic">⚙</div><div class="bn-lbl">Settings</div></div>
+  <div class="bn-item"><div class="bn-ic">♥</div><div class="bn-lbl">Health</div></div>
+</div>
+
+<script>
+document.querySelectorAll('.clay').forEach(c=>{
+  c.addEventListener('mousemove',e=>{
+    const r=c.getBoundingClientRect();
+    const x=(e.clientX-r.left)/r.width-.5;
+    const y=(e.clientY-r.top)/r.height-.5;
+    c.style.transform=`translateY(-3px) scale(1.01) perspective(600px) rotateY(${x*5}deg) rotateX(${-y*5}deg)`;
+  });
+  c.addEventListener('mouseleave',()=>c.style.transform='');
+});
+document.querySelectorAll('.bn-item').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.bn-item').forEach(i=>i.classList.remove('active'));
+    b.classList.add('active');
+  });
+});
+</script>
