@@ -435,6 +435,30 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
                 "✓" if ig_ok else ("skip" if not publish_to_instagram else "✗"),
                 final_status,
             )
+
+            # ── Telegram publish notification ─────────────────────────────
+            if row_user_id:
+                try:
+                    from tasks.telegram_bot import telegram_notify_published
+                    platforms_published = []
+                    if fb_ok:
+                        platforms_published.append("facebook")
+                    if ig_ok:
+                        platforms_published.append("instagram")
+                    platform_label = ", ".join(platforms_published)
+                    post_url = ""
+                    if fb_post_id:
+                        post_url = f"https://www.facebook.com/{fb_post_id}"
+                    elif ig_post_id:
+                        post_url = f"https://www.instagram.com/p/{ig_post_id}"
+                    telegram_notify_published(
+                        row_user_id,
+                        platform_label,
+                        message,
+                        post_url,
+                    )
+                except Exception as _tg_exc:
+                    logger.debug("Telegram notify skipped: %s", _tg_exc)
         else:
             # All selected platforms failed — mark as failed
             final_status = "failed"

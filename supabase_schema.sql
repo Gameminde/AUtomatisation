@@ -510,5 +510,61 @@ DO $$ BEGIN
 END $$;
 
 -- ============================================
+-- SECTION 8: Telegram Bot (Phase 4)
+-- ============================================
+
+-- telegram_connections: one row per user, stores chat_id + unique activation code
+CREATE TABLE IF NOT EXISTS telegram_connections (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    chat_id TEXT,
+    unique_code TEXT UNIQUE,
+    connected_at TIMESTAMPTZ,
+    is_active BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_telegram_connections_user   ON telegram_connections(user_id);
+CREATE INDEX IF NOT EXISTS idx_telegram_connections_code   ON telegram_connections(unique_code);
+CREATE INDEX IF NOT EXISTS idx_telegram_connections_chatid ON telegram_connections(chat_id);
+
+ALTER TABLE telegram_connections ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS telegram_owner ON telegram_connections;
+CREATE POLICY telegram_owner ON telegram_connections
+    FOR ALL
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+-- Migration: add approval_mode to user_settings
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user_settings' AND column_name = 'approval_mode'
+    ) THEN
+        ALTER TABLE user_settings ADD COLUMN approval_mode BOOLEAN DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- Migration: add token_expires_at to managed_pages (Facebook token expiry tracking)
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'managed_pages' AND column_name = 'token_expires_at'
+    ) THEN
+        ALTER TABLE managed_pages ADD COLUMN token_expires_at TIMESTAMPTZ;
+    END IF;
+END $$;
+
+-- Migration: add daily_summary_time to user_settings (default 08:00 UTC)
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'user_settings' AND column_name = 'daily_summary_time'
+    ) THEN
+        ALTER TABLE user_settings ADD COLUMN daily_summary_time TEXT DEFAULT '08:00';
+    END IF;
+END $$;
+
+-- ============================================
 -- Done! All tables ready.
 -- ============================================

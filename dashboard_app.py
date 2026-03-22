@@ -30,6 +30,15 @@ def _start_pipeline_scheduler() -> None:
         _log.error("Could not start pipeline scheduler: %s", exc, exc_info=True)
 
 
+def _start_telegram_bot() -> None:
+    """Start the Telegram bot polling thread (no-op if token not set)."""
+    try:
+        from tasks.telegram_bot import start_telegram_bot
+        start_telegram_bot()
+    except Exception as exc:
+        _log.warning("Telegram bot could not start: %s", exc)
+
+
 if __name__ == "__main__":
     port = int(os.getenv("DASHBOARD_PORT", 5000))
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
@@ -43,5 +52,6 @@ if __name__ == "__main__":
     # Start background pipeline only in the main process (not reloader forks)
     if not debug or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
         _start_pipeline_scheduler()
+        _start_telegram_bot()
 
     app.run(host="0.0.0.0", port=port, debug=debug)

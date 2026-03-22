@@ -376,33 +376,46 @@
                 </div>
             </div>
 
-            <div class="tg-code-box">
-                <p style="color:var(--text-dim); font-size:0.9rem; margin-block-end:0.25rem;">
-                    ابدأ محادثة مع البوت لتفعيل الإشعارات
-                </p>
-                <a href="https://t.me/ContentFactoryBot" target="_blank" class="tg-link">
-                    <i class="fa-brands fa-telegram"></i>
-                    @ContentFactoryBot
-                </a>
+            <!-- Connected state -->
+            <div id="tg-connected-box" class="ob-status-box connected" style="display:none;">
+                <i class="fa-solid fa-circle-check"></i>
+                تم ربط تيليغرام بنجاح! 🎉
             </div>
 
-            <div style="margin-block-start:1rem; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:14px; padding:1rem; display:flex; align-items:center; gap:0.75rem;">
-                <i class="fa-solid fa-key" style="color:var(--primary); font-size:1.1rem;"></i>
-                <div>
-                    <div style="font-size:0.8rem; color:var(--text-dim); margin-block-end:0.25rem;">كود التفعيل الخاص بك (سيصلك عبر البوت)</div>
-                    <div id="tg-user-code" style="font-family:monospace; font-size:1.1rem; letter-spacing:0.1em; color:var(--text);">
-                        {{ current_user.id[:8] | upper }}
-                    </div>
+            <!-- Waiting state -->
+            <div id="tg-waiting-box">
+                <div class="tg-code-box">
+                    <p style="color:var(--text-dim); font-size:0.9rem; margin-block-end:0.5rem;">
+                        افتح رابط البوت وأرسل /start مع كودك لتفعيل الإشعارات
+                    </p>
+                    <a id="tg-deep-link" href="#" target="_blank" class="tg-link">
+                        <i class="fa-brands fa-telegram"></i>
+                        <span id="tg-bot-label">جاري التحميل...</span>
+                    </a>
                 </div>
-                <button onclick="navigator.clipboard.writeText('{{ current_user.id[:8] | upper }}')" class="btn btn-ghost" style="margin-inline-start:auto; padding:0.4rem 0.75rem; font-size:0.8rem;">
-                    <i class="fa-solid fa-copy"></i>
-                </button>
+
+                <div style="margin-block-start:1rem; background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:14px; padding:1rem; display:flex; align-items:center; gap:0.75rem;">
+                    <i class="fa-solid fa-key" style="color:var(--primary); font-size:1.1rem;"></i>
+                    <div>
+                        <div style="font-size:0.8rem; color:var(--text-dim); margin-block-end:0.25rem;">كود التفعيل الخاص بك</div>
+                        <div id="tg-user-code" style="font-family:monospace; font-size:1.05rem; letter-spacing:0.08em; color:var(--text);">
+                            جاري التحميل...
+                        </div>
+                    </div>
+                    <button id="tg-copy-btn" onclick="tgCopyCode()" class="btn btn-ghost" style="margin-inline-start:auto; padding:0.4rem 0.75rem; font-size:0.8rem;">
+                        <i class="fa-solid fa-copy"></i>
+                    </button>
+                </div>
+
+                <p class="muted" style="font-size:0.83rem; line-height:1.6; margin-block-start:0.75rem;">
+                    <i class="fa-solid fa-spinner fa-spin" id="tg-poll-spinner"></i>
+                    <span id="tg-poll-status">في انتظار الاتصال...</span>
+                </p>
             </div>
 
-            <p class="muted" style="font-size:0.83rem; line-height:1.6; margin-block-start:1rem;">
+            <p class="muted" style="font-size:0.83rem; line-height:1.6; margin-block-start:0.5rem;">
                 <i class="fa-solid fa-circle-info"></i>
-                هذه الميزة اختيارية. ستتلقى رسالة ترحيب تحتوي على كود التفعيل عند بدء المحادثة.
-                يمكنك تخطي هذه الخطوة والعودة إليها لاحقاً من صفحة الإعدادات.
+                هذه الميزة اختيارية. يمكنك تخطي هذه الخطوة والعودة إليها لاحقاً من صفحة الإعدادات.
             </p>
 
             <div class="ob-actions">
@@ -551,5 +564,82 @@ async function finishOnboarding() {
         setTimeout(() => { window.location.href = '/'; }, 2500);
     }
 }
+
+// ── Telegram step helpers ──────────────────────────────────────────────────
+
+let _tgCode = '';
+let _tgPollInterval = null;
+
+async function loadTelegramCode() {
+    try {
+        const res = await fetch('/api/telegram/code');
+        const data = await res.json();
+        if (!data.ok) return;
+        _tgCode = data.code || '';
+        const codeEl = document.getElementById('tg-user-code');
+        if (codeEl) codeEl.textContent = _tgCode;
+        const linkEl = document.getElementById('tg-deep-link');
+        if (linkEl) linkEl.href = data.deep_link || '#';
+        const labelEl = document.getElementById('tg-bot-label');
+        if (labelEl) labelEl.textContent = '@' + (data.bot_username || 'ContentFactoryBot');
+        if (data.connected) {
+            tgMarkConnected();
+        } else {
+            startTgPolling();
+        }
+    } catch (e) { /* non-blocking */ }
+}
+
+function tgCopyCode() {
+    if (_tgCode) {
+        navigator.clipboard.writeText(_tgCode).catch(() => {});
+        const btn = document.getElementById('tg-copy-btn');
+        if (btn) { btn.innerHTML = '<i class="fa-solid fa-check"></i>'; setTimeout(() => { btn.innerHTML = '<i class="fa-solid fa-copy"></i>'; }, 2000); }
+    }
+}
+
+function tgMarkConnected() {
+    stopTgPolling();
+    const connBox = document.getElementById('tg-connected-box');
+    const waitBox = document.getElementById('tg-waiting-box');
+    if (connBox) connBox.style.display = 'flex';
+    if (waitBox) waitBox.style.display = 'none';
+    // Auto-advance after 2s
+    setTimeout(() => finishOnboarding(), 2000);
+}
+
+function startTgPolling() {
+    if (_tgPollInterval) return;
+    _tgPollInterval = setInterval(async () => {
+        try {
+            const res = await fetch('/api/telegram/status');
+            const data = await res.json();
+            if (data.connected) tgMarkConnected();
+        } catch (e) { /* non-blocking */ }
+    }, 5000);
+}
+
+function stopTgPolling() {
+    if (_tgPollInterval) { clearInterval(_tgPollInterval); _tgPollInterval = null; }
+}
+
+// When the user navigates to step 4 load the Telegram code + start polling.
+// We hook into goStep and obPrev after they are defined above.
+(function() {
+    const _origGoStep = goStep;
+    window.goStep = async function(n, skip) {
+        await _origGoStep(n, skip);
+        if (n === 4) loadTelegramCode();
+    };
+    const _origObPrev = obPrev;
+    window.obPrev = function(n) {
+        _origObPrev(n);
+        if (n === 4) loadTelegramCode();
+    };
+    // If the page already starts on step 4
+    if (typeof currentStep !== 'undefined' && currentStep === 4) {
+        document.addEventListener('DOMContentLoaded', loadTelegramCode);
+    }
+})();
 </script>
 {% endblock %}

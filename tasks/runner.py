@@ -238,6 +238,16 @@ def _run_pipeline_for_user(user_config) -> Dict:
         result["error"] = "not_configured"
         return result
 
+    # Check if automation is paused for this user (set via /pause Telegram command)
+    try:
+        from tasks.telegram_bot import is_automation_paused
+        if is_automation_paused(uid):
+            logger.info("Skipping user %s — automation paused", uid_short)
+            result["error"] = "automation_paused"
+            return result
+    except Exception as _pause_exc:
+        logger.debug("Pause check skipped: %s", _pause_exc)
+
     owner_token = _acquire_user_lock(uid)
     if owner_token is None:
         logger.info("Skipping user %s — lock held by another worker", uid_short)
@@ -364,6 +374,7 @@ def run_all_users(max_workers: int = MAX_WORKERS) -> Dict:
 # ── APScheduler entry point ──────────────────────────────────────────────────
 
 _scheduler_started: bool = False
+_scheduler_instance = None  # Exposed so telegram_bot can attach its own jobs
 
 
 def start_scheduler() -> None:
@@ -395,6 +406,8 @@ def start_scheduler() -> None:
             next_run_time=None,  # Will be set after startup delay below
         )
         scheduler.start()
+        global _scheduler_instance
+        _scheduler_instance = scheduler
         _scheduler_started = True
 
         # Reschedule first run after startup delay

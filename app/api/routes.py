@@ -636,3 +636,65 @@ def license_status():
         return jsonify({"licensed": is_licensed(), "email": info.get("email", ""), "uses": info.get("uses", 0)})
     except ImportError:
         return jsonify({"licensed": False, "reason": "License module not available"})
+
+
+# ── Telegram API endpoints ─────────────────────────────────────────────────
+
+@api_bp.route("/api/telegram/code", methods=["GET"])
+@api_login_required
+def telegram_get_code():
+    """
+    Return the user's Telegram unique activation code and deep-link.
+
+    Creates a new code if one doesn't exist yet.
+    Called by the onboarding wizard Telegram step to display the code.
+    """
+    try:
+        from tasks.telegram_bot import get_or_create_unique_code, is_telegram_connected
+        import os
+        code = get_or_create_unique_code(current_user.id)
+        bot_username = os.getenv("TELEGRAM_BOT_USERNAME", "ContentFactoryBot")
+        deep_link = f"https://t.me/{bot_username}?start={code}"
+        connected = is_telegram_connected(current_user.id)
+        return jsonify({
+            "ok": True,
+            "code": code,
+            "deep_link": deep_link,
+            "bot_username": bot_username,
+            "connected": connected,
+        })
+    except Exception as exc:
+        logger.error("telegram_get_code error: %s", exc)
+        return jsonify({"ok": False, "error": str(exc)}), 500
+
+
+@api_bp.route("/api/telegram/status", methods=["GET"])
+@api_login_required
+def telegram_status():
+    """
+    Poll endpoint for the onboarding wizard Telegram step.
+
+    Returns { connected: true/false } — the wizard polls every 5s and
+    auto-advances when connected=true.
+    """
+    try:
+        from tasks.telegram_bot import is_telegram_connected
+        connected = is_telegram_connected(current_user.id)
+        return jsonify({"connected": connected})
+    except Exception as exc:
+        logger.warning("telegram_status error: %s", exc)
+        return jsonify({"connected": False, "error": str(exc)})
+
+
+@api_bp.route("/api/telegram/pause", methods=["POST"])
+@api_login_required
+def telegram_pause():
+    """Pause automation for the current user (dashboard action)."""
+    try:
+        from tasks.telegram_bot import set_automation_paused
+        data = request.get_json(silent=True) or {}
+        paused = bool(data.get("paused", True))
+        set_automation_paused(current_user.id, paused)
+        return jsonify({"ok": True, "paused": paused})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 500
