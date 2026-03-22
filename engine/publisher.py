@@ -705,9 +705,8 @@ def _publish_to_instagram_if_configured(
             from app.utils import load_tokens_for_user
             tokens = load_tokens_for_user(user_id)
         except Exception as exc:
-            logger.warning("load_tokens_for_user failed, falling back: %s", exc)
-            from facebook_oauth import load_tokens
-            tokens = load_tokens()
+            # Fail-closed in tenant mode — never fall back to global tokens
+            return _fail(f"load_tokens_for_user failed: {exc}")
     else:
         from facebook_oauth import load_tokens
         tokens = load_tokens()
@@ -797,19 +796,28 @@ def publish_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-def
     Publish due scheduled posts for a single tenant using a UserConfig object.
 
     This is the preferred entry point for the multi-tenant pipeline runner.
-    Credentials are taken from ``user_config`` directly; if they are missing the
-    function returns 0 without touching global environment credentials.
+    Credentials come directly from ``user_config``; returns 0 without touching
+    global environment credentials if the tenant has no credentials configured.
 
     Parameters
     ----------
     user_config : UserConfig
-        Fully-populated tenant configuration object.
+        Fully-populated tenant configuration object with facebook_access_token
+        and facebook_page_id already loaded from managed_pages.
 
     Returns
     -------
     int
         Number of posts published.
     """
+    # Guard: do not enter the publish loop if the tenant has no FB credentials.
+    # This prevents global env credential fallback entirely.
+    if not user_config.facebook_access_token or not user_config.facebook_page_id:
+        logger.info(
+            "publish_for_user: no FB credentials for user=%s — skipping",
+            user_config.user_id[:8],
+        )
+        return 0
     return publish_due_posts(limit=5, user_id=user_config.user_id)
 
 
