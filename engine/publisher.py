@@ -543,12 +543,38 @@ def publish_content_by_id(content_id: str, user_id: Optional[str] = None) -> Dic
         hashtags = " ".join(content.get("hashtags", []))
         message = f"{hook}\n\n{body}\n\n{cta}\n\n{hashtags}"
 
+        # Resolve per-user Facebook credentials — fail-closed in tenant mode
+        _fb_token: str = ""
+        _fb_page: str = ""
+        if user_id:
+            try:
+                from app.utils import load_tokens_for_user as _ltu2
+                _toks2 = _ltu2(user_id) or {}
+                _fb_token = _toks2.get("page_token", "")
+                _fb_page = _toks2.get("page_id", "")
+            except Exception as _tok2_exc:
+                return {
+                    "success": False,
+                    "error": f"Could not load per-user tokens: {_tok2_exc}",
+                }
+            if not _fb_token or not _fb_page:
+                return {"success": False, "error": "No Facebook credentials for this user"}
+        # Non-tenant (single-user) mode: low-level methods fall back to env vars
+
         # Publish based on content type
         image_path = content.get("image_path")
         if image_path and os.path.exists(image_path):
-            post_id = publish_photo_post(message, image_path)
+            post_id = publish_photo_post(
+                message, image_path,
+                access_token=_fb_token,
+                page_id=_fb_page,
+            )
         else:
-            post_id = publish_text_post(message)
+            post_id = publish_text_post(
+                message,
+                access_token=_fb_token,
+                page_id=_fb_page,
+            )
 
         if post_id:
             mark_published(content_id, post_id, user_id=user_id)
