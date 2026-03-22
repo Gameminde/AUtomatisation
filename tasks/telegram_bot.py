@@ -797,15 +797,30 @@ def auto_approve_expired_requests() -> None:
     """
     try:
         sb = _get_sb()
-        cutoff = (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()
-        res = (
+        now_utc = datetime.now(timezone.utc)
+        cutoff = (now_utc - timedelta(hours=4)).isoformat()
+        # Primary filter: rows where approval_requested_at was set (new flow)
+        # and the 4-hour window has elapsed.
+        # Fallback: rows where approval_requested_at is NULL but created_at
+        # is older than 4h (covers pre-migration rows, rare case).
+        res_new = (
             sb.table("processed_content")
-            .select("id, user_id, generated_text")
+            .select("id, user_id, generated_text, approval_requested_at")
             .eq("status", "pending_approval")
+            .not_.is_("approval_requested_at", "null")
+            .lte("approval_requested_at", cutoff)
+            .execute()
+        )
+        res_legacy = (
+            sb.table("processed_content")
+            .select("id, user_id, generated_text, approval_requested_at")
+            .eq("status", "pending_approval")
+            .is_("approval_requested_at", "null")
             .lte("created_at", cutoff)
             .execute()
         )
-        for row in res.data or []:
+        combined_rows = (res_new.data or []) + (res_legacy.data or [])
+        for row in combined_rows:
             try:
                 cid = row["id"]
                 uid = row.get("user_id") or ""

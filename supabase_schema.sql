@@ -565,6 +565,18 @@ DO $$ BEGIN
     END IF;
 END $$;
 
+-- Migration: add approval_requested_at to processed_content
+-- Tracks when a post was moved to pending_approval so 4-hour timeout
+-- is measured from approval-request time, not content-creation time.
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'processed_content' AND column_name = 'approval_requested_at'
+    ) THEN
+        ALTER TABLE processed_content ADD COLUMN approval_requested_at TIMESTAMPTZ;
+    END IF;
+END $$;
+
 -- ============================================
 -- Done! All tables ready.
 -- ============================================

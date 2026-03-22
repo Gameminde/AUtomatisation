@@ -327,11 +327,16 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
                     or content.get("generated_text")
                     or ""
                 )
-                # Revert status to pending_approval and send approval request
+                # Revert status to pending_approval and send approval request.
+                # Set approval_requested_at to now so auto-approve fires 4h
+                # from this moment (not from content creation time).
                 try:
-                    _sb.table("processed_content").update(
-                        {"status": "pending_approval"}
-                    ).eq("id", content_id).execute()
+                    from datetime import datetime as _dt, timezone as _tz
+                    _now_iso = _dt.now(_tz.utc).isoformat()
+                    _sb.table("processed_content").update({
+                        "status": "pending_approval",
+                        "approval_requested_at": _now_iso,
+                    }).eq("id", content_id).execute()
                     update_schedule_status(schedule_id, "pending_approval", user_id=row_user_id)
                 except Exception as _revert_exc:
                     logger.warning("Could not set pending_approval status: %s", _revert_exc)
