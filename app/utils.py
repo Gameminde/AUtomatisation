@@ -169,7 +169,10 @@ def load_tokens_for_user(user_id: str) -> Optional[Dict]:
         sb = _get_supabase_client()
         result = (
             sb.table("managed_pages")
-            .select("page_id, page_name, access_token, instagram_account_id, status")
+            .select(
+                "page_id, page_name, access_token, instagram_account_id, "
+                "status, posts_per_day, posting_times"
+            )
             .eq("user_id", user_id)
             .eq("status", "active")
             .limit(1)
@@ -186,6 +189,9 @@ def load_tokens_for_user(user_id: str) -> Optional[Dict]:
             "page_token": page_token,
             "instagram_account_id": row.get("instagram_account_id") or "",
             "user_token": page_token,
+            # Schedule settings from managed_pages (page-level, canonical source)
+            "posts_per_day": row.get("posts_per_day"),
+            "posting_times": row.get("posting_times"),
         }
     except Exception as exc:
         logging.getLogger("utils").error("load_tokens_for_user failed: %s", exc)

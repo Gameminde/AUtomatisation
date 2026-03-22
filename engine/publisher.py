@@ -45,9 +45,15 @@ def publish_text_post(
     page_id: str = "",
 ) -> str:
     if not access_token:
-        access_token = config.require_env("FACEBOOK_ACCESS_TOKEN")
+        # Env fallback only for non-tenant (single-user) mode.
+        # Tenant callers must supply access_token explicitly.
+        access_token = os.getenv("FACEBOOK_ACCESS_TOKEN", "")
     if not page_id:
-        page_id = config.require_env("FACEBOOK_PAGE_ID")
+        page_id = os.getenv("FACEBOOK_PAGE_ID", "")
+    if not access_token or not page_id:
+        raise RuntimeError(
+            "publish_text_post: access_token and page_id are required"
+        )
     url = _graph_url(f"{page_id}/feed")
     payload = {"message": message, "access_token": access_token}
     try:
@@ -86,9 +92,14 @@ def publish_photo_post(
         Post ID
     """
     if not access_token:
-        access_token = config.require_env("FACEBOOK_ACCESS_TOKEN")
+        # Env fallback only for non-tenant (single-user) mode.
+        access_token = os.getenv("FACEBOOK_ACCESS_TOKEN", "")
     if not page_id:
-        page_id = config.require_env("FACEBOOK_PAGE_ID")
+        page_id = os.getenv("FACEBOOK_PAGE_ID", "")
+    if not access_token or not page_id:
+        raise RuntimeError(
+            "publish_photo_post: access_token and page_id are required"
+        )
     url = _graph_url(f"{page_id}/photos")
 
     try:
@@ -781,9 +792,30 @@ def _publish_to_instagram_if_configured(
     return {"success": True, "post_id": ig_post_id, "error": None}
 
 
+def publish_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-defined]
+    """
+    Publish due scheduled posts for a single tenant using a UserConfig object.
+
+    This is the preferred entry point for the multi-tenant pipeline runner.
+    Credentials are taken from ``user_config`` directly; if they are missing the
+    function returns 0 without touching global environment credentials.
+
+    Parameters
+    ----------
+    user_config : UserConfig
+        Fully-populated tenant configuration object.
+
+    Returns
+    -------
+    int
+        Number of posts published.
+    """
+    return publish_due_posts(limit=5, user_id=user_config.user_id)
+
+
 if __name__ == "__main__":
     from process_lock import acquire_global_lock, release_global_lock
-    
+
     if acquire_global_lock():
         try:
             publish_due_posts()

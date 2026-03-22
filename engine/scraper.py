@@ -264,5 +264,30 @@ def run(
     return saved
 
 
+def run_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-defined]
+    """
+    Run the full scrape pipeline for a single tenant using a UserConfig object.
+
+    This is the preferred entry point for the multi-tenant pipeline runner.
+    All per-user credentials and keyword preferences are extracted from
+    ``user_config`` rather than environment variables.
+
+    Parameters
+    ----------
+    user_config : UserConfig
+        Fully-populated tenant configuration object.
+
+    Returns
+    -------
+    int
+        Number of new articles saved.
+    """
+    return run(
+        user_id=user_config.user_id,
+        newsdata_api_key=user_config.newsdata_api_key or None,
+        keywords=user_config.niche_keywords or None,
+    )
+
+
 if __name__ == "__main__":
     run()

@@ -288,5 +288,31 @@ def schedule_posts(
     return scheduled
 
 
+def schedule_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-defined]
+    """
+    Schedule posts for a single tenant using a UserConfig object.
+
+    This is the preferred entry point for the multi-tenant pipeline runner.
+    The tenant's ``posts_per_day`` and ``posting_times`` (from managed_pages)
+    are used automatically — no ad-hoc overrides needed.
+
+    Parameters
+    ----------
+    user_config : UserConfig
+        Fully-populated tenant configuration object.
+
+    Returns
+    -------
+    int
+        Number of posts scheduled.
+    """
+    return schedule_posts(
+        days=1,
+        max_per_day=user_config.posts_per_day,
+        posting_times_override=user_config.posting_times or None,
+        user_id=user_config.user_id,
+    )
+
+
 if __name__ == "__main__":
     schedule_posts()

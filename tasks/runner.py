@@ -228,55 +228,34 @@ def _run_pipeline_for_user(user_config) -> Dict:
     try:
         logger.info("Pipeline start: user=%s", uid_short)
 
-        # Step 1: Scrape — pass per-user API key and niche keywords
+        # Step 1: Scrape — UserConfig is the first-class entry point
         try:
-            from scraper import run as scrape_run
-            saved = scrape_run(
-                user_id=uid,
-                newsdata_api_key=user_config.newsdata_api_key or None,
-                keywords=user_config.niche_keywords or None,
-            )
-            result["articles"] = saved or 0
+            from scraper import run_for_user as scrape_for_user
+            result["articles"] = scrape_for_user(user_config) or 0
             logger.info("  Scraped %d articles (user=%s)", result["articles"], uid_short)
         except Exception as exc:
             logger.warning("  Scrape failed (user=%s): %s", uid_short, exc)
 
-        # Step 2: Generate AI content
+        # Step 2: Generate AI content — UserConfig is the first-class entry point
         try:
-            from ai_generator import process_pending_articles
-            generated = process_pending_articles(
-                limit=10,
-                batch_size=5,
-                user_id=uid,
-            )
-            result["generated"] = generated or 0
+            from ai_generator import generate_for_user
+            result["generated"] = generate_for_user(user_config) or 0
             logger.info("  Generated %d items (user=%s)", result["generated"], uid_short)
         except Exception as exc:
             logger.warning("  AI generation failed (user=%s): %s", uid_short, exc)
 
-        # Step 3: Schedule (honoring user's posting_times + posts_per_day)
+        # Step 3: Schedule (honoring user's posting_times + posts_per_day from managed_pages)
         try:
-            from scheduler import schedule_posts
-            schedule_posts(
-                days=1,
-                max_per_day=user_config.posts_per_day,
-                posting_times_override=user_config.posting_times,
-                user_id=uid,
-            )
+            from scheduler import schedule_for_user
+            schedule_for_user(user_config)
             logger.info("  Scheduling done (user=%s)", uid_short)
-        except TypeError:
-            # Older scheduler that doesn't accept posting_times_override
-            from scheduler import schedule_posts as _sp
-            _sp(days=1, max_per_day=user_config.posts_per_day, user_id=uid)
-            logger.info("  Scheduling done (legacy, user=%s)", uid_short)
         except Exception as exc:
             logger.warning("  Scheduling failed (user=%s): %s", uid_short, exc)
 
-        # Step 4: Publish due posts
+        # Step 4: Publish due posts (fail-closed — skips if no tenant creds)
         try:
-            from publisher import publish_due_posts
-            published = publish_due_posts(limit=5, user_id=uid)
-            result["published"] = published or 0
+            from publisher import publish_for_user
+            result["published"] = publish_for_user(user_config) or 0
             logger.info("  Published %d posts (user=%s)", result["published"], uid_short)
         except Exception as exc:
             logger.warning("  Publish failed (user=%s): %s", uid_short, exc)

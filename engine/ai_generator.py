@@ -493,5 +493,28 @@ def process_pending_articles(
     return processed
 
 
+def generate_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-defined]
+    """
+    Process pending articles for a single tenant using a UserConfig object.
+
+    This is the preferred entry point for the multi-tenant pipeline runner.
+
+    Parameters
+    ----------
+    user_config : UserConfig
+        Fully-populated tenant configuration object.
+
+    Returns
+    -------
+    int
+        Number of articles processed.
+    """
+    return process_pending_articles(
+        limit=10,
+        batch_size=5,
+        user_id=user_config.user_id,
+    )
+
+
 if __name__ == "__main__":
     process_pending_articles()
