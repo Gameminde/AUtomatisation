@@ -645,8 +645,10 @@ def _check_and_send_expiry_alert(sb, user_id: str, days_remaining: int) -> None:
     except Exception:
         pass
 
-    base_url = os.getenv("APP_BASE_URL", "")
-    reconnect_url = f"{base_url}/onboarding" if base_url else ""
+    # Deep-link directly to the Facebook/Pages step of onboarding (step 1)
+    # so the user lands on the reconnect page rather than the generic start.
+    base_url = os.getenv("APP_BASE_URL", "").rstrip("/")
+    reconnect_url = f"{base_url}/onboarding/?step=1" if base_url else ""
     telegram_send_token_expiry_warning(user_id, days_remaining, reconnect_url)
 
 
@@ -1110,6 +1112,33 @@ def start_telegram_bot() -> None:
             id="tg_token_expiry",
             replace_existing=True,
         )
-        logger.info("Telegram APScheduler jobs registered")
+
+        # Watchdog: restart polling thread if leader dies (e.g. crash without process exit)
+        def _bot_polling_watchdog() -> None:
+            global _bot_thread, _bot_started
+            if not _bot_started:
+                return
+            if _bot_thread is not None and _bot_thread.is_alive():
+                return
+            logger.warning("Telegram bot polling thread is dead — attempting restart")
+            try:
+                new_thread = threading.Thread(
+                    target=_run_bot_polling,
+                    daemon=True,
+                    name="telegram-bot-polling",
+                )
+                new_thread.start()
+                _bot_thread = new_thread
+                logger.info("Telegram bot polling thread restarted by watchdog")
+            except Exception as wd_exc:
+                logger.error("Watchdog failed to restart bot thread: %s", wd_exc)
+
+        sched.add_job(
+            _bot_polling_watchdog,
+            IntervalTrigger(minutes=2),
+            id="tg_bot_watchdog",
+            replace_existing=True,
+        )
+        logger.info("Telegram APScheduler jobs registered (incl. polling watchdog)")
     except Exception as exc:
         logger.warning("Could not register Telegram APScheduler jobs: %s", exc)

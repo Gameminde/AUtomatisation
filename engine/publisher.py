@@ -507,8 +507,9 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
                     post_url = ""
                     if fb_post_id:
                         post_url = f"https://www.facebook.com/{fb_post_id}"
-                    elif ig_post_id:
-                        post_url = f"https://www.instagram.com/p/{ig_post_id}"
+                    # Note: IG media IDs from Graph API are not shortcodes and
+                    # cannot be directly used in instagram.com/p/ URLs.
+                    # We omit IG URL to avoid broken links.
                     telegram_notify_published(
                         row_user_id,
                         platform_label,
