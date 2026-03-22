@@ -39,16 +39,19 @@ class GeminiClient:
     GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
     GEMINI_MODEL = "gemini-1.5-flash"  # Fast and free
     
-    def __init__(self, user_id: Optional[str] = None):
+    def __init__(self, user_id: Optional[str] = None, api_key: Optional[str] = None):
         """
         Initialize Gemini client.
 
         Args:
-            user_id: Optional user ID to resolve a per-user encrypted Gemini
-                     key from the database.  Falls back to the global
-                     GEMINI_API_KEY env var when no per-user key is found.
+            user_id:  Optional user ID to resolve a per-user encrypted Gemini
+                      key from the database.  Falls back to the global
+                      GEMINI_API_KEY env var when no per-user key is found.
+            api_key:  Explicit API key — takes priority over user_id DB lookup
+                      and the global env var.  Pass ``UserConfig.gemini_api_key``
+                      here for strict per-user credential isolation.
         """
-        self.gemini_key = self._resolve_key(user_id)
+        self.gemini_key = api_key or self._resolve_key(user_id)
         self.openrouter_available = bool(config.OPENROUTER_API_KEYS and any(config.OPENROUTER_API_KEYS))
         
         if self.gemini_key:

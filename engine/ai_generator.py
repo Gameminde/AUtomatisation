@@ -394,16 +394,23 @@ def mark_article_processed(article_id: str, user_id: Optional[str] = None) -> No
 
 
 def process_pending_articles(
-    limit: int = 10, batch_size: int = 5, user_id: Optional[str] = None
+    limit: int = 10,
+    batch_size: int = 5,
+    user_id: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
 ) -> int:
     """Process pending articles with batching for efficiency.
 
     Args:
-        limit:      Maximum number of articles to process.
-        batch_size: Number of articles per batch (default 5).
-        user_id:    Tenant ID — only process this user's pending articles and
-                    tag all generated content rows with their ID.
-                    Required for multi-tenant operation.
+        limit:           Maximum number of articles to process.
+        batch_size:      Number of articles per batch (default 5).
+        user_id:         Tenant ID — only process this user's pending articles and
+                         tag all generated content rows with their ID.
+                         Required for multi-tenant operation.
+        gemini_api_key:  Per-user Gemini API key — when provided this key is
+                         used directly, bypassing DB lookup and the global env var.
+                         Pass from UserConfig.gemini_api_key for strict per-user
+                         credential isolation.
 
     Returns:
         Number of articles processed.
@@ -431,7 +438,12 @@ def process_pending_articles(
         len(rows), batch_size, user_id
     )
 
-    ai_client = get_ai_client_instance(user_id=user_id)
+    # Build AI client: explicit key takes precedence over DB/env lookup
+    if gemini_api_key:
+        from gemini_client import GeminiClient
+        ai_client = GeminiClient(api_key=gemini_api_key)
+    else:
+        ai_client = get_ai_client_instance(user_id=user_id)
     processed = 0
 
     # Process in batches
@@ -498,6 +510,8 @@ def generate_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-de
     Process pending articles for a single tenant using a UserConfig object.
 
     This is the preferred entry point for the multi-tenant pipeline runner.
+    ``user_config.gemini_api_key`` is used explicitly rather than relying on
+    a DB lookup or the global env var, satisfying the per-user credential contract.
 
     Parameters
     ----------
@@ -513,6 +527,7 @@ def generate_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-de
         limit=10,
         batch_size=5,
         user_id=user_config.user_id,
+        gemini_api_key=user_config.gemini_api_key or None,
     )
 
 

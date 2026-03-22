@@ -121,6 +121,17 @@ def test_gemini():
         return jsonify({"ok": False, "error": str(exc)})
 
 
+def _trigger_pipeline_background(user_id: str) -> None:
+    """Run the full pipeline for *user_id* in a daemon thread (fire-and-forget)."""
+    try:
+        from engine.user_config import UserConfig
+        from tasks.runner import _run_pipeline_for_user
+        uc = UserConfig.from_db(user_id)
+        _run_pipeline_for_user(uc)
+    except Exception as exc:
+        logger.warning("Immediate post-onboarding pipeline run failed: %s", exc)
+
+
 @onboarding_bp.route("/complete", methods=["POST"])
 @login_required
 def complete():
@@ -130,6 +141,17 @@ def complete():
         "onboarding_complete": True,
     })
     session[f"ob_done:{current_user.id}"] = True
+
+    # Trigger an immediate pipeline run so the user gets first content within
+    # minutes, rather than waiting up to 30 minutes for the scheduled cycle.
+    import threading
+    threading.Thread(
+        target=_trigger_pipeline_background,
+        args=(current_user.id,),
+        daemon=True,
+        name=f"pipeline-init-{current_user.id[:8]}",
+    ).start()
+
     return jsonify({"ok": True, "redirect": url_for("web.page_dashboard")})
 
 

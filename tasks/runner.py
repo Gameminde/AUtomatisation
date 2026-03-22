@@ -51,18 +51,21 @@ _LOCK_KEY_PREFIX = "pipeline_lock:"
 
 # ── Distributed lock helpers (system_status table) ──────────────────────────
 
-def _acquire_user_lock(user_id: str) -> bool:
+def _acquire_user_lock(user_id: str) -> Optional[str]:
     """
     Try to acquire a per-user pipeline lock using Supabase ``system_status``.
 
     Strategy (minimises race window):
     1. Read the existing row.
-    2a. If no row → try INSERT; if INSERT succeeds we hold the lock.
-        If INSERT fails (unique conflict from another worker) → lock held, return False.
-    2b. If row exists and lock is fresh → return False immediately.
-    2c. If row exists but lock is expired → do a conditional UPDATE filtered by
-        the old ``updated_at`` timestamp. If 0 rows updated, another worker won
-        the race → return False.
+    2a. If no row → try INSERT with a fresh owner token; if INSERT succeeds we hold.
+        If INSERT fails (unique conflict from another worker) → lock held, return None.
+    2b. If row exists and lock is fresh → return None immediately.
+    2c. If row exists but lock is expired → conditional UPDATE filtered by
+        the old ``updated_at`` timestamp. If 0 rows updated, another worker won.
+
+    The ``value`` column stores the owner token (UUID) so that ``_release_user_lock``
+    can do a safe compare-and-delete: a worker's finally-block can never accidentally
+    release a lock acquired by a different worker after a timeout race.
 
     On any DB error the lock is NOT granted (fail-closed) to prevent two workers
     from running the same user concurrently.
@@ -73,14 +76,16 @@ def _acquire_user_lock(user_id: str) -> bool:
 
     Returns
     -------
-    bool
-        True if the lock was acquired by this worker, False otherwise.
+    Optional[str]
+        Owner token string if the lock was acquired, None otherwise.
     """
+    import uuid
     try:
         sb = _get_sb()
         key = f"{_LOCK_KEY_PREFIX}{user_id}"
         now = datetime.now(timezone.utc)
         now_iso = now.isoformat()
+        owner_token = str(uuid.uuid4())
 
         # Step 1: Read existing lock row
         existing = (
@@ -92,19 +97,19 @@ def _acquire_user_lock(user_id: str) -> bool:
         )
 
         if not existing.data:
-            # Step 2a: No lock — try to INSERT (atomic; fails on conflict)
+            # Step 2a: No lock — try to INSERT (atomic; fails on unique conflict)
             try:
                 sb.table("system_status").insert(
-                    {"key": key, "value": now_iso, "updated_at": now_iso}
+                    {"key": key, "value": owner_token, "updated_at": now_iso}
                 ).execute()
-                return True
+                return owner_token
             except Exception:
                 # Another worker inserted between our read and insert
-                return False
+                return None
 
-        # Step 2b/2c: Lock row exists — check freshness
+        # Step 2b/2c: Lock row exists — check freshness via updated_at
         row = existing.data[0]
-        old_ts = row.get("updated_at") or row.get("value") or ""
+        old_ts = row.get("updated_at") or ""
         try:
             locked_at = datetime.fromisoformat(old_ts.replace("Z", "+00:00"))
             age_seconds = (now - locked_at).total_seconds()
@@ -117,36 +122,49 @@ def _acquire_user_lock(user_id: str) -> bool:
             logger.debug(
                 "Lock held for user %s (age=%ds)", user_id[:8], int(age_seconds)
             )
-            return False
+            return None
 
-        # Step 2c: Lock is expired — conditional UPDATE (only if updated_at unchanged)
+        # Step 2c: Lock is expired — conditional UPDATE guarded by old updated_at
         result = (
             sb.table("system_status")
-            .update({"value": now_iso, "updated_at": now_iso})
+            .update({"value": owner_token, "updated_at": now_iso})
             .eq("key", key)
             .eq("updated_at", old_ts)
             .execute()
         )
         if result.data:
-            return True  # We won the conditional update race
+            return owner_token  # We won the conditional update race
 
         # Another worker updated the row between our read and write
-        return False
+        return None
 
     except Exception as exc:
         logger.warning(
             "Lock acquire failed (fail-closed) for user %s: %s", user_id[:8], exc
         )
-        return False  # Fail closed — skip this user rather than risk double-run
+        return None  # Fail closed — skip this user rather than risk double-run
 
 
-def _release_user_lock(user_id: str) -> None:
-    """Delete the per-user pipeline lock from system_status."""
+def _release_user_lock(user_id: str, owner_token: str) -> None:
+    """
+    Delete the per-user pipeline lock only if this worker still owns it.
+
+    Uses a compare-and-delete approach: the row is deleted only when
+    ``value`` matches the ``owner_token`` issued at acquire time. This
+    prevents a worker's delayed finally-block from deleting a lock that
+    has already timed out and been re-acquired by a new worker.
+
+    Parameters
+    ----------
+    user_id : str
+    owner_token : str
+        The token returned by ``_acquire_user_lock`` for this run.
+    """
     try:
         sb = _get_sb()
         sb.table("system_status").delete().eq(
             "key", f"{_LOCK_KEY_PREFIX}{user_id}"
-        ).execute()
+        ).eq("value", owner_token).execute()
     except Exception as exc:
         logger.warning("Lock release failed for user %s: %s", user_id[:8], exc)
 
@@ -220,7 +238,8 @@ def _run_pipeline_for_user(user_config) -> Dict:
         result["error"] = "not_configured"
         return result
 
-    if not _acquire_user_lock(uid):
+    owner_token = _acquire_user_lock(uid)
+    if owner_token is None:
         logger.info("Skipping user %s — lock held by another worker", uid_short)
         result["error"] = "lock_held"
         return result
@@ -271,7 +290,7 @@ def _run_pipeline_for_user(user_config) -> Dict:
         logger.info("Pipeline done: user=%s result=%s", uid_short, result)
 
     finally:
-        _release_user_lock(uid)
+        _release_user_lock(uid, owner_token)
 
     return result
 
