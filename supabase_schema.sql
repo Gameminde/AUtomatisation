@@ -235,20 +235,69 @@ END $$;
 
 -- ============================================
 -- SECTION 5: Row Level Security (RLS)
--- NOTE: Since the backend uses the service key (bypasses RLS),
--- these policies protect against direct anon-key access only.
--- Application-level user_id filtering in Python is the primary isolation.
+-- The Flask backend uses the SERVICE KEY which bypasses RLS entirely.
+-- These policies protect against direct PostgREST calls using the anon key
+-- and enforce tenant isolation if the anon key is ever exposed.
 -- ============================================
 
--- Enable RLS (does not affect service key)
-ALTER TABLE managed_pages ENABLE ROW LEVEL SECURITY;
-ALTER TABLE processed_content ENABLE ROW LEVEL SECURITY;
-ALTER TABLE scheduled_posts ENABLE ROW LEVEL SECURITY;
-ALTER TABLE published_posts ENABLE ROW LEVEL SECURITY;
+-- Enable RLS on all tenant tables
+ALTER TABLE users              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE managed_pages      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE processed_content  ENABLE ROW LEVEL SECURITY;
+ALTER TABLE scheduled_posts    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE published_posts    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE raw_articles       ENABLE ROW LEVEL SECURITY;
 
--- Service role bypasses RLS automatically.
--- No policies needed for backend - add them here only if you expose
--- the Supabase anon key to the frontend in a future phase.
+-- Drop any existing policies before recreating (idempotent)
+DROP POLICY IF EXISTS users_self           ON users;
+DROP POLICY IF EXISTS managed_pages_owner  ON managed_pages;
+DROP POLICY IF EXISTS content_owner        ON processed_content;
+DROP POLICY IF EXISTS scheduled_owner      ON scheduled_posts;
+DROP POLICY IF EXISTS published_owner      ON published_posts;
+DROP POLICY IF EXISTS articles_owner       ON raw_articles;
+
+-- Users: each user can only read/update their own row
+CREATE POLICY users_self ON users
+    FOR ALL
+    USING (id = auth.uid())
+    WITH CHECK (id = auth.uid());
+
+-- managed_pages: only the owning user can access their pages
+CREATE POLICY managed_pages_owner ON managed_pages
+    FOR ALL
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+-- processed_content: only the owning user
+CREATE POLICY content_owner ON processed_content
+    FOR ALL
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+-- scheduled_posts: only the owning user
+CREATE POLICY scheduled_owner ON scheduled_posts
+    FOR ALL
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+-- published_posts: only the owning user
+CREATE POLICY published_owner ON published_posts
+    FOR ALL
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+-- raw_articles: only the owning user
+CREATE POLICY articles_owner ON raw_articles
+    FOR ALL
+    USING (user_id = auth.uid())
+    WITH CHECK (user_id = auth.uid());
+
+-- activation_codes: anon users can INSERT to activate, but cannot SELECT others
+-- (service key handles all backend reads/writes; no policy needed for backend)
+ALTER TABLE activation_codes ENABLE ROW LEVEL SECURITY;
+
+-- NOTE: Service role (used by the Flask backend) bypasses ALL RLS policies.
+-- Application-level user_id filtering in Python provides the primary isolation.
 
 
 -- ============================================
