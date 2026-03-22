@@ -34,7 +34,7 @@ def wizard():
 
     if step >= 5:
         session["onboarding_complete"] = True
-        return redirect(url_for("web.page_landing"))
+        return redirect(url_for("web.page_dashboard"))
 
     has_fb = _has_facebook_page()
     has_gemini = bool(settings.get("gemini_api_key"))
@@ -130,7 +130,7 @@ def complete():
         "onboarding_complete": True,
     })
     session["onboarding_complete"] = True
-    return jsonify({"ok": True, "redirect": url_for("web.page_landing")})
+    return jsonify({"ok": True, "redirect": url_for("web.page_dashboard")})
 
 
 @onboarding_bp.route("/status", methods=["GET"])

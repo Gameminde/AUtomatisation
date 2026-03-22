@@ -39,9 +39,16 @@ class GeminiClient:
     GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
     GEMINI_MODEL = "gemini-1.5-flash"  # Fast and free
     
-    def __init__(self):
-        """Initialize Gemini client."""
-        self.gemini_key = config.GEMINI_API_KEY
+    def __init__(self, user_id: Optional[str] = None):
+        """
+        Initialize Gemini client.
+
+        Args:
+            user_id: Optional user ID to resolve a per-user encrypted Gemini
+                     key from the database.  Falls back to the global
+                     GEMINI_API_KEY env var when no per-user key is found.
+        """
+        self.gemini_key = self._resolve_key(user_id)
         self.openrouter_available = bool(config.OPENROUTER_API_KEYS and any(config.OPENROUTER_API_KEYS))
         
         if self.gemini_key:
@@ -50,6 +57,19 @@ class GeminiClient:
             logger.info("✅ OpenRouter configured (fallback)")
         else:
             logger.warning("⚠️ No AI API configured - content generation will fail")
+
+    @staticmethod
+    def _resolve_key(user_id: Optional[str]) -> Optional[str]:
+        """Return the Gemini API key for the given user, or the global fallback."""
+        if user_id:
+            try:
+                from app.utils import get_gemini_key_for_user
+                key = get_gemini_key_for_user(user_id)
+                if key:
+                    return key
+            except Exception as exc:
+                logger.warning("Could not load per-user Gemini key: %s", exc)
+        return config.GEMINI_API_KEY or None
     
     def generate(
         self,
@@ -197,21 +217,34 @@ class GeminiClient:
         return status
 
 
-# Global instance
+# Global instance (no user_id — legacy fallback for background tasks)
 _client: Optional[GeminiClient] = None
 
 
-def get_ai_client() -> GeminiClient:
-    """Get or create the global AI client."""
+def get_ai_client(user_id: Optional[str] = None) -> GeminiClient:
+    """
+    Get an AI client.
+
+    When *user_id* is provided a fresh client is created that resolves the
+    Gemini key from the user's database settings (encrypted).
+    Without a user_id the shared global client is returned (uses global env key).
+    """
+    if user_id:
+        return GeminiClient(user_id=user_id)
     global _client
     if _client is None:
         _client = GeminiClient()
     return _client
 
 
-def generate_content(prompt: str, max_tokens: int = 2048, temperature: float = 0.7) -> str:
-    """Quick access to generate content."""
-    return get_ai_client().generate(prompt, max_tokens, temperature)
+def generate_content(
+    prompt: str,
+    max_tokens: int = 2048,
+    temperature: float = 0.7,
+    user_id: Optional[str] = None,
+) -> str:
+    """Quick access to generate content, optionally scoped to a specific user."""
+    return get_ai_client(user_id=user_id).generate(prompt, max_tokens, temperature)
 
 
 def test_ai_connection() -> dict:

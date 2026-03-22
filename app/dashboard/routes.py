@@ -18,8 +18,14 @@ web_bp = Blueprint("web", __name__)
 def page_landing():
     from flask_login import current_user
     if current_user and current_user.is_authenticated:
-        return render_template("dashboard_v3.html", active_page="dashboard")
+        return redirect(url_for("web.page_dashboard"))
     return render_template("landing.html")
+
+
+@web_bp.route("/app/dashboard")
+@login_required
+def page_dashboard():
+    return render_template("dashboard_v3.html", active_page="dashboard")
 
 
 @web_bp.route("/studio")

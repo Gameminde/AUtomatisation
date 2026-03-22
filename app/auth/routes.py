@@ -37,7 +37,7 @@ def _get_supabase():
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for("web.page_dashboard"))
+        return redirect(url_for("web.page_landing"))
 
     error = None
     if request.method == "POST":
@@ -63,7 +63,7 @@ def login():
                     user = User(user_data["id"], user_data["email"])
                     login_user(user, remember=True)
                     next_page = request.args.get("next")
-                    return redirect(next_page or url_for("web.page_dashboard"))
+                    return redirect(next_page or url_for("web.page_landing"))
         except Exception as exc:
             logger.error("Login error: %s", exc)
 
@@ -77,7 +77,7 @@ def login():
 @auth_bp.route("/register", methods=["GET", "POST"])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for("web.page_dashboard"))
+        return redirect(url_for("web.page_landing"))
 
     error = None
     if request.method == "POST":
