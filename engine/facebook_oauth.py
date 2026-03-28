@@ -42,16 +42,12 @@ from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlencode
 
 import requests
-from dotenv import load_dotenv
-
-# CRITICAL: Load .env BEFORE any other local imports
-load_dotenv()
 
 import config
 
 logger = config.get_logger("facebook_oauth")
 
-# Facebook OAuth config - read AFTER load_dotenv()
+# Facebook OAuth config
 FB_APP_ID = os.getenv("FB_APP_ID", "")
 FB_APP_SECRET = os.getenv("FB_APP_SECRET", "")
 FB_REDIRECT_URI = os.getenv("FB_REDIRECT_URI", "http://localhost:5000/oauth/facebook/callback")

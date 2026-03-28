@@ -1,0 +1,50 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ t('Channels') }} | Content Factory{% endblock %}
+
+{% block content %}
+<section class="cf-screen cf-channels-page" data-cf-channels>
+    <header class="cf-page-intro cf-page-intro-actions">
+        <div>
+            <div class="cf-label">{{ t('Channels') }}</div>
+            <h1 class="cf-page-title">{{ t('Connection and destination control') }}</h1>
+            <p class="cf-page-copy">{{ t('Connect Facebook and Instagram destinations, choose the active publishing target, and manage Telegram delivery settings.') }}</p>
+        </div>
+        <div class="cf-page-intro-meta cf-inline-actions">
+            <a class="cf-btn" href="{{ url_for('web.oauth_facebook_start') }}">{{ t('Connect Facebook') }}</a>
+        </div>
+    </header>
+
+    <article class="cf-card cf-panel">
+        <div class="cf-section-head cf-section-head-quiet">
+            <span class="cf-label">{{ t('Destinations') }}</span>
+        </div>
+        <div id="cf-channels-destination-list" class="cf-grid cols-2" aria-live="polite"></div>
+    </article>
+
+    <div id="cf-channels-connect-callout" aria-live="polite"></div>
+
+    <section class="cf-grid cols-2">
+        <article class="cf-card cf-panel">
+            <div class="cf-section-head cf-section-head-quiet">
+                <span class="cf-label">{{ t('Active destination') }}</span>
+            </div>
+            <div id="cf-channels-active-detail" aria-live="polite"></div>
+        </article>
+
+        <article class="cf-card cf-panel">
+            <div class="cf-section-head cf-section-head-quiet">
+                <span class="cf-label">{{ t('Destination defaults') }}</span>
+            </div>
+            <div id="cf-channels-defaults" aria-live="polite"></div>
+        </article>
+    </section>
+
+    <article class="cf-card cf-panel" id="telegram">
+        <div class="cf-section-head cf-section-head-quiet">
+            <span class="cf-label">{{ t('Telegram') }}</span>
+        </div>
+        <div id="cf-channels-telegram" aria-live="polite"></div>
+    </article>
+</section>
+{% endblock %}

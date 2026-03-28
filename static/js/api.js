@@ -1,19 +1,21 @@
 /**
  * API helper for Content Factory v2.
- * Injects X-API-Key header from meta tag or localStorage.
+ * Keeps authenticated requests on the same-origin session-cookie path
+ * expected by SaaS V1.
  */
 
-function getApiKey() {
-    const meta = document.querySelector('meta[name="dashboard-api-key"]');
+function getCsrfToken() {
+    const meta = document.querySelector('meta[name="csrf-token"]');
     if (meta && meta.content) return meta.content;
-    return localStorage.getItem('dashboard_api_key') || '';
+    return '';
 }
 
 async function apiFetch(url, options = {}) {
     const headers = Object.assign({}, options.headers || {});
-    const apiKey = getApiKey();
-    if (apiKey) headers['X-API-Key'] = apiKey;
-    return fetch(url, Object.assign({}, options, { headers }));
+    const csrfToken = getCsrfToken();
+    if (csrfToken) headers['X-CSRFToken'] = csrfToken;
+    headers['X-Requested-With'] = headers['X-Requested-With'] || 'XMLHttpRequest';
+    return fetch(url, Object.assign({}, options, { headers, credentials: 'same-origin' }));
 }
 
 async function apiCall(endpoint, method = 'GET', data = null) {

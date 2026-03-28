@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import json
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
@@ -30,8 +31,14 @@ logger = config.get_logger("database")
 # Database file location — stored at project root regardless of this file's location
 DB_FILE = Path(__file__).parent.parent / "content_factory.db"
 
-# Database mode: "sqlite" or "supabase"
+# Database mode: "sqlite" or "supabase" (legacy module constant; runtime uses
+# get_db_mode() so env changes during tests are respected).
 DB_MODE = os.getenv("DB_MODE", "sqlite").lower()
+
+
+def get_db_mode() -> str:
+    """Return the current database mode from the live environment."""
+    return os.getenv("DB_MODE", "sqlite").lower()
 
 
 class SQLiteDB:
@@ -119,7 +126,7 @@ class SQLiteDB:
                     user_id TEXT,
                     content_id TEXT,
                     scheduled_time TEXT NOT NULL,
-                    timezone TEXT DEFAULT 'America/New_York',
+                    timezone TEXT DEFAULT 'UTC',
                     priority INTEGER DEFAULT 5,
                     status TEXT DEFAULT 'scheduled',
                     created_at TEXT DEFAULT (datetime('now')),
@@ -161,13 +168,13 @@ class SQLiteDB:
             ]:
                 try:
                     cursor.execute(col_sql)
-                except Exception:
-                    pass  # Column already exists — safe to ignore
+                except sqlite3.OperationalError as exc:
+                    logger.debug("Skipping SQLite migration '%s': %s", col_sql, exc)
 
             # managed_pages (Added for Content Factory v2.0 Dashboard)
             # posts_per_day and posting_times intentionally default to NULL
-            # so smart-default logic in /api/insights can detect unconfigured
-            # pages and apply 3/day + "08:00,13:00,19:00" on first access.
+            # so smart-default logic can detect unconfigured pages and apply
+            # the current locale preset on first access.
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS managed_pages (
                     page_id TEXT PRIMARY KEY,
@@ -176,7 +183,7 @@ class SQLiteDB:
                     user_id TEXT,
                     posts_per_day INTEGER DEFAULT NULL,
                     posting_times TEXT DEFAULT NULL,
-                    language TEXT DEFAULT 'AR',
+                    language TEXT DEFAULT 'EN',
                     status TEXT DEFAULT 'active',
                     last_synced_at TEXT DEFAULT (datetime('now'))
                 )
@@ -185,8 +192,8 @@ class SQLiteDB:
             # (runs after CREATE so the table is guaranteed to exist)
             try:
                 cursor.execute("ALTER TABLE managed_pages ADD COLUMN posting_times TEXT DEFAULT NULL")
-            except Exception:
-                pass  # Column already exists on this DB — safe to ignore
+            except sqlite3.OperationalError as exc:
+                logger.debug("Skipping SQLite managed_pages migration: %s", exc)
             
             # v2.1: System Status (Observability)
             cursor.execute("""
@@ -236,6 +243,25 @@ class SQLiteTable:
         self._order = None
         self._limit = None
         self._single = False
+
+    def _validate_table_name(self) -> str:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", self.table_name or ""):
+            raise ValueError(f"Invalid table name: {self.table_name}")
+        return self.table_name
+
+    def _get_allowed_columns(self) -> set[str]:
+        table_name = self._validate_table_name()
+        with self.db._get_conn() as conn:
+            rows = conn.execute(f'PRAGMA table_info("{table_name}")').fetchall()
+        columns = {str(row["name"]) for row in rows}
+        if not columns:
+            raise ValueError(f"Unknown SQLite table: {table_name}")
+        return columns
+
+    def _validate_column_name(self, column: str) -> str:
+        if column not in self._get_allowed_columns():
+            raise ValueError(f"Invalid column name for {self.table_name}: {column}")
+        return f'"{column}"'
     
     def select(self, columns: str = "*", count: str = None) -> "SQLiteTable":
         """Select columns."""
@@ -326,13 +352,13 @@ class SQLiteTable:
                     import uuid
                     data['id'] = str(uuid.uuid4())
                 
-                columns = ', '.join(data.keys())
+                columns = ', '.join(self._validate_column_name(key) for key in data.keys())
                 placeholders = ', '.join(['?' for _ in data])
-                sql = f"INSERT INTO {self.table_name} ({columns}) VALUES ({placeholders})"
+                sql = f'INSERT INTO "{self._validate_table_name()}" ({columns}) VALUES ({placeholders})'
                 cursor.execute(sql, tuple(data.values()))
                 
                 # Return inserted row
-                cursor.execute(f"SELECT * FROM {self.table_name} WHERE id = ?", (data['id'],))
+                cursor.execute(f'SELECT * FROM "{self._validate_table_name()}" WHERE "id" = ?', (data['id'],))
                 rows = [self._row_to_dict(row) for row in cursor.fetchall()]
                 return SQLiteResult(rows)
             
@@ -343,16 +369,16 @@ class SQLiteTable:
                     if isinstance(value, list):
                         data[key] = json.dumps(value)
                 
-                set_clause = ', '.join([f"{k} = ?" for k in data.keys()])
+                set_clause = ', '.join([f"{self._validate_column_name(k)} = ?" for k in data.keys()])
                 where_clause, where_params = self._build_where()
-                sql = f"UPDATE {self.table_name} SET {set_clause}"
+                sql = f'UPDATE "{self._validate_table_name()}" SET {set_clause}'
                 if where_clause:
                     sql += f" WHERE {where_clause}"
                 
                 cursor.execute(sql, tuple(data.values()) + where_params)
                 
                 # Return updated rows
-                select_sql = f"SELECT * FROM {self.table_name}"
+                select_sql = f'SELECT * FROM "{self._validate_table_name()}"'
                 if where_clause:
                     select_sql += f" WHERE {where_clause}"
                 cursor.execute(select_sql, where_params)
@@ -362,21 +388,21 @@ class SQLiteTable:
             # Handle DELETE
             if hasattr(self, '_delete') and self._delete:
                 where_clause, where_params = self._build_where()
-                sql = f"DELETE FROM {self.table_name}"
+                sql = f'DELETE FROM "{self._validate_table_name()}"'
                 if where_clause:
                     sql += f" WHERE {where_clause}"
                 cursor.execute(sql, where_params)
                 return SQLiteResult([])
             
             # Handle SELECT
-            sql = f"SELECT {self._select_cols} FROM {self.table_name}"
+            sql = f'SELECT {self._select_cols} FROM "{self._validate_table_name()}"'
             where_clause, where_params = self._build_where()
             if where_clause:
                 sql += f" WHERE {where_clause}"
             
             if self._order:
                 col, desc = self._order
-                sql += f" ORDER BY {col} {'DESC' if desc else 'ASC'}"
+                sql += f" ORDER BY {self._validate_column_name(col)} {'DESC' if desc else 'ASC'}"
             
             if self._limit:
                 sql += f" LIMIT {self._limit}"
@@ -399,10 +425,10 @@ class SQLiteTable:
         for col, op, val in self._where:
             if op == "IN":
                 placeholders = ', '.join(['?' for _ in val])
-                clauses.append(f"{col} IN ({placeholders})")
+                clauses.append(f"{self._validate_column_name(col)} IN ({placeholders})")
                 params.extend(val)
             else:
-                clauses.append(f"{col} {op} ?")
+                clauses.append(f"{self._validate_column_name(col)} {op} ?")
                 params.append(val)
         
         return " AND ".join(clauses), tuple(params)
@@ -415,8 +441,8 @@ class SQLiteTable:
             if key in d and d[key]:
                 try:
                     d[key] = json.loads(d[key])
-                except:
-                    pass
+                except (TypeError, json.JSONDecodeError) as exc:
+                    logger.warning("Could not decode SQLite JSON field %s: %s", key, exc)
         return d
 
 
@@ -440,9 +466,18 @@ class SupabaseWrapper:
     
     def __init__(self):
         from supabase import create_client
+        from supabase.lib.client_options import SyncClientOptions
         url = config.require_env("SUPABASE_URL")
         key = config.require_env("SUPABASE_KEY")
-        self._client = create_client(url, key)
+        self._client = create_client(
+            url,
+            key,
+            options=SyncClientOptions(
+                postgrest_client_timeout=config.HTTP_TIMEOUT_SECONDS,
+                storage_client_timeout=int(config.HTTP_TIMEOUT_SECONDS),
+                function_client_timeout=int(min(max(config.HTTP_TIMEOUT_SECONDS, 1), 30)),
+            ),
+        )
         logger.info("✅ Supabase database connected")
     
     def table(self, name: str):
@@ -450,8 +485,10 @@ class SupabaseWrapper:
         return self._client.table(name)
 
 
-# Global database instance
+# Global database instance cache keyed by the active env signature so tests and
+# runtime config changes do not keep a stale backend alive forever.
 _db_instance = None
+_db_signature = None
 
 
 def get_db():
@@ -465,38 +502,53 @@ def get_db():
     Returns:
         Database instance (SQLiteDB or SupabaseWrapper)
     """
-    global _db_instance
-    
-    if _db_instance is not None:
+    global _db_instance, _db_signature
+
+    db_mode = get_db_mode()
+    supabase_url = os.getenv("SUPABASE_URL", "")
+    supabase_key = os.getenv("SUPABASE_KEY", "")
+    signature = (db_mode, supabase_url, supabase_key)
+
+    if _db_instance is not None and _db_signature == signature:
         return _db_instance
     
     # Check if Supabase is configured and desired
     use_supabase = (
-        DB_MODE == "supabase" and 
-        config.SUPABASE_URL and 
-        config.SUPABASE_KEY
+        db_mode == "supabase" and
+        supabase_url and
+        supabase_key
     )
     
     if use_supabase:
         try:
             _db_instance = SupabaseWrapper()
+            _db_signature = signature
             logger.info("📡 Using Supabase (cloud)")
         except Exception as e:
             logger.warning(f"Supabase failed, falling back to SQLite: {e}")
             _db_instance = SQLiteDB()
+            _db_signature = (db_mode, "", "")
     else:
         _db_instance = SQLiteDB()
+        _db_signature = signature
         logger.info("💾 Using SQLite (local)")
     
     return _db_instance
 
 
+def get_database_client():
+    """Return the configured database adapter."""
+    return get_db()
+
+
 def get_supabase_client():
     """
-    Backward compatibility function.
-    Returns database instance that works like Supabase client.
+    Backward compatibility alias.
+
+    Historically this returned the app's database adapter, not always a raw
+    Supabase SDK client.
     """
-    return get_db()
+    return get_database_client()
 
 
 # Convenience functions

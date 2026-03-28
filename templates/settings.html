@@ -1,0 +1,137 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ t('Settings') }} | Content Factory{% endblock %}
+
+{% block content %}
+<section class="cf-screen cf-settings-page" data-cf-settings>
+    <header class="cf-page-intro">
+        <div>
+            <div class="cf-label">{{ t('Settings') }}</div>
+            <h1 class="cf-page-title">{{ t('Account and workflow defaults') }}</h1>
+            <p class="cf-page-copy">{{ t('Control the AI engine, default content behavior, and the workflow rules applied to future generations.') }}</p>
+        </div>
+    </header>
+
+    <div class="cf-settings-flow">
+        <section class="cf-settings-section" id="ai">
+            <div class="cf-settings-head">
+                <div>
+                    <div class="cf-label">{{ t('AI engine') }}</div>
+                    <h2 class="cf-settings-title">{{ t('Generation engine') }}</h2>
+                </div>
+                <span class="cf-inline-note" id="cf-settings-ai-status">{{ t('Loading AI settings') }}</span>
+            </div>
+            <div id="cf-settings-providers" class="cf-provider-grid" aria-live="polite"></div>
+            <div class="cf-settings-grid">
+                <div class="cf-field">
+                    <label class="cf-field-label" for="cf-settings-model">{{ t('Model') }}</label>
+                    <select id="cf-settings-model" class="cf-select"></select>
+                </div>
+                <div class="cf-field">
+                    <label class="cf-field-label" for="cf-settings-fallback">{{ t('Fallback provider') }}</label>
+                    <select id="cf-settings-fallback" class="cf-select"></select>
+                </div>
+                <div class="cf-field cf-field-span">
+                    <label class="cf-field-label" for="cf-settings-api-key">{{ t('Encrypted API key') }}</label>
+                    <input id="cf-settings-api-key" class="cf-input" type="password" placeholder="{{ t('Paste the key for the selected provider') }}">
+                </div>
+            </div>
+            <div class="cf-inline-actions">
+                <button type="button" class="cf-btn-ghost" id="cf-settings-test-key">{{ t('Test AI Key') }}</button>
+                <button type="button" class="cf-btn" id="cf-settings-save-ai">{{ t('Save AI Settings') }}</button>
+            </div>
+        </section>
+
+        <section class="cf-settings-section">
+            <div class="cf-settings-head">
+                <div>
+                    <div class="cf-label">{{ t('Content defaults') }}</div>
+                    <h2 class="cf-settings-title">{{ t('Locale, language, and tone') }}</h2>
+                </div>
+            </div>
+            <div class="cf-settings-grid">
+                <div class="cf-field">
+                    <label class="cf-field-label" for="cf-settings-content-language">{{ t('Default content language') }}</label>
+                    <select id="cf-settings-content-language" class="cf-select">
+                        <option value="en">{{ t('English') }}</option>
+                        <option value="fr">{{ t('French') }}</option>
+                        <option value="ar">{{ t('Arabic') }}</option>
+                    </select>
+                </div>
+                <div class="cf-field">
+                    <label class="cf-field-label" for="cf-settings-tone">{{ t('Content tone') }}</label>
+                    <select id="cf-settings-tone" class="cf-select">
+                        <option value="professional">{{ t('Professional') }}</option>
+                        <option value="casual">{{ t('Casual') }}</option>
+                        <option value="educational">{{ t('Educational') }}</option>
+                        <option value="humorous">{{ t('Humorous') }}</option>
+                    </select>
+                </div>
+                <div class="cf-field">
+                    <label class="cf-field-label" for="cf-settings-country">{{ t('Country') }}</label>
+                    <select id="cf-settings-country" class="cf-select"></select>
+                </div>
+                <div class="cf-field">
+                    <label class="cf-field-label" for="cf-settings-timezone">{{ t('Timezone') }}</label>
+                    <input id="cf-settings-timezone" class="cf-input" type="text" placeholder="Europe/Paris">
+                </div>
+                <div class="cf-field">
+                    <label class="cf-field-label" for="cf-settings-preset">{{ t('Locale preset') }}</label>
+                    <select id="cf-settings-preset" class="cf-select"></select>
+                </div>
+            </div>
+            <div class="cf-inline-actions">
+                <button type="button" class="cf-btn-ghost" id="cf-settings-apply-preset">{{ t('Apply Locale Preset') }}</button>
+                <button type="button" class="cf-btn" id="cf-settings-save-profile">{{ t('Save Content Defaults') }}</button>
+            </div>
+        </section>
+
+        <section class="cf-settings-section">
+            <div class="cf-settings-head">
+                <div>
+                    <div class="cf-label">{{ t('Workflow defaults') }}</div>
+                    <h2 class="cf-settings-title">{{ t('Review and source rules') }}</h2>
+                </div>
+            </div>
+            <div class="cf-settings-grid">
+                <label class="cf-toggle-card">
+                    <input id="cf-settings-approval-mode" type="checkbox">
+                    <span>
+                        <strong>{{ t('Manual approval mode') }}</strong>
+                        <small>{{ t('Queue supported posts for review before they can be scheduled.') }}</small>
+                    </span>
+                </label>
+                <div class="cf-field cf-field-span">
+                    <label class="cf-field-label" for="cf-settings-rss">{{ t('RSS feeds') }}</label>
+                    <textarea id="cf-settings-rss" class="cf-textarea cf-textarea-sm" rows="4" placeholder="{{ t('One feed URL per line') }}"></textarea>
+                </div>
+            </div>
+            <div class="cf-inline-actions">
+                <button type="button" class="cf-btn" id="cf-settings-save-publishing">{{ t('Save Workflow Defaults') }}</button>
+            </div>
+        </section>
+
+        <section class="cf-settings-section">
+            <div class="cf-settings-head">
+                <div>
+                    <div class="cf-label">{{ t('Interface and locale') }}</div>
+                    <h2 class="cf-settings-title">{{ t('Navigation language') }}</h2>
+                </div>
+            </div>
+            <div class="cf-settings-grid">
+                <div class="cf-field">
+                    <label class="cf-field-label" for="cf-settings-ui-language">{{ t('Navigation language') }}</label>
+                    <select id="cf-settings-ui-language" class="cf-select">
+                        <option value="en">{{ t('English') }}</option>
+                        <option value="fr">{{ t('French') }}</option>
+                        <option value="ar">{{ t('Arabic') }}</option>
+                    </select>
+                </div>
+            </div>
+            <div class="cf-inline-actions">
+                <button type="button" class="cf-btn" id="cf-settings-save-interface">{{ t('Save Interface Settings') }}</button>
+            </div>
+        </section>
+    </div>
+</section>
+{% endblock %}

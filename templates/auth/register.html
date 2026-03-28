@@ -1,93 +1,79 @@
 <!DOCTYPE html>
-<html lang="en" dir="ltr">
+<html lang="{{ system_language|lower }}" dir="{{ system_dir }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Content Factory — Create Account</title>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/theme_v3.css') }}">
-    <style>
-        body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-        .auth-card {
-            width: min(440px, 92vw);
-            background: var(--bg-soft);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 2rem;
-            box-shadow: var(--shadow);
-        }
-        .auth-brand { text-align: center; margin-bottom: 2rem; }
-        .auth-brand-icon {
-            width: 56px; height: 56px; border-radius: 16px;
-            background: rgba(68,241,166,0.15); display: inline-grid;
-            place-items: center; color: var(--primary); font-size: 1.5rem;
-            box-shadow: inset 0 0 20px rgba(68,241,166,0.3); margin-bottom: 0.75rem;
-        }
-        .auth-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 0.25rem; }
-        .auth-sub { color: var(--text-dim); font-size: 0.9rem; }
-        .field { margin-bottom: 1rem; }
-        .field label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 0.4rem; color: var(--text-dim); }
-        .field .input { font-size: 1rem; }
-        .field-hint { font-size: 0.78rem; color: var(--text-dim); margin-top: 0.3rem; }
-        .btn-block { width: 100%; justify-content: center; padding: 0.75rem; font-size: 1rem; margin-top: 0.5rem; }
-        .auth-footer { text-align: center; margin-top: 1.25rem; color: var(--text-dim); font-size: 0.85rem; }
-        .auth-footer a { color: var(--primary); text-decoration: none; font-weight: 500; }
-        .error-box {
-            background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.3);
-            border-radius: 10px; padding: 0.6rem 0.9rem; margin-bottom: 1rem;
-            color: var(--danger); font-size: 0.85rem; display: flex; align-items: center; gap: 0.5rem;
-        }
-        .code-field { font-family: monospace; letter-spacing: 0.05em; }
-    </style>
+    <title>{{ t('Create account') }} | Content Factory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cf.css') }}">
 </head>
-<body>
-    <div class="auth-card">
-        <div class="auth-brand">
-            <div class="auth-brand-icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-            <div class="auth-title">Create your account</div>
-            <div class="auth-sub">Use the activation code from your purchase</div>
-        </div>
+<body class="cf-public-page">
+    <main class="cf-auth-wrap">
+        <div class="cf-auth-shell">
+            <section class="cf-auth-stage">
+                <div class="cf-brand">
+                    <span class="cf-brand-mark">CF</span>
+                    <span class="cf-brand-copy">
+                        <span class="cf-brand-title">Content Factory</span>
+                        <span class="cf-brand-sub">{{ t('Editorial control for Facebook and Instagram') }}</span>
+                    </span>
+                </div>
 
-        {% if error %}
-        <div class="error-box">
-            <i class="fa-solid fa-circle-exclamation"></i>
-            {% if error == 'invalid_code' %}
-                Invalid or already-used activation code.
-            {% elif error == 'email_exists' %}
-                An account with this email already exists.
-            {% elif error == 'password_too_short' %}
-                Password must be at least 8 characters.
-            {% elif error == 'fields_required' %}
-                Please fill in all fields.
-            {% else %}
-                An error occurred. Please try again.
-            {% endif %}
-        </div>
-        {% endif %}
+                <div>
+                    <div class="cf-label">{{ t('Activate access') }}</div>
+                    <h1 class="cf-proof-number">1 code</h1>
+                    <p class="cf-page-copy">{{ t('Use the activation code from your purchase, then set the email and password you will use to manage your account.') }}</p>
+                </div>
 
-        <form method="post" autocomplete="on">
-            <div class="field">
-                <label for="code">Activation code</label>
-                <input id="code" name="code" type="text" class="input code-field" placeholder="XXXX-XXXX-XXXX-XXXX" required autocomplete="off">
-                <div class="field-hint">Found in your Gumroad purchase confirmation email.</div>
-            </div>
-            <div class="field">
-                <label for="email">Email address</label>
-                <input id="email" name="email" type="email" class="input" placeholder="you@example.com" required autocomplete="email">
-            </div>
-            <div class="field">
-                <label for="password">Password</label>
-                <input id="password" name="password" type="password" class="input" placeholder="At least 8 characters" required autocomplete="new-password" minlength="8">
-            </div>
-            <button type="submit" class="btn btn-primary btn-block">
-                <i class="fa-solid fa-user-plus"></i> Create account
-            </button>
-        </form>
+                <div class="cf-auth-foot">
+                    {{ t('Already active?') }} <a class="cf-inline-link" href="{{ url_for('auth.login') }}">{{ t('Sign in') }}</a>
+                </div>
+            </section>
 
-        <div class="auth-footer">
-            Already have an account? <a href="{{ url_for('auth.login') }}">Sign in</a>
+            <section class="cf-auth-panel">
+                <div>
+                    <div class="cf-label">{{ t('Registration') }}</div>
+                    <h2 class="cf-settings-title">{{ t('Create your account') }}</h2>
+                </div>
+
+                {% if error %}
+                <div class="cf-auth-error">
+                    {% if error == 'invalid_code' %}
+                        {{ t('Invalid or already-used activation code.') }}
+                    {% elif error == 'email_exists' %}
+                        {{ t('An account with this email already exists.') }}
+                    {% elif error == 'password_too_short' %}
+                        {{ t('Password must be at least 8 characters.') }}
+                    {% elif error == 'fields_required' %}
+                        {{ t('Please fill in all fields.') }}
+                    {% elif error == 'supabase_not_configured' %}
+                        {{ t('Authentication is not configured yet.') }}
+                    {% else %}
+                        {{ t('An error occurred. Please try again.') }}
+                    {% endif %}
+                </div>
+                {% endif %}
+
+                <form method="post" autocomplete="on">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="cf-field">
+                        <label class="cf-field-label" for="code">{{ t('Activation code') }}</label>
+                        <input id="code" name="code" type="text" class="cf-input" placeholder="{{ t('Paste your activation code') }}" required autocomplete="off">
+                    </div>
+                    <div class="cf-field">
+                        <label class="cf-field-label" for="email">{{ t('Email') }}</label>
+                        <input id="email" name="email" type="email" class="cf-input" placeholder="you@example.com" required autocomplete="email">
+                    </div>
+                    <div class="cf-field">
+                        <label class="cf-field-label" for="password">{{ t('Password') }}</label>
+                        <input id="password" name="password" type="password" class="cf-input" placeholder="{{ t('At least 8 characters') }}" required autocomplete="new-password" minlength="8">
+                    </div>
+                    <button type="submit" class="cf-btn">{{ t('Create account') }}</button>
+                </form>
+            </section>
         </div>
-    </div>
+    </main>
 </body>
 </html>

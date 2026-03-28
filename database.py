@@ -7,6 +7,8 @@ from database.database import (  # noqa: F401 – explicit re-export for static 
     SQLiteDB,
     SupabaseWrapper,
     get_db,
+    get_db_mode,
+    get_database_client,
     DB_FILE,
     DB_MODE,
 )

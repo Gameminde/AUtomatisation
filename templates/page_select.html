@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ t('Connect page') }} | Content Factory{% endblock %}
+
+{% block content %}
+<section class="cf-screen">
+    <header class="cf-page-intro">
+        <div>
+            <div class="cf-label">{{ t('Channels') }}</div>
+            <h1 class="cf-page-title">{{ t('Choose the page to connect') }}</h1>
+            <p class="cf-page-copy">
+                {{ t('Pick the Facebook page that Content Factory should use as the active publishing destination. You will return to Channels once the connection is complete.') }}
+            </p>
+        </div>
+    </header>
+
+    <form method="POST" class="cf-screen">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <section class="cf-choice-list" aria-label="{{ t('Available Facebook pages') }}">
+            {% for page in oauth_pages %}
+            <label class="cf-choice-card">
+                <input class="cf-choice-input" type="radio" name="page_id" value="{{ page.id }}" required>
+                <span class="cf-choice-copy">
+                    <strong>{{ page.name }}</strong>
+                    <span class="cf-inline-note">{{ t('Facebook page') }}</span>
+                </span>
+            </label>
+            {% endfor %}
+        </section>
+
+        <div class="cf-inline-actions">
+            <button class="cf-btn" type="submit">{{ t('Connect page') }}</button>
+            <a class="cf-btn-ghost" href="{{ url_for('web.page_channels') }}">{{ t('Back to Channels') }}</a>
+        </div>
+    </form>
+</section>
+{% endblock %}

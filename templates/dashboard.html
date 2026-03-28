@@ -1,0 +1,73 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ t('Dashboard') }} | Content Factory{% endblock %}
+
+{% block content %}
+<section class="cf-screen cf-dashboard-page" data-cf-dashboard>
+    <header class="cf-page-intro cf-page-intro-actions">
+        <div>
+            <h1 class="cf-page-title">{{ t('Daily operations cockpit') }}</h1>
+            <p class="cf-page-copy">{{ t('See what needs action now, what is scheduled next, and whether the pipeline is safe to trust today.') }}</p>
+        </div>
+    </header>
+
+    <section class="cf-dashboard-shell">
+        <div class="cf-dashboard-main">
+            <div id="cf-dashboard-setup" class="cf-dashboard-setup-slot" aria-live="polite"></div>
+
+            <article class="cf-card cf-panel cf-dashboard-priority">
+                <div class="cf-section-head cf-section-head-quiet">
+                    <span class="cf-label">{{ t('Attention') }}</span>
+                </div>
+                <div id="cf-dashboard-attention" class="cf-grid cols-4" aria-live="polite"></div>
+            </article>
+
+            <section class="cf-grid cols-2 cf-dashboard-flow">
+                <article class="cf-card cf-panel">
+                    <div class="cf-section-head cf-section-head-quiet">
+                        <span class="cf-label">{{ t('Upcoming') }}</span>
+                    </div>
+                    <div id="cf-dashboard-upcoming" aria-live="polite"></div>
+                </article>
+
+                <article class="cf-card cf-panel">
+                    <div class="cf-section-head cf-section-head-quiet">
+                        <span class="cf-label">{{ t('Needs review') }}</span>
+                    </div>
+                    <div id="cf-dashboard-review" aria-live="polite"></div>
+                </article>
+            </section>
+
+            <article class="cf-card cf-panel">
+                <div class="cf-section-head cf-section-head-quiet">
+                    <span class="cf-label">{{ t('Recent output') }}</span>
+                </div>
+                <div id="cf-dashboard-recent-output" aria-live="polite"></div>
+            </article>
+        </div>
+
+        <aside class="cf-dashboard-side">
+            <article class="cf-card cf-panel cf-dashboard-side-card">
+                <div class="cf-section-head cf-section-head-quiet">
+                    <span class="cf-label">{{ t('Performance snapshot') }}</span>
+                </div>
+                <div id="cf-dashboard-performance" class="cf-grid cols-3" aria-live="polite"></div>
+            </article>
+
+            <article class="cf-card cf-panel cf-dashboard-side-card">
+                <div class="cf-section-head cf-section-head-quiet">
+                    <span class="cf-label">{{ t('Destination snapshot') }}</span>
+                </div>
+                <div id="cf-dashboard-destination" aria-live="polite"></div>
+            </article>
+
+            <article class="cf-card cf-panel cf-dashboard-side-card">
+                <div class="cf-section-head cf-section-head-quiet">
+                    <span class="cf-label">{{ t('Recent activity') }}</span>
+                </div>
+                <div id="cf-dashboard-activity" class="cf-timeline" aria-live="polite"></div>
+            </article>
+        </aside>
+    </section>
+</section>
+{% endblock %}

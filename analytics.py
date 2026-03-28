@@ -38,12 +38,12 @@ def fetch_post_metrics(post_id: str) -> Optional[Dict]:
 
 
 def update_published_post(post_id: str, metrics: Dict) -> None:
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     client.table("published_posts").update(metrics).eq("facebook_post_id", post_id).execute()
 
 
 def sync_metrics(limit: int = 25) -> int:
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     response = (
         client.table("published_posts")
         .select("facebook_post_id")

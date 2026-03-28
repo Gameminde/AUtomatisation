@@ -223,10 +223,60 @@ class TestFetchHackernewsTop:
         assert len(items) <= 2
 
 
+class TestFetchNewsData:
+    """Tests for locale-aware NewsData fetching."""
+
+    @patch("requests.get")
+    def test_fetch_newsdata_articles_uses_locale_filters(self, mock_get):
+        """Test NewsData request includes per-user languages and countries."""
+        import scraper
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = {"results": []}
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        scraper.fetch_newsdata_articles(
+            api_key="news-key",
+            languages=["fr", "en"],
+            countries=["ma"],
+        )
+
+        _, kwargs = mock_get.call_args
+        assert kwargs["params"]["language"] == "fr,en"
+        assert kwargs["params"]["country"] == "ma"
+
+    def test_resolve_newsdata_languages_prefers_user_content_languages(self):
+        import scraper
+
+        assert scraper.resolve_newsdata_languages(["ar", "en"], country_code="US") == [
+            "ar",
+            "en",
+        ]
+
+
+class TestSourceRouting:
+    """Tests for language-first source routing."""
+
+    def test_get_feeds_combines_language_and_country_sources(self):
+        import scraper
+
+        feeds = scraper.get_feeds(
+            user_feeds=["https://example.com/custom.xml"],
+            content_languages=["fr"],
+            source_preset="AE",
+            country_code="AE",
+        )
+
+        assert "https://example.com/custom.xml" in feeds
+        assert any("blogdumoderateur" in feed for feed in feeds)
+        assert any("arabianbusiness" in feed for feed in feeds)
+
+
 class TestSaveArticles:
     """Tests for save_articles function."""
 
-    @patch("config.get_supabase_client")
+    @patch("config.get_database_client")
     def test_save_articles_new_articles(self, mock_client_fn, sample_articles):
         """Test saving new articles."""
         import scraper
@@ -245,7 +295,7 @@ class TestSaveArticles:
 
         assert saved == len(sample_articles)
 
-    @patch("config.get_supabase_client")
+    @patch("config.get_database_client")
     def test_save_articles_skip_duplicates(self, mock_client_fn, sample_articles):
         """Test skipping duplicate articles."""
         import scraper
@@ -264,3 +314,75 @@ class TestSaveArticles:
         saved = scraper.save_articles(sample_articles)
 
         assert saved == 0
+
+    @patch("config.get_database_client")
+    def test_save_articles_scopes_duplicate_check_by_user(self, mock_client_fn, sample_articles):
+        """Test duplicate check is tenant-scoped when user_id is provided."""
+        import scraper
+
+        mock_client = MagicMock()
+        mock_table = MagicMock()
+        mock_table.select.return_value.eq.return_value.eq.return_value.execute.return_value = MagicMock(data=[])
+        mock_table.insert.return_value.execute.return_value = MagicMock(data=[{}])
+        mock_client.table.return_value = mock_table
+        mock_client_fn.return_value = mock_client
+
+        saved = scraper.save_articles(sample_articles[:1], user_id="user-1")
+
+        assert saved == 1
+        mock_table.select.return_value.eq.return_value.eq.assert_called_with("user_id", "user-1")
+
+
+class TestRunPipeline:
+    """Tests for run() orchestration."""
+
+    @patch("scraper.save_articles", return_value=2)
+    @patch("scraper.dedupe_by_url", side_effect=lambda items: items)
+    @patch("scraper.filter_articles", side_effect=lambda items, keywords: items)
+    @patch("scraper.fetch_hackernews_top", return_value=[{"url": "https://hn", "title": "HN", "content": "AI"}])
+    @patch("scraper.fetch_rss_feed", return_value=[{"url": "https://rss", "title": "RSS", "content": "AI"}])
+    @patch("scraper.fetch_newsdata_articles", return_value=[{"url": "https://news", "title": "News", "content": "AI"}])
+    @patch("scraper.get_feeds", return_value=["https://example.com/rss"])
+    @patch("scraper.time.sleep")
+    def test_run_collects_and_saves_articles(
+        self,
+        mock_sleep,
+        mock_get_feeds,
+        mock_newsdata,
+        mock_rss,
+        mock_hn,
+        mock_filter,
+        mock_dedupe,
+        mock_save,
+    ):
+        import scraper
+
+        result = scraper.run(user_id="user-1", keywords=["ai"])
+
+        assert result == 2
+        mock_save.assert_called_once()
+
+    @patch("scraper.run", return_value=4)
+    def test_run_for_user_uses_user_config(self, mock_run):
+        import scraper
+
+        user_config = MagicMock(
+            user_id="user-1",
+            newsdata_api_key="news-key",
+            niche_keywords=["ai", "openai"],
+            content_languages=["fr", "en"],
+            country_code="MA",
+            source_preset="FR",
+            rss_feed_urls=["https://example.com/fr.xml"],
+        )
+
+        assert scraper.run_for_user(user_config) == 4
+        mock_run.assert_called_once_with(
+            user_id="user-1",
+            newsdata_api_key="news-key",
+            keywords=["ai", "openai"],
+            content_languages=["fr", "en"],
+            country_code="MA",
+            source_preset="FR",
+            rss_feeds=["https://example.com/fr.xml"],
+        )

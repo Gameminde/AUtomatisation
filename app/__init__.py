@@ -3,21 +3,31 @@
 import os
 import logging
 
-from flask import Flask
+from flask import Flask, jsonify, request, session
 from flask_cors import CORS
 from flask_login import LoginManager, current_user
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 import config
+from app.csrf import CSRFError, CSRFProtect
 from models import User
+from app.i18n import get_catalog, get_system_dir, normalize_locale, translate
 from app.utils import _get_or_create_secret_key
 
 logger = config.get_logger("dashboard")
 
 
+def _env_flag(name: str, default: bool = False) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _init_smart_defaults(app: Flask) -> None:
     """Apply smart scheduling defaults at startup (SQLite only)."""
     DEFAULT_PPD = 3
-    DEFAULT_TIMES = "08:00,13:00,19:00"
+    DEFAULT_TIMES = config.TARGET_POSTING_PRESETS[config.DEFAULT_COUNTRY_CODE]["posting_times"]
     LEGACY_PPD = 2
     try:
         from database import get_db, SQLiteDB
@@ -42,21 +52,16 @@ def _init_smart_defaults(app: Flask) -> None:
 
 def _get_supabase_rest_client():
     """
-    Return a raw Supabase REST client using the service key.
+    Return the cached Supabase REST service client.
 
     The auth module (login, register) MUST use Supabase directly — not the
     SQLite fallback — because the `users` and `activation_codes` tables only
-    exist in Supabase.  This helper bypasses the DB_MODE env var.
+    exist in Supabase.  Delegates to the process-level singleton in config.py.
     """
-    from supabase import create_client
-    url = os.getenv("SUPABASE_URL", "")
-    key = os.getenv("SUPABASE_KEY", "")
-    if not url or not key:
-        return None
     try:
-        return create_client(url, key)
+        return config.get_supabase_service_client()
     except Exception as exc:
-        logger.warning("Could not create Supabase REST client: %s", exc)
+        logger.warning("Could not get Supabase REST client: %s", exc)
         return None
 
 
@@ -70,7 +75,21 @@ def create_app() -> Flask:
         static_folder=os.path.join(_root, "static"),
     )
     _app.secret_key = _get_or_create_secret_key()
+    secure_cookies = _env_flag("SESSION_SECURE_COOKIES", default=False)
+    trust_proxy_headers = _env_flag("TRUST_PROXY_HEADERS", default=False)
+    _app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE="Lax",
+        SESSION_COOKIE_SECURE=secure_cookies,
+        REMEMBER_COOKIE_SECURE=secure_cookies,
+    )
+    if secure_cookies:
+        _app.config["PREFERRED_URL_SCHEME"] = "https"
+    if trust_proxy_headers:
+        _app.wsgi_app = ProxyFix(_app.wsgi_app, x_proto=1, x_host=1)
     CORS(_app)
+    csrf = CSRFProtect()
+    csrf.init_app(_app)
 
     # ── Flask-Login ────────────────────────────────────────────────────────
     login_manager = LoginManager()
@@ -102,11 +121,36 @@ def create_app() -> Flask:
         return None
 
     # ── Context processor ──────────────────────────────────────────────────
-    API_KEY = os.getenv("DASHBOARD_API_KEY", "")
-
     @_app.context_processor
     def inject_dashboard_config():
-        return {"dashboard_api_key": API_KEY, "current_user": current_user}
+        raw_language = str(session.get("ui_language") or "").strip()
+        system_language = normalize_locale(raw_language) if raw_language else ""
+        if not system_language and current_user and getattr(current_user, "is_authenticated", False):
+            try:
+                from app.utils import get_user_settings
+
+                settings = get_user_settings(current_user.id)
+                configured_language = str(settings.get("ui_language") or "").strip()
+                system_language = normalize_locale(configured_language) if configured_language else ""
+                # Cache in session so subsequent requests skip the DB call
+                if system_language:
+                    session["ui_language"] = system_language
+            except Exception as exc:
+                logger.warning("Could not resolve session language for %s: %s", current_user.id[:8], exc)
+                system_language = ""
+        if not system_language:
+            system_language = "EN"
+
+        def _t(text, **params):
+            return translate(text, system_language, **params)
+
+        return {
+            "current_user": current_user,
+            "system_language": system_language,
+            "system_dir": get_system_dir(system_language),
+            "i18n_catalog": get_catalog(),
+            "t": _t,
+        }
 
     # ── Register blueprints ────────────────────────────────────────────────
     from app.auth.routes import auth_bp
@@ -124,41 +168,25 @@ def create_app() -> Flask:
     _app.register_blueprint(studio_bp)
     _app.register_blueprint(settings_bp)
     _app.register_blueprint(onboarding_bp)
+    csrf.exempt(api_bp)
+    csrf.exempt(pages_bp)
+    csrf.exempt(studio_bp)
+    csrf.exempt(settings_bp)
+    csrf.exempt(onboarding_bp)
+
+    @_app.errorhandler(CSRFError)
+    def handle_csrf_error(error):
+        message = getattr(error, "description", str(error)) or "CSRF token is missing or invalid."
+        if request.path.startswith("/api/"):
+            return jsonify({"success": False, "error": message, "code": "csrf_invalid"}), 400
+        return message, 400
 
     # ── Onboarding gate ────────────────────────────────────────────────────
     # Authenticated users who haven't finished onboarding are redirected to
     # /onboarding before reaching any protected page.  API routes, static
     # files, and the auth/onboarding routes themselves are excluded.
-    _GATE_SKIP_PREFIXES = (
-        "/onboarding", "/auth/", "/static/", "/media/",
-        "/login", "/register", "/logout", "/design-system",
-        "/api/", "/oauth/",
-    )
-
-    from flask import request as _req, redirect as _redir, url_for as _ufor, session as _sess
-    from flask_login import current_user as _cu
-    from app.utils import get_user_settings as _get_us
-
-    @_app.before_request
-    def _onboarding_gate():
-        path = _req.path
-        if any(path.startswith(p) for p in _GATE_SKIP_PREFIXES) or path == "/":
-            return None
-        if not _cu.is_authenticated:
-            return None
-        _ob_key = f"ob_done:{_cu.id}"
-        if _sess.get(_ob_key):
-            return None
-        try:
-            settings = _get_us(_cu.id)
-            if settings.get("onboarding_complete"):
-                _sess[_ob_key] = True
-                return None
-            _sess[_ob_key] = False
-            return _redir(_ufor("onboarding.wizard"))
-        except Exception as _exc:
-            logger.warning("Onboarding gate check failed: %s", _exc)
-            return None
+    # Setup now happens inline on the dashboard via /api/setup/progress, so
+    # authenticated users are no longer redirected to /onboarding.
 
     # ── Top-level auth aliases (/login → /auth/login etc.) ─────────────────
     # Allows canonical short URLs in links/templates while keeping the blueprint
@@ -177,9 +205,11 @@ def create_app() -> Flask:
     def _register_alias():
         return redirect(_url_for("auth.register"))
 
-    @_app.route("/logout")
+    @_app.route("/logout", methods=["GET", "POST"])
     def _logout_alias():
-        return redirect(_url_for("auth.logout"))
+        if request.method == "POST":
+            return redirect(_url_for("auth.logout"), code=307)
+        return redirect(_url_for("auth.login"))
 
     # ── Startup tasks ──────────────────────────────────────────────────────
     with _app.app_context():

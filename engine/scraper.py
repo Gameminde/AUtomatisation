@@ -1,11 +1,11 @@
-"""Collect and filter tech news from free sources."""
+"""Collect and filter tech news from locale-aware sources."""
 
 from __future__ import annotations
 
 import os
 import time
 from datetime import datetime
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 
 import feedparser
 import requests
@@ -22,12 +22,95 @@ _DEFAULT_RSS_FEEDS = [
 ]
 
 
-def get_feeds() -> List[str]:
-    """Get current RSS feed URLs from env or defaults."""
+def _unique_preserve_order(values: Iterable[str]) -> List[str]:
+    seen = set()
+    unique: List[str] = []
+    for value in values:
+        normalized = str(value or "").strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        unique.append(normalized)
+    return unique
+
+
+def get_source_preset(
+    source_preset: Optional[str] = None,
+    country_code: Optional[str] = None,
+) -> dict:
+    normalized_country = (
+        source_preset
+        or country_code
+        or config.DEFAULT_COUNTRY_CODE
+    ).strip().upper()
+    return config.CONTENT_SOURCE_PRESETS.get(
+        normalized_country,
+        config.CONTENT_SOURCE_PRESETS[config.DEFAULT_COUNTRY_CODE],
+    )
+
+
+def normalize_languages(languages: Optional[Iterable[str]]) -> List[str]:
+    normalized: List[str] = []
+    for value in languages or []:
+        code = str(value or "").strip().lower()
+        if code in config.SUPPORTED_LANGUAGE_CODES and code not in normalized:
+            normalized.append(code)
+    return normalized
+
+
+def resolve_newsdata_languages(
+    content_languages: Optional[Iterable[str]] = None,
+    country_code: Optional[str] = None,
+) -> List[str]:
+    resolved = normalize_languages(content_languages)
+    if resolved:
+        return resolved
+
+    locale_preset = config.TARGET_POSTING_PRESETS.get(
+        (country_code or config.DEFAULT_COUNTRY_CODE).strip().upper(),
+        config.TARGET_POSTING_PRESETS[config.DEFAULT_COUNTRY_CODE],
+    )
+    return normalize_languages(locale_preset["default_content_languages"].split(","))
+
+
+def normalize_country_filters(
+    source_preset: Optional[str] = None,
+    country_code: Optional[str] = None,
+) -> List[str]:
+    preset = get_source_preset(source_preset=source_preset, country_code=country_code)
+    return [code.lower() for code in preset["newsdata_countries"]]
+
+
+def get_feeds(
+    user_feeds: Optional[Iterable[str]] = None,
+    content_languages: Optional[Iterable[str]] = None,
+    source_preset: Optional[str] = None,
+    country_code: Optional[str] = None,
+) -> List[str]:
+    """Resolve RSS feeds using language preference first, then locale."""
+    resolved_languages = resolve_newsdata_languages(
+        content_languages=content_languages,
+        country_code=country_code,
+    )
+    language_feeds: List[str] = []
+    for language_code in resolved_languages:
+        language_feeds.extend(
+            config.LANGUAGE_SOURCE_PRESETS.get(language_code, {}).get("rss_feeds", [])
+        )
+
     env_val = os.environ.get("RSS_FEED_URLS", "").strip()
-    if env_val:
-        return [u.strip() for u in env_val.split(",") if u.strip()]
-    return list(_DEFAULT_RSS_FEEDS)
+    env_feeds = env_val.split(",") if env_val else []
+
+    preset = get_source_preset(source_preset=source_preset, country_code=country_code)
+    return _unique_preserve_order(
+        [
+            *(user_feeds or []),
+            *language_feeds,
+            *preset["local_rss_feeds"],
+            *env_feeds,
+            *_DEFAULT_RSS_FEEDS,
+        ]
+    )
 
 
 def set_feeds(urls: List[str]) -> None:
@@ -39,26 +122,30 @@ def set_feeds(urls: List[str]) -> None:
 RSS_FEEDS = get_feeds()
 
 
-def fetch_newsdata_articles(api_key: Optional[str] = None) -> List[dict]:
-    """Fetch articles from NewsData.io.
-
-    Args:
-        api_key: NewsData.io API key to use. Falls back to config.NEWSDATA_API_KEY
-                 when not provided. Pass a per-user key for multi-tenant isolation
-                 (avoids mutating module globals in a threaded environment).
-    """
+def fetch_newsdata_articles(
+    api_key: Optional[str] = None,
+    languages: Optional[Iterable[str]] = None,
+    countries: Optional[Iterable[str]] = None,
+) -> List[dict]:
+    """Fetch articles from NewsData.io using locale-aware parameters."""
     effective_key = api_key or config.NEWSDATA_API_KEY
     if not effective_key:
         logger.warning("NEWSDATA_API_KEY not set; skipping NewsData.io")
         return []
 
+    resolved_languages = normalize_languages(languages) or list(
+        resolve_newsdata_languages(country_code=config.DEFAULT_COUNTRY_CODE)
+    )
+    resolved_countries = [code.lower() for code in (countries or normalize_country_filters())]
+
     url = "https://newsdata.io/api/1/latest"
     params = {
         "apikey": effective_key,
         "category": "technology",
-        "language": "en",
-        "country": "us,gb,ca",
+        "language": ",".join(resolved_languages),
     }
+    if resolved_countries:
+        params["country"] = ",".join(resolved_countries)
     try:
         resp = requests.get(url, params=params, timeout=config.HTTP_TIMEOUT_SECONDS)
         resp.raise_for_status()
@@ -103,7 +190,10 @@ def fetch_hackernews_top(limit: int = 20) -> List[dict]:
     """Fetch top stories from Hacker News."""
     base_url = "https://hacker-news.firebaseio.com/v0"
     try:
-        resp = requests.get(f"{base_url}/topstories.json", timeout=config.HTTP_TIMEOUT_SECONDS)
+        resp = requests.get(
+            f"{base_url}/topstories.json",
+            timeout=config.HTTP_TIMEOUT_SECONDS,
+        )
         resp.raise_for_status()
     except requests.RequestException as exc:
         logger.error("Hacker News request failed: %s", exc)
@@ -130,7 +220,9 @@ def fetch_hackernews_top(limit: int = 20) -> List[dict]:
                 "title": story.get("title", ""),
                 "url": story.get("url", ""),
                 "content": story.get("text", ""),
-                "published_date": datetime.utcfromtimestamp(story.get("time", 0)).isoformat(),
+                "published_date": datetime.utcfromtimestamp(
+                    story.get("time", 0)
+                ).isoformat(),
             }
         )
     return items
@@ -179,20 +271,8 @@ def save_articles(
     user_id: Optional[str] = None,
     keywords: Optional[List[str]] = None,
 ) -> int:
-    """Save scraped articles to raw_articles.
-
-    Per-tenant isolation: when user_id is provided, the deduplication check
-    is scoped to that user so two tenants can both ingest the same URL
-    independently.
-
-    Args:
-        items:    Iterable of article dicts from fetch_* functions.
-        user_id:  Tenant ID — tag each row so the article belongs to a specific user.
-                  Required for multi-tenant operation; None only in single-user dev mode.
-        keywords: Override list of keywords to store on the row (per-user niche).
-                  Falls back to config.DEFAULT_KEYWORDS when not supplied.
-    """
-    client = config.get_supabase_client()
+    """Save scraped articles to raw_articles."""
+    client = config.get_database_client()
     kw_list = keywords or config.DEFAULT_KEYWORDS
     saved = 0
     for item in items:
@@ -200,8 +280,6 @@ def save_articles(
         if not url:
             continue
         try:
-            # Per-tenant deduplication: scope by user_id when available so
-            # different users can independently process the same URL.
             query = client.table("raw_articles").select("id").eq("url", url)
             if user_id:
                 query = query.eq("user_id", user_id)
@@ -235,24 +313,37 @@ def run(
     user_id: Optional[str] = None,
     newsdata_api_key: Optional[str] = None,
     keywords: Optional[List[str]] = None,
+    content_languages: Optional[Iterable[str]] = None,
+    country_code: Optional[str] = None,
+    source_preset: Optional[str] = None,
+    rss_feeds: Optional[Iterable[str]] = None,
 ) -> int:
-    """Run the full scrape pipeline.
-
-    Args:
-        user_id:          Tenant ID — tags every saved row; required for
-                          multi-tenant operation.
-        newsdata_api_key: Per-user NewsData.io API key passed directly to
-                          fetch_newsdata_articles() (no global mutation — safe
-                          for concurrent threads).
-        keywords:         Per-user keyword list for filtering; falls back to
-                          config.DEFAULT_KEYWORDS when not provided.
-    """
+    """Run the full scrape pipeline with language-first source discovery."""
     filter_kw = keywords or config.DEFAULT_KEYWORDS
+    resolved_languages = resolve_newsdata_languages(
+        content_languages=content_languages,
+        country_code=country_code,
+    )
+    resolved_countries = normalize_country_filters(
+        source_preset=source_preset,
+        country_code=country_code,
+    )
+    resolved_feeds = get_feeds(
+        user_feeds=rss_feeds,
+        content_languages=resolved_languages,
+        source_preset=source_preset,
+        country_code=country_code,
+    )
 
     items: List[dict] = []
-    # Pass the per-user API key explicitly — no global state mutation
-    items.extend(fetch_newsdata_articles(api_key=newsdata_api_key))
-    for rss_url in get_feeds():
+    items.extend(
+        fetch_newsdata_articles(
+            api_key=newsdata_api_key,
+            languages=resolved_languages,
+            countries=resolved_countries,
+        )
+    )
+    for rss_url in resolved_feeds:
         items.extend(fetch_rss_feed(rss_url))
         time.sleep(config.REQUEST_SLEEP_SECONDS)
     items.extend(fetch_hackernews_top())
@@ -260,32 +351,26 @@ def run(
     filtered = filter_articles(items, filter_kw)
     unique = dedupe_by_url(filtered)
     saved = save_articles(unique, user_id=user_id, keywords=filter_kw)
-    logger.info("Scraper saved %s new articles (user_id=%s)", saved, user_id)
+    logger.info(
+        "Scraper saved %s new articles (user_id=%s, country=%s, languages=%s)",
+        saved,
+        user_id,
+        country_code,
+        resolved_languages or "default",
+    )
     return saved
 
 
 def run_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-defined]
-    """
-    Run the full scrape pipeline for a single tenant using a UserConfig object.
-
-    This is the preferred entry point for the multi-tenant pipeline runner.
-    All per-user credentials and keyword preferences are extracted from
-    ``user_config`` rather than environment variables.
-
-    Parameters
-    ----------
-    user_config : UserConfig
-        Fully-populated tenant configuration object.
-
-    Returns
-    -------
-    int
-        Number of new articles saved.
-    """
+    """Run the full scrape pipeline for a single tenant using a UserConfig object."""
     return run(
         user_id=user_config.user_id,
         newsdata_api_key=user_config.newsdata_api_key or None,
         keywords=user_config.niche_keywords or None,
+        content_languages=user_config.content_languages or [user_config.content_language],
+        country_code=user_config.country_code,
+        source_preset=user_config.source_preset or user_config.country_code,
+        rss_feeds=user_config.rss_feed_urls or None,
     )
 
 

@@ -15,10 +15,11 @@ Version: 2.0.0
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from datetime import datetime, timezone
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import requests
 
@@ -33,10 +34,121 @@ logger = config.get_logger("publisher")
 
 
 GRAPH_API_VERSION = "v19.0"
+AUTO_PUBLISHABLE_FORMATS = {"post", "carousel"}
+DRAFT_ONLY_FORMATS = {"story_sequence", "reel_script"}
 
 
 def _graph_url(path: str) -> str:
     return f"https://graph.facebook.com/{GRAPH_API_VERSION}/{path.lstrip('/')}"
+
+
+def _normalize_post_type(post_type: Optional[str]) -> str:
+    candidate = str(post_type or "post").strip().lower()
+    if candidate in {"text", "photo"}:
+        return "post"
+    return candidate
+
+
+def _coerce_hashtags(raw_value) -> List[str]:
+    if isinstance(raw_value, list):
+        return [str(item).strip() for item in raw_value if str(item).strip()]
+    if isinstance(raw_value, str):
+        try:
+            parsed = json.loads(raw_value)
+            if isinstance(parsed, list):
+                return [str(item).strip() for item in parsed if str(item).strip()]
+        except Exception:
+            pass
+        return [token.strip() for token in raw_value.split() if token.strip().startswith("#")]
+    return []
+
+
+def _parse_structured_payload(content: Dict) -> Dict:
+    generated_text = content.get("generated_text")
+    if isinstance(generated_text, dict):
+        return generated_text
+    if not isinstance(generated_text, str):
+        return {}
+    stripped = generated_text.strip()
+    if not stripped.startswith("{"):
+        return {}
+    try:
+        payload = json.loads(stripped)
+        return payload if isinstance(payload, dict) else {}
+    except Exception:
+        return {}
+
+
+def _build_standard_message(content: Dict) -> str:
+    hashtags = _coerce_hashtags(content.get("hashtags"))
+    hashtag_str = " ".join(hashtags) if hashtags else ""
+    arabic_text = content.get("arabic_text", "")
+    image_path = content.get("image_path", "")
+    if arabic_text and image_path and os.path.exists(image_path):
+        cta_ar = "ما رأيكم؟ شاركونا في التعليقات! 💬"
+        return f"{arabic_text}\n\n{cta_ar}\n\n{hashtag_str}".strip()
+
+    hook = content.get("hook", "")
+    body = content.get("generated_text", "")
+    cta = content.get("call_to_action", "")
+    return f"{hook}\n\n{body}\n\n{cta}\n\n{hashtag_str}".strip()
+
+
+def _get_brand_color(user_id: Optional[str]) -> str:
+    if not user_id:
+        return "#F9C74F"
+    try:
+        from app.utils import get_user_settings
+
+        settings = get_user_settings(user_id) or {}
+        return str(settings.get("brand_color") or "#F9C74F")
+    except Exception:
+        return "#F9C74F"
+
+
+def _draft_format_label(post_type: str) -> str:
+    if post_type == "story_sequence":
+        return "story"
+    if post_type == "reel_script":
+        return "reel"
+    return post_type
+
+
+def _mark_content_draft_ready(content_id: str, schedule_id: str, user_id: Optional[str]) -> None:
+    client = config.get_database_client()
+    content_query = client.table("processed_content").update({"status": "draft_ready"}).eq("id", content_id)
+    schedule_query = client.table("scheduled_posts").update({"status": "draft_ready"}).eq("id", schedule_id)
+    if user_id:
+        content_query = content_query.eq("user_id", user_id)
+        schedule_query = schedule_query.eq("user_id", user_id)
+    content_query.execute()
+    schedule_query.execute()
+
+
+def _notify_draft_ready(user_id: Optional[str], post_type: str) -> None:
+    if not user_id:
+        return
+    try:
+        from tasks.telegram_bot import telegram_notify_draft_ready
+
+        telegram_notify_draft_ready(user_id, _draft_format_label(post_type))
+    except Exception as exc:
+        logger.debug("Draft-ready notification skipped: %s", exc)
+
+
+def _resolve_facebook_credentials(
+    access_token: str = "",
+    page_id: str = "",
+) -> tuple[str, str]:
+    """
+    Resolve Facebook credentials for low-level publish helpers.
+
+    Explicit parameters always win. Legacy single-user callers can still rely on
+    env vars. Multi-tenant flows should pass credentials explicitly.
+    """
+    resolved_token = access_token or config.require_env("FACEBOOK_ACCESS_TOKEN")
+    resolved_page_id = page_id or config.require_env("FACEBOOK_PAGE_ID")
+    return resolved_token, resolved_page_id
 
 
 def publish_text_post(
@@ -44,16 +156,7 @@ def publish_text_post(
     access_token: str = "",
     page_id: str = "",
 ) -> str:
-    if not access_token:
-        # Env fallback only for non-tenant (single-user) mode.
-        # Tenant callers must supply access_token explicitly.
-        access_token = os.getenv("FACEBOOK_ACCESS_TOKEN", "")
-    if not page_id:
-        page_id = os.getenv("FACEBOOK_PAGE_ID", "")
-    if not access_token or not page_id:
-        raise RuntimeError(
-            "publish_text_post: access_token and page_id are required"
-        )
+    access_token, page_id = _resolve_facebook_credentials(access_token, page_id)
     url = _graph_url(f"{page_id}/feed")
     payload = {"message": message, "access_token": access_token}
     try:
@@ -91,15 +194,7 @@ def publish_photo_post(
     Returns:
         Post ID
     """
-    if not access_token:
-        # Env fallback only for non-tenant (single-user) mode.
-        access_token = os.getenv("FACEBOOK_ACCESS_TOKEN", "")
-    if not page_id:
-        page_id = os.getenv("FACEBOOK_PAGE_ID", "")
-    if not access_token or not page_id:
-        raise RuntimeError(
-            "publish_photo_post: access_token and page_id are required"
-        )
+    access_token, page_id = _resolve_facebook_credentials(access_token, page_id)
     url = _graph_url(f"{page_id}/photos")
 
     try:
@@ -125,13 +220,117 @@ def publish_photo_post(
     return post_id
 
 
-# Note: Reel publishing removed in v2.0 (Gumroad simplified version)
-# Focus on photo posts with Arabic text for maximum engagement
+def publish_carousel_post(
+    caption: str,
+    slides: List[Dict],
+    access_token: str = "",
+    page_id: str = "",
+    user_id: Optional[str] = None,
+) -> str:
+    """Publish a Facebook carousel by uploading unpublished images first."""
+    access_token, page_id = _resolve_facebook_credentials(access_token, page_id)
+    if not slides:
+        raise RuntimeError("Carousel publish failed: no slides were provided.")
+
+    from engine.image_generator import generate_carousel_placeholder, generate_carousel_slide
+
+    brand_color = _get_brand_color(user_id)
+    uploaded_media_ids: List[str] = []
+
+    for index, slide in enumerate(slides[:5], start=1):
+        slide_number = int(slide.get("slide_number") or index)
+        headline = str(slide.get("headline") or "").strip() or f"Slide {slide_number}"
+        body = str(slide.get("body") or "").strip()
+
+        try:
+            slide_path = generate_carousel_slide(
+                headline=headline,
+                body=body,
+                slide_number=slide_number,
+                brand_color=brand_color,
+            )
+        except Exception as exc:
+            logger.warning("Carousel slide generation failed for slide %s: %s", slide_number, exc)
+            slide_path = generate_carousel_placeholder(
+                headline=headline,
+                slide_number=slide_number,
+                brand_color=brand_color,
+            )
+
+        upload_url = _graph_url(f"{page_id}/photos")
+        try:
+            with open(slide_path, "rb") as image_file:
+                resp = requests.post(
+                    upload_url,
+                    data={"published": "false", "access_token": access_token},
+                    files={"source": image_file},
+                    timeout=60,
+                )
+                resp.raise_for_status()
+        except FileNotFoundError as exc:
+            raise RuntimeError(f"Carousel slide image not found: {slide_path}") from exc
+        except requests.RequestException as exc:
+            raise RuntimeError(f"Facebook carousel image upload failed: {exc}") from exc
+
+        upload_result = resp.json()
+        media_id = upload_result.get("id")
+        if not media_id:
+            raise RuntimeError(f"Facebook carousel upload missing media id: {upload_result}")
+        uploaded_media_ids.append(media_id)
+
+    feed_payload = {"message": caption, "access_token": access_token}
+    for index, media_id in enumerate(uploaded_media_ids):
+        feed_payload[f"attached_media[{index}]"] = json.dumps({"media_fbid": media_id})
+
+    try:
+        resp = requests.post(_graph_url(f"{page_id}/feed"), data=feed_payload, timeout=60)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Facebook carousel publish failed: {exc}") from exc
+
+    result = resp.json()
+    post_id = result.get("id")
+    if not post_id:
+        raise RuntimeError(f"Facebook carousel publish missing post id: {result}")
+    logger.info("Published carousel post: %s", post_id)
+    return post_id
+
+
+def publish_reel(
+    video_url: str,
+    description: str,
+    access_token: str = "",
+    page_id: str = "",
+) -> str:
+    """
+    Backward-compatible Reel/video publish helper.
+
+    The current product focuses on text/photo workflows, but keeping this thin
+    wrapper preserves older automation entry points and tests.
+    """
+    access_token, page_id = _resolve_facebook_credentials(access_token, page_id)
+    url = _graph_url(f"{page_id}/videos")
+    payload = {
+        "file_url": video_url,
+        "description": description,
+        "access_token": access_token,
+    }
+    try:
+        resp = requests.post(url, data=payload, timeout=60)
+        resp.raise_for_status()
+    except requests.RequestException as exc:
+        raise RuntimeError(f"Facebook reel post failed: {exc}") from exc
+
+    data = resp.json()
+    post_id = data.get("id")
+    if not post_id:
+        raise RuntimeError(f"Facebook response missing post id: {data}")
+    return post_id
 
 
 def fetch_due_posts(limit: int = 5, user_id: Optional[str] = None):
     """Return scheduled posts that are due, optionally scoped to a single tenant."""
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     now = datetime.now(timezone.utc).replace(tzinfo=None).isoformat()
     query = (
         client.table("scheduled_posts")
@@ -148,10 +347,10 @@ def fetch_due_posts(limit: int = 5, user_id: Optional[str] = None):
 
 
 def fetch_content(content_id: str, user_id: Optional[str] = None) -> Optional[Dict]:
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     query = (
         client.table("processed_content")
-        .select("id,post_type,generated_text,script_for_reel,hook,call_to_action,hashtags,image_path,arabic_text,status,fb_post_id")
+        .select("id,post_type,generated_text,hook,call_to_action,hashtags,image_path,arabic_text,status,fb_post_id")
         .eq("id", content_id)
     )
     if user_id:
@@ -161,7 +360,7 @@ def fetch_content(content_id: str, user_id: Optional[str] = None) -> Optional[Di
 
 
 def mark_published(content_id: str, post_id: str, user_id: Optional[str] = None) -> None:
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     insert_data = {
         "content_id": content_id,
         "facebook_post_id": post_id,
@@ -170,7 +369,19 @@ def mark_published(content_id: str, post_id: str, user_id: Optional[str] = None)
     }
     if user_id:
         insert_data["user_id"] = user_id
-    client.table("published_posts").insert(insert_data).execute()
+    existing_query = client.table("published_posts").select("id").eq(
+        "facebook_post_id", post_id
+    )
+    if user_id:
+        existing_query = existing_query.eq("user_id", user_id)
+    existing = existing_query.limit(1).execute()
+    if existing.data:
+        update_query = client.table("published_posts").update(insert_data).eq(
+            "id", existing.data[0]["id"]
+        )
+        update_query.execute()
+    else:
+        client.table("published_posts").insert(insert_data).execute()
 
     # v2.1.1: Also save fb_post_id to processed_content (anti double-publish)
     update_query = client.table("processed_content").update({
@@ -183,7 +394,7 @@ def mark_published(content_id: str, post_id: str, user_id: Optional[str] = None)
 
 
 def update_schedule_status(schedule_id: str, status: str, user_id: Optional[str] = None) -> None:
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     query = client.table("scheduled_posts").update({"status": status}).eq("id", schedule_id)
     if user_id:
         query = query.eq("user_id", user_id)
@@ -198,7 +409,7 @@ def cas_update_content_status(content_id: str, expected_status: str, new_status:
     Only updates if current status matches expected_status.
     Returns True if update was successful, False if someone else changed the status.
     """
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     query = client.table("processed_content").update({
         "status": new_status
     }).eq("id", content_id).eq("status", expected_status)
@@ -232,7 +443,7 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
         logger.warning(f"Retry processing failed: {e}")
 
     # Check for shadowban before publishing
-    if should_pause_automation():
+    if should_pause_automation(user_id=user_id):
         logger.warning("🛑 Automation paused due to shadowban detection")
         return 0
 
@@ -242,7 +453,7 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
         return 0
 
     # Check rate limits
-    can_post, reason = can_post_now()
+    can_post, reason = can_post_now(user_id=user_id)
     if not can_post:
         logger.warning(f"⏸️ Rate limit: {reason}")
         return 0
@@ -258,7 +469,7 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
         row_user_id = item.get("user_id") or user_id
 
         # Check if content can be published (duplicate check)
-        can_publish, reason = can_publish_content(content_id)
+        can_publish, reason = can_publish_content(content_id, user_id=row_user_id)
         if not can_publish:
             logger.warning("⏭️ Skipping %s: %s", content_id[:8], reason)
             update_schedule_status(schedule_id, "failed", user_id=row_user_id)
@@ -269,6 +480,19 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
         if not content:
             logger.error("Content not found: %s", content_id)
             update_schedule_status(schedule_id, "failed", user_id=row_user_id)
+            continue
+
+        normalized_post_type = _normalize_post_type(content.get("post_type"))
+        if normalized_post_type in DRAFT_ONLY_FORMATS:
+            logger.info("Content %s is draft-only (%s); marking draft_ready", content_id[:8], normalized_post_type)
+            _mark_content_draft_ready(content_id, schedule_id, row_user_id)
+            _notify_draft_ready(row_user_id, normalized_post_type)
+            skipped += 1
+            continue
+        if normalized_post_type not in AUTO_PUBLISHABLE_FORMATS:
+            logger.warning("Skipping %s: unknown post_type=%s", content_id[:8], content.get("post_type"))
+            update_schedule_status(schedule_id, "failed", user_id=row_user_id)
+            skipped += 1
             continue
 
         # v2.1.1: Anti Double-Publish - skip API if already posted
@@ -283,9 +507,15 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
         # "approved" = post that has already passed Telegram approval and is
         # ready to publish without re-gating (distinct from "scheduled" which
         # has not yet been approved when approval_mode is enabled).
-        content_status = content.get("status", "")
+        content_status = content.get("status") or "scheduled"
         _APPROVAL_BYPASS_STATUSES = {"approved"}
-        _SCHEDULABLE_STATUSES = {"scheduled", "media_ready", "retry_scheduled", "approved"}
+        _SCHEDULABLE_STATUSES = {
+            "drafted",
+            "scheduled",
+            "media_ready",
+            "retry_scheduled",
+            "approved",
+        }
         if content_status not in _SCHEDULABLE_STATUSES:
             logger.warning("⏭️ Skipping %s: status is '%s' (not schedulable)", content_id[:8], content_status)
             skipped += 1
@@ -369,6 +599,9 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
             cta = content.get("call_to_action", "")
             message = f"{hook}\n\n{body}\n\n{cta}\n\n{hashtag_str}".strip()
 
+        normalized_post_type = _normalize_post_type(content.get("post_type"))
+        structured_payload = _parse_structured_payload(content)
+
         # ── Load per-user Facebook tokens (multi-tenant, fail-closed) ──
         # In tenant mode we NEVER fall back to global env credentials —
         # that would publish one user's content with another page's token.
@@ -410,11 +643,29 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
         ig_post_id: str = ""
         fb_error: str = ""
         ig_error: str = ""
+        if publish_to_instagram and normalized_post_type == "carousel":
+            ig_error = "Carousel auto-publish is not supported for Instagram."
+            logger.info("Skipping Instagram publish for carousel %s", content_id[:8])
+            publish_to_instagram = False
 
         # ── Facebook publish (isolated try — does NOT block IG) ────────
         if publish_to_facebook:
             try:
-                if image_path and os.path.exists(image_path):
+                if normalized_post_type == "carousel":
+                    carousel_caption = str(structured_payload.get("caption") or "").strip()
+                    carousel_hashtags = _coerce_hashtags(
+                        structured_payload.get("hashtags") or content.get("hashtags")
+                    )
+                    if carousel_hashtags:
+                        carousel_caption = f"{carousel_caption}\n\n{' '.join(carousel_hashtags)}".strip()
+                    fb_post_id = publish_carousel_post(
+                        carousel_caption,
+                        structured_payload.get("slides") or [],
+                        access_token=row_fb_token,
+                        page_id=row_fb_page_id,
+                        user_id=row_user_id,
+                    )
+                elif image_path and os.path.exists(image_path):
                     logger.info("📷 Publishing to Facebook with image: %s", image_path)
                     fb_post_id = publish_photo_post(
                         message, image_path,
@@ -430,7 +681,7 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
                     )
 
                 mark_published(content["id"], fb_post_id, user_id=row_user_id)
-                record_publication(content["id"], fb_post_id)
+                record_publication(content["id"], fb_post_id, user_id=row_user_id)
                 fb_ok = True
                 logger.info("✅ Published %s -> FB: %s", content_id[:8], fb_post_id)
             except Exception as fb_exc:
@@ -473,7 +724,7 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
                 # mark_published(), so update it here.
                 if not fb_ok:
                     try:
-                        uq = config.get_supabase_client().table("processed_content").update(
+                        uq = config.get_database_client().table("processed_content").update(
                             {"status": "published"}
                         ).eq("id", content["id"])
                         if row_user_id:
@@ -540,7 +791,7 @@ def publish_due_posts(limit: int = 5, user_id: Optional[str] = None) -> int:
     return published
 
 
-def publish_with_duplicate_check(content_id: str) -> Optional[str]:
+def publish_with_duplicate_check(content_id: str, user_id: Optional[str] = None) -> Optional[str]:
     """
     Publish a specific content item with duplicate checking.
 
@@ -551,7 +802,7 @@ def publish_with_duplicate_check(content_id: str) -> Optional[str]:
         Facebook post ID if successful, None otherwise
     """
     # Check if can publish
-    can_publish, reason = can_publish_content(content_id)
+    can_publish, reason = can_publish_content(content_id, user_id=user_id)
     if not can_publish:
         logger.warning("Cannot publish %s: %s", content_id[:8], reason)
         return None
@@ -562,19 +813,26 @@ def publish_with_duplicate_check(content_id: str) -> Optional[str]:
         return None
 
     try:
-        if content["post_type"] == "text":
-            hook = content.get("hook", "")
-            body = content.get("generated_text", "")
-            cta = content.get("call_to_action", "")
-            message = f"{hook}\n\n{body}\n\n{cta}"
-            post_id = publish_text_post(message)
+        normalized_post_type = _normalize_post_type(content.get("post_type"))
+        if normalized_post_type in DRAFT_ONLY_FORMATS:
+            logger.warning("Draft-only format cannot auto-publish: %s", normalized_post_type)
+            return None
+        if normalized_post_type == "carousel":
+            payload = _parse_structured_payload(content)
+            caption = str(payload.get("caption") or "").strip()
+            hashtags = _coerce_hashtags(payload.get("hashtags") or content.get("hashtags"))
+            if hashtags:
+                caption = f"{caption}\n\n{' '.join(hashtags)}".strip()
+            post_id = publish_carousel_post(caption, payload.get("slides") or [])
+        elif normalized_post_type == "post":
+            post_id = publish_text_post(_build_standard_message(content))
         else:
-            logger.warning("Only text posts supported currently")
+            logger.warning("Unsupported post type for auto-publish: %s", content.get("post_type"))
             return None
 
         # Record publication
-        mark_published(content_id, post_id)
-        record_publication(content_id, post_id)
+        mark_published(content_id, post_id, user_id=user_id)
+        record_publication(content_id, post_id, user_id=user_id)
 
         logger.info("✅ Published %s -> FB: %s", content_id[:8], post_id)
         return post_id
@@ -597,12 +855,12 @@ def publish_content_by_id(content_id: str, user_id: Optional[str] = None) -> Dic
     """
     try:
         # Check rate limiter
-        can_post, reason = can_post_now()
+        can_post, reason = can_post_now(user_id=user_id)
         if not can_post:
             return {"success": False, "error": f"Rate limited: {reason}"}
 
         # Check ban detector
-        if should_pause_automation():
+        if should_pause_automation(user_id=user_id):
             return {"success": False, "error": "Automation paused due to potential shadowban"}
 
         # Fetch content (scoped to user_id if provided)
@@ -621,18 +879,23 @@ def publish_content_by_id(content_id: str, user_id: Optional[str] = None) -> Dic
             return {"success": False, "error": f"Invalid status for publishing: {content.get('status')}"}
 
         # Transition to 'publishing'
-        client = config.get_supabase_client()
+        client = config.get_database_client()
         update_q = client.table("processed_content").update({"status": "publishing"}).eq("id", content_id)
         if user_id:
             update_q = update_q.eq("user_id", user_id)
         update_q.execute()
 
-        # Build message
-        hook = content.get("hook", "")
-        body = content.get("generated_text", "")
-        cta = content.get("call_to_action", "")
-        hashtags = " ".join(content.get("hashtags", []))
-        message = f"{hook}\n\n{body}\n\n{cta}\n\n{hashtags}"
+        normalized_post_type = _normalize_post_type(content.get("post_type"))
+        if normalized_post_type in DRAFT_ONLY_FORMATS:
+            return {
+                "success": False,
+                "error": f"{_draft_format_label(normalized_post_type).capitalize()} is draft-only. Open Studio to export it.",
+            }
+        if normalized_post_type not in AUTO_PUBLISHABLE_FORMATS:
+            return {"success": False, "error": f"Unsupported post type: {content.get('post_type')}"}
+
+        structured_payload = _parse_structured_payload(content)
+        message = _build_standard_message(content)
 
         # Resolve per-user Facebook credentials — fail-closed in tenant mode
         _fb_token: str = ""
@@ -652,9 +915,20 @@ def publish_content_by_id(content_id: str, user_id: Optional[str] = None) -> Dic
                 return {"success": False, "error": "No Facebook credentials for this user"}
         # Non-tenant (single-user) mode: low-level methods fall back to env vars
 
-        # Publish based on content type
         image_path = content.get("image_path")
-        if image_path and os.path.exists(image_path):
+        if normalized_post_type == "carousel":
+            caption = str(structured_payload.get("caption") or "").strip()
+            hashtags = _coerce_hashtags(structured_payload.get("hashtags") or content.get("hashtags"))
+            if hashtags:
+                caption = f"{caption}\n\n{' '.join(hashtags)}".strip()
+            post_id = publish_carousel_post(
+                caption,
+                structured_payload.get("slides") or [],
+                access_token=_fb_token,
+                page_id=_fb_page,
+                user_id=user_id,
+            )
+        elif image_path and os.path.exists(image_path):
             post_id = publish_photo_post(
                 message, image_path,
                 access_token=_fb_token,
@@ -669,7 +943,7 @@ def publish_content_by_id(content_id: str, user_id: Optional[str] = None) -> Dic
 
         if post_id:
             mark_published(content_id, post_id, user_id=user_id)
-            record_publication(content_id, post_id)
+            record_publication(content_id, post_id, user_id=user_id)
             error_handler.update_success_status(content_id)
             logger.info("✅ Published content %s -> FB: %s", content_id[:8], post_id)
             return {"success": True, "post_id": post_id, "facebook_url": f"https://facebook.com/{post_id}"}
@@ -683,7 +957,7 @@ def publish_content_by_id(content_id: str, user_id: Optional[str] = None) -> Dic
     except Exception as e:
         logger.error("❌ Publish error: %s", e)
         try:
-            revert_q = config.get_supabase_client().table("processed_content").update({"status": "failed", "last_error": str(e)}).eq("id", content_id)
+            revert_q = config.get_database_client().table("processed_content").update({"status": "failed", "last_error": str(e)}).eq("id", content_id)
             if user_id:
                 revert_q = revert_q.eq("user_id", user_id)
             revert_q.execute()
@@ -692,9 +966,9 @@ def publish_content_by_id(content_id: str, user_id: Optional[str] = None) -> Dic
         return {"success": False, "error": str(e)}
 
 
-def get_publication_status() -> Dict:
+def get_publication_status(user_id: Optional[str] = None) -> Dict:
     """Get current publication status and stats."""
-    tracker = get_tracker()
+    tracker = get_tracker(user_id=user_id)
     return tracker.get_publication_stats()
 
 
@@ -728,7 +1002,7 @@ def _persist_publish_outcome(
     All writes go to Supabase (the DB layer the dashboard API reads from).
     """
     try:
-        client = config.get_supabase_client()
+        client = config.get_database_client()
 
         if fb_ok and not publish_to_instagram:
             # FB-only success — already inserted by mark_published() with user_id; nothing to do.
@@ -870,7 +1144,7 @@ def _publish_to_instagram_if_configured(
 
     # Update/create published_posts row with IG post ID + per-platform status
     try:
-        client = config.get_supabase_client()
+        client = config.get_database_client()
         if fb_post_id:
             # Cross-post: update existing FB row
             row = (

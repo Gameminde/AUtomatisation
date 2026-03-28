@@ -18,14 +18,7 @@ def validate_license(license_key: str, platform: Optional[str] = None) -> Dict:
         return {"valid": False, "reason": "No license key provided"}
 
     try:
-        from supabase import create_client
-        url = os.getenv("SUPABASE_URL", "")
-        key = os.getenv("SUPABASE_KEY", "")
-        if not url or not key:
-            logger.warning("Supabase not configured — cannot validate license")
-            return {"valid": False, "reason": "License validation requires Supabase configuration"}
-
-        client = create_client(url, key)
+        client = config.get_supabase_service_client()
         result = (
             client.table("activation_codes")
             .select("id, code, used, platform")

@@ -1,0 +1,408 @@
+{
+  "TARGET_TIMEZONES": {
+    "US": "America/New_York",
+    "UK": "Europe/London",
+    "FR": "Europe/Paris",
+    "DE": "Europe/Berlin",
+    "AE": "Asia/Dubai",
+    "QA": "Asia/Qatar",
+    "KW": "Asia/Kuwait",
+    "OTHER": "UTC",
+    "DZ": "Africa/Algiers",
+    "MA": "Africa/Casablanca",
+    "EG": "Africa/Cairo",
+    "SA": "Asia/Riyadh"
+  },
+  "TARGET_POSTING_PRESETS": {
+    "US": {
+      "country_code": "US",
+      "label": "United States",
+      "timezone": "America/New_York",
+      "posting_times": "11:00,14:00,19:00",
+      "peak_hours": [
+        11,
+        14,
+        19
+      ],
+      "default_content_language": "en",
+      "default_content_languages": "en",
+      "default_content_tone": "professional",
+      "default_dialect": ""
+    },
+    "UK": {
+      "country_code": "UK",
+      "label": "United Kingdom",
+      "timezone": "Europe/London",
+      "posting_times": "12:00,17:00,20:00",
+      "peak_hours": [
+        12,
+        17,
+        20
+      ],
+      "default_content_language": "en",
+      "default_content_languages": "en",
+      "default_content_tone": "professional",
+      "default_dialect": ""
+    },
+    "FR": {
+      "country_code": "FR",
+      "label": "France",
+      "timezone": "Europe/Paris",
+      "posting_times": "12:00,18:00,20:00",
+      "peak_hours": [
+        12,
+        18,
+        20
+      ],
+      "default_content_language": "fr",
+      "default_content_languages": "fr,en",
+      "default_content_tone": "professional",
+      "default_dialect": ""
+    },
+    "DE": {
+      "country_code": "DE",
+      "label": "Germany",
+      "timezone": "Europe/Berlin",
+      "posting_times": "12:00,18:00,20:00",
+      "peak_hours": [
+        12,
+        18,
+        20
+      ],
+      "default_content_language": "en",
+      "default_content_languages": "en",
+      "default_content_tone": "professional",
+      "default_dialect": ""
+    },
+    "AE": {
+      "country_code": "AE",
+      "label": "United Arab Emirates",
+      "timezone": "Asia/Dubai",
+      "posting_times": "12:00,18:00,21:00",
+      "peak_hours": [
+        12,
+        18,
+        21
+      ],
+      "default_content_language": "ar",
+      "default_content_languages": "ar,en",
+      "default_content_tone": "professional",
+      "default_dialect": "gulf"
+    },
+    "QA": {
+      "country_code": "QA",
+      "label": "Qatar",
+      "timezone": "Asia/Qatar",
+      "posting_times": "12:00,18:00,20:00",
+      "peak_hours": [
+        12,
+        18,
+        20
+      ],
+      "default_content_language": "ar",
+      "default_content_languages": "ar,en",
+      "default_content_tone": "professional",
+      "default_dialect": "gulf"
+    },
+    "KW": {
+      "country_code": "KW",
+      "label": "Kuwait",
+      "timezone": "Asia/Kuwait",
+      "posting_times": "12:00,18:00,20:00",
+      "peak_hours": [
+        12,
+        18,
+        20
+      ],
+      "default_content_language": "ar",
+      "default_content_languages": "ar,en",
+      "default_content_tone": "professional",
+      "default_dialect": "gulf"
+    },
+    "DZ": {
+      "country_code": "DZ",
+      "label": "Algeria",
+      "timezone": "Africa/Algiers",
+      "posting_times": "12:00,19:00,21:00",
+      "peak_hours": [
+        12,
+        19,
+        21
+      ],
+      "default_content_language": "ar",
+      "default_content_languages": "ar,fr",
+      "default_content_tone": "educational",
+      "default_dialect": "maghrebi"
+    },
+    "MA": {
+      "country_code": "MA",
+      "label": "Morocco",
+      "timezone": "Africa/Casablanca",
+      "posting_times": "12:00,20:00,21:00",
+      "peak_hours": [
+        12,
+        20,
+        21
+      ],
+      "default_content_language": "fr",
+      "default_content_languages": "fr,ar",
+      "default_content_tone": "professional",
+      "default_dialect": "maghrebi"
+    },
+    "EG": {
+      "country_code": "EG",
+      "label": "Egypt",
+      "timezone": "Africa/Cairo",
+      "posting_times": "13:00,20:00,21:00",
+      "peak_hours": [
+        13,
+        20,
+        21
+      ],
+      "default_content_language": "ar",
+      "default_content_languages": "ar,en",
+      "default_content_tone": "educational",
+      "default_dialect": "egyptian"
+    },
+    "SA": {
+      "country_code": "SA",
+      "label": "Saudi Arabia",
+      "timezone": "Asia/Riyadh",
+      "posting_times": "14:00,18:00,20:00",
+      "peak_hours": [
+        14,
+        18,
+        20
+      ],
+      "default_content_language": "ar",
+      "default_content_languages": "ar,en",
+      "default_content_tone": "professional",
+      "default_dialect": "gulf"
+    },
+    "OTHER": {
+      "country_code": "OTHER",
+      "label": "Other",
+      "timezone": "UTC",
+      "posting_times": "12:00,18:00,20:00",
+      "peak_hours": [
+        12,
+        18,
+        20
+      ],
+      "default_content_language": "en",
+      "default_content_languages": "en",
+      "default_content_tone": "professional",
+      "default_dialect": ""
+    }
+  },
+  "LANGUAGE_SOURCE_PRESETS": {
+    "en": {
+      "id": "en",
+      "label": "English",
+      "newsdata_languages": [
+        "en"
+      ],
+      "rss_feeds": [
+        "https://techcrunch.com/feed/",
+        "https://www.theverge.com/rss/index.xml",
+        "https://news.mit.edu/rss/topic/technology",
+        "https://feeds.arstechnica.com/arstechnica/index"
+      ]
+    },
+    "fr": {
+      "id": "fr",
+      "label": "French",
+      "newsdata_languages": [
+        "fr"
+      ],
+      "rss_feeds": [
+        "https://www.blogdumoderateur.com/feed/",
+        "https://www.usine-digitale.fr/rss/",
+        "https://www.journaldunet.com/rss/"
+      ]
+    },
+    "ar": {
+      "id": "ar",
+      "label": "Arabic",
+      "newsdata_languages": [
+        "ar"
+      ],
+      "rss_feeds": [
+        "https://www.arabnews.com/rss.xml",
+        "https://www.albawaba.com/rss",
+        "https://www.aljazeera.net/aljazeerarss/ar"
+      ]
+    }
+  },
+  "CONTENT_SOURCE_PRESETS": {
+    "US": {
+      "id": "US",
+      "label": "United States",
+      "newsdata_countries": [
+        "us"
+      ],
+      "local_rss_feeds": [
+        "https://techcrunch.com/feed/",
+        "https://www.theverge.com/rss/index.xml"
+      ]
+    },
+    "UK": {
+      "id": "UK",
+      "label": "United Kingdom",
+      "newsdata_countries": [
+        "gb"
+      ],
+      "local_rss_feeds": [
+        "https://www.wired.com/feed/rss",
+        "https://www.theguardian.com/uk/technology/rss"
+      ]
+    },
+    "FR": {
+      "id": "FR",
+      "label": "France",
+      "newsdata_countries": [
+        "fr"
+      ],
+      "local_rss_feeds": [
+        "https://www.blogdumoderateur.com/feed/",
+        "https://www.usine-digitale.fr/rss/"
+      ]
+    },
+    "DE": {
+      "id": "DE",
+      "label": "Germany",
+      "newsdata_countries": [
+        "de"
+      ],
+      "local_rss_feeds": [
+        "https://www.heise.de/rss/heise.rdf",
+        "https://t3n.de/rss.xml"
+      ]
+    },
+    "AE": {
+      "id": "AE",
+      "label": "United Arab Emirates",
+      "newsdata_countries": [
+        "ae"
+      ],
+      "local_rss_feeds": [
+        "https://www.thenationalnews.com/business/technology/rss",
+        "https://www.arabianbusiness.com/industries/technology/feed"
+      ]
+    },
+    "QA": {
+      "id": "QA",
+      "label": "Qatar",
+      "newsdata_countries": [
+        "qa"
+      ],
+      "local_rss_feeds": [
+        "https://www.aljazeera.net/aljazeerarss/ar",
+        "https://dohanews.co/feed/"
+      ]
+    },
+    "KW": {
+      "id": "KW",
+      "label": "Kuwait",
+      "newsdata_countries": [
+        "kw"
+      ],
+      "local_rss_feeds": [
+        "https://www.arabtimesonline.com/news/feed/",
+        "https://www.arabnews.com/rss.xml"
+      ]
+    },
+    "DZ": {
+      "id": "DZ",
+      "label": "Algeria",
+      "newsdata_countries": [
+        "dz"
+      ],
+      "local_rss_feeds": [
+        "https://www.algerie-eco.com/feed/"
+      ]
+    },
+    "MA": {
+      "id": "MA",
+      "label": "Morocco",
+      "newsdata_countries": [
+        "ma"
+      ],
+      "local_rss_feeds": [
+        "https://ledesk.ma/encontinu/feed/"
+      ]
+    },
+    "EG": {
+      "id": "EG",
+      "label": "Egypt",
+      "newsdata_countries": [
+        "eg"
+      ],
+      "local_rss_feeds": [
+        "https://enterprise.news/feed/"
+      ]
+    },
+    "SA": {
+      "id": "SA",
+      "label": "Saudi Arabia",
+      "newsdata_countries": [
+        "sa"
+      ],
+      "local_rss_feeds": [
+        "https://www.arabnews.com/rss.xml"
+      ]
+    },
+    "OTHER": {
+      "id": "OTHER",
+      "label": "Other",
+      "newsdata_countries": [],
+      "local_rss_feeds": []
+    }
+  },
+  "NICHE_KEYWORD_PRESETS": {
+    "tech": {
+      "id": "tech",
+      "label": "Tech",
+      "keywords": [
+        "ai",
+        "artificial intelligence",
+        "startup",
+        "innovation",
+        "software"
+      ]
+    },
+    "gaming": {
+      "id": "gaming",
+      "label": "Gaming",
+      "keywords": [
+        "gaming",
+        "esports",
+        "playstation",
+        "xbox",
+        "steam"
+      ]
+    },
+    "creator": {
+      "id": "creator",
+      "label": "Creator Economy",
+      "keywords": [
+        "content creator",
+        "instagram",
+        "facebook",
+        "reels",
+        "social media"
+      ]
+    },
+    "ecommerce": {
+      "id": "ecommerce",
+      "label": "E-commerce",
+      "keywords": [
+        "ecommerce",
+        "shopify",
+        "online store",
+        "conversion",
+        "marketing"
+      ]
+    }
+  }
+}

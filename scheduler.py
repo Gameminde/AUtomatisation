@@ -1,5 +1,7 @@
-"""
-Root-level compatibility shim — the canonical implementation lives in engine/scheduler.py.
-Import this module normally; all symbols are re-exported transparently.
-"""
-from engine.scheduler import *  # noqa: F401, F403
+"""Compatibility alias for the canonical engine.scheduler module."""
+
+import sys
+
+from engine import scheduler as _impl
+
+sys.modules[__name__] = _impl

@@ -39,7 +39,13 @@ class GeminiClient:
     GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
     GEMINI_MODEL = "gemini-1.5-flash"  # Fast and free
     
-    def __init__(self, user_id: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        user_id: Optional[str] = None,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        allow_fallback: bool = True,
+    ):
         """
         Initialize Gemini client.
 
@@ -52,6 +58,8 @@ class GeminiClient:
                       here for strict per-user credential isolation.
         """
         self.gemini_key = api_key or self._resolve_key(user_id)
+        self.model = model or self.GEMINI_MODEL
+        self.allow_fallback = allow_fallback
         self.openrouter_available = bool(config.OPENROUTER_API_KEYS and any(config.OPENROUTER_API_KEYS))
         
         if self.gemini_key:
@@ -102,7 +110,7 @@ class GeminiClient:
                 logger.warning("Gemini failed, trying fallback: %s", e)
         
         # Fallback to OpenRouter
-        if self.openrouter_available:
+        if self.allow_fallback and self.openrouter_available:
             try:
                 from openrouter_client import OpenRouterClient
                 client = OpenRouterClient()
@@ -119,7 +127,7 @@ class GeminiClient:
         temperature: float,
     ) -> str:
         """Call Gemini API directly."""
-        url = f"{self.GEMINI_BASE_URL}/models/{self.GEMINI_MODEL}:generateContent"
+        url = f"{self.GEMINI_BASE_URL}/models/{self.model}:generateContent"
         
         headers = {
             "Content-Type": "application/json",

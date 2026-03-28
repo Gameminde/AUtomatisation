@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+{% set endpoint = request.endpoint or '' %}
+{% set normalized_active = active_page or '' %}
+{% set current_page = (
+    'dashboard' if normalized_active == 'dashboard' or endpoint == 'web.page_dashboard' else
+    'studio' if normalized_active == 'studio' or endpoint == 'web.page_studio' else
+    'channels' if normalized_active in ['channels', 'templates'] or endpoint in ['web.page_channels', 'web.page_templates'] else
+    'settings' if normalized_active == 'settings' or endpoint == 'web.page_settings' else
+    'diagnostics' if normalized_active in ['diagnostics', 'health'] or endpoint in ['web.page_diagnostics', 'web.page_health'] else
+    'dashboard'
+) %}
+{% set current_title = (
+    t('Dashboard') if current_page == 'dashboard' else
+    t('Studio') if current_page == 'studio' else
+    t('Channels') if current_page == 'channels' else
+    t('Settings') if current_page == 'settings' else
+    t('Diagnostics')
+) %}
+{% set system_lang = (system_language | default('EN')) | upper %}
+<html lang="{{ system_lang|lower }}" dir="{{ system_dir }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block title %}Content Factory{% endblock %}</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%23f5d000'/><text y='.9em' x='10' font-size='72' font-weight='800'>CF</text></svg>" type="image/svg+xml">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cf.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body class="cf-page" data-page="{{ current_page }}" data-system-lang="{{ system_lang }}" data-system-dir="{{ system_dir }}">
+    <div class="cf-shell">
+        <aside class="cf-sidebar" aria-label="Primary">
+            <div class="cf-sidebar-head">
+                <a class="cf-brand" href="{{ url_for('web.page_dashboard') if current_user and current_user.is_authenticated else url_for('web.page_landing') }}">
+                    <span class="cf-brand-mark">CF</span>
+                    <span class="cf-brand-copy">
+                        <span class="cf-brand-title">Content Factory</span>
+                        <span class="cf-brand-sub">{{ t('Editorial control for Facebook and Instagram') }}</span>
+                    </span>
+                </a>
+                <button type="button" class="cf-sidebar-toggle" id="cf-sidebar-toggle" aria-label="{{ t('Toggle rail') }}" title="{{ t('Toggle rail') }}" aria-pressed="false">
+                    <i class="fa-solid fa-angles-left" id="cf-sidebar-toggle-icon"></i>
+                </button>
+            </div>
+
+            <section class="cf-sidebar-hero">
+                {% block sidebar_statement %}
+                <div class="cf-sidebar-kicker" id="cf-shell-kicker">{{ t('Account state') }}</div>
+                <div class="cf-sidebar-statement">
+                    <div class="cf-sidebar-value" id="cf-shell-score">0%</div>
+                    <p class="cf-sidebar-copy" id="cf-shell-score-copy">{{ t('Loading account state.') }}</p>
+                </div>
+                {% endblock %}
+            </section>
+        </aside>
+
+        <main class="cf-main">
+            <header class="cf-topbar">
+                <div class="cf-topbar-left">
+                    <nav class="cf-topnav" aria-label="Primary navigation">
+                        <a href="{{ url_for('web.page_dashboard') }}" class="cf-topnav-link {% if current_page == 'dashboard' %}is-active{% endif %}">
+                            <span data-i18n="Dashboard">{{ t('Dashboard') }}</span>
+                        </a>
+                        <a href="{{ url_for('web.page_studio') }}" class="cf-topnav-link {% if current_page == 'studio' %}is-active{% endif %}">
+                            <span data-i18n="Studio">{{ t('Studio') }}</span>
+                        </a>
+                        <a href="{{ url_for('web.page_channels') }}" class="cf-topnav-link {% if current_page == 'channels' %}is-active{% endif %}">
+                            <span data-i18n="Channels">{{ t('Channels') }}</span>
+                        </a>
+                        <a href="{{ url_for('web.page_settings') }}" class="cf-topnav-link {% if current_page == 'settings' %}is-active{% endif %}">
+                            <span data-i18n="Settings">{{ t('Settings') }}</span>
+                        </a>
+                    </nav>
+                </div>
+
+                <div class="cf-topbar-right">
+                    {% block topbar_actions %}
+                    <span class="cf-live" data-i18n="Live">{{ t('Live') }}</span>
+                    <select class="cf-lang" id="cf-system-language" aria-label="{{ t('System language') }}">
+                        <option value="EN" {% if system_lang == 'EN' %}selected{% endif %}>EN</option>
+                        <option value="FR" {% if system_lang == 'FR' %}selected{% endif %}>FR</option>
+                        <option value="AR" {% if system_lang == 'AR' %}selected{% endif %}>AR</option>
+                    </select>
+                    {% if current_user and current_user.is_authenticated %}
+                    <div class="cf-user-menu-wrap">
+                        <button type="button" class="cf-user-btn" id="cf-user-menu" aria-expanded="false" aria-haspopup="true">
+                            {{ current_user.email if current_user.email else t('Account') }}
+                        </button>
+                        <div class="cf-user-popover" id="cf-user-popover" hidden>
+                            <div class="cf-user-popover-label" data-i18n="Account">{{ t('Account') }}</div>
+                            <a href="{{ url_for('web.page_diagnostics') }}" class="cf-user-popover-link {% if current_page == 'diagnostics' %}is-active{% endif %}">
+                                <span data-i18n="Diagnostics">{{ t('Diagnostics') }}</span>
+                            </a>
+                            <form method="post" action="{{ url_for('auth.logout') }}" class="cf-user-popover-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="cf-user-popover-link cf-user-popover-button">
+                                    <span data-i18n="Sign out">{{ t('Sign out') }}</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% endblock %}
+                </div>
+            </header>
+
+            <section class="cf-context-bar">
+                {% block topbar_context %}
+                <div class="cf-context-primary">
+                    <div class="cf-breadcrumb" id="cf-breadcrumb">
+                        <span class="cf-label" data-i18n="Workspace">{{ t('Workspace') }}</span>
+                        <span class="cf-breadcrumb-sep">/</span>
+                        <span class="cf-breadcrumb-current">{{ current_title }}</span>
+                    </div>
+                </div>
+                <div class="cf-context-secondary">
+                    <div class="cf-setup-inline cf-hidden" id="cf-setup-inline">
+                        <span class="cf-label" id="cf-setup-step">{{ t('Step 1 of 2') }}</span>
+                        <span id="cf-setup-text">{{ t('Add your AI key to start generating content') }}</span>
+                    </div>
+                </div>
+                {% endblock %}
+            </section>
+
+            <section class="cf-content">
+                {% block content %}{% endblock %}
+            </section>
+        </main>
+    </div>
+
+    <nav class="cf-dock" aria-label="Primary mobile navigation">
+        <a href="{{ url_for('web.page_dashboard') }}" class="cf-dock-link {% if current_page == 'dashboard' %}is-active{% endif %}" data-i18n="Dashboard">{{ t('Dashboard') }}</a>
+        <a href="{{ url_for('web.page_studio') }}" class="cf-dock-link {% if current_page == 'studio' %}is-active{% endif %}" data-i18n="Studio">{{ t('Studio') }}</a>
+        <a href="{{ url_for('web.page_channels') }}" class="cf-dock-link {% if current_page == 'channels' %}is-active{% endif %}" data-i18n="Channels">{{ t('Channels') }}</a>
+        <a href="{{ url_for('web.page_settings') }}" class="cf-dock-link {% if current_page == 'settings' %}is-active{% endif %}" data-i18n="Settings">{{ t('Settings') }}</a>
+    </nav>
+
+    <script>
+        window.CF_LOCALE = {{ system_lang|tojson }};
+        window.CF_I18N = {{ i18n_catalog|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/api.js') }}"></script>
+    <script type="module" src="{{ url_for('static', filename='js/cf.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

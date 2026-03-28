@@ -1,2 +1,7 @@
-"""Root-level compatibility shim — canonical implementation lives in engine/ab_tester.py."""
-from engine.ab_tester import *  # noqa: F401, F403
+"""Compatibility alias for the canonical engine.ab_tester module."""
+
+import sys
+
+from engine import ab_tester as _impl
+
+sys.modules[__name__] = _impl

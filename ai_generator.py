@@ -1,5 +1,7 @@
-"""
-Root-level compatibility shim — the canonical implementation lives in engine/ai_generator.py.
-Import this module normally; all symbols are re-exported transparently.
-"""
-from engine.ai_generator import *  # noqa: F401, F403
+"""Compatibility alias for the canonical engine.ai_generator module."""
+
+import sys
+
+from engine import ai_generator as _impl
+
+sys.modules[__name__] = _impl

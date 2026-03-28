@@ -1,0 +1,44 @@
+:root {
+    color-scheme: dark;
+
+    --ds-bg-0: #050505;
+    --ds-bg-1: #0f0f0f;
+    --ds-bg-2: #161616;
+    --ds-bg-3: #1d1d1d;
+
+    --ds-text-strong: #f5f5f2;
+    --ds-text: #e7e7e2;
+    --ds-text-dim: #b0b0aa;
+    --ds-text-muted: #7a7a73;
+
+    --ds-brand: #f0d000;
+    --ds-brand-strong: #f5d925;
+    --ds-brand-deep: #c7ac00;
+    --ds-brand-rgb: 240, 208, 0;
+
+    --ds-success: #7eb48b;
+    --ds-warning: #f0d000;
+    --ds-danger: #ff8f85;
+    --ds-info: #8ab6ff;
+
+    --ds-shadow-xl: 0 30px 100px rgba(0, 0, 0, 0.48);
+    --ds-shadow-lg: 0 20px 56px rgba(0, 0, 0, 0.34);
+    --ds-shadow-md: 0 14px 30px rgba(0, 0, 0, 0.26);
+
+    --ds-radius-xl: 28px;
+    --ds-radius-lg: 22px;
+    --ds-radius-md: 16px;
+    --ds-radius-sm: 12px;
+
+    --ds-type-hero: clamp(2.5rem, 5vw, 4rem);
+    --ds-type-display: clamp(3rem, 8vw, 5.75rem);
+    --ds-type-title: clamp(1.5rem, 2.5vw, 2.2rem);
+    --ds-type-body: 1rem;
+    --ds-type-small: 0.9rem;
+    --ds-type-micro: 0.72rem;
+
+    --ds-surface-0: var(--ds-bg-0);
+    --ds-surface-1: var(--ds-bg-1);
+    --ds-surface-2: var(--ds-bg-2);
+    --ds-surface-3: var(--ds-bg-3);
+}

@@ -24,6 +24,19 @@ import config
 logger = config.get_logger("publication_tracker")
 
 
+def _get_client():
+    """
+    Return the configured database adapter through the legacy compatibility
+    alias first.
+
+    Several older tests and call sites still patch
+    ``config.get_supabase_client()``. That helper now returns the configured
+    database adapter, so using it here preserves compatibility while still
+    working with the real runtime client.
+    """
+    return config.get_supabase_client()
+
+
 @dataclass
 class PublicationRecord:
     """Record of a published post."""
@@ -58,24 +71,35 @@ class PublicationTracker:
     # Hash similarity threshold
     HASH_SIMILARITY_THRESHOLD = 0.8
 
-    def __init__(self):
+    def __init__(self, user_id: Optional[str] = None):
+        self.user_id = str(user_id).strip() if user_id else None
         self._cache: Dict[str, PublicationRecord] = {}
         self._published_urls: Set[str] = set()
         self._published_hashes: Set[str] = set()
+        self._published_simhashes: list[int] = []
         self._load_recent_publications()
+
+    def _scope_query(self, query, field: str = "user_id"):
+        """Apply tenant scoping when the tracker is bound to a specific user."""
+        user_id = getattr(self, "user_id", None)
+        if user_id:
+            return query.eq(field, user_id)
+        return query
 
     def _load_recent_publications(self) -> None:
         """Load recent publications from database."""
         try:
-            client = config.get_supabase_client()
+            client = _get_client()
 
             # Load publications from last 7 days
             cutoff = (datetime.now() - timedelta(hours=self.SOURCE_COOLDOWN_HOURS)).isoformat()
 
             response = (
-                client.table("published_posts")
-                .select("content_id, facebook_post_id, instagram_post_id, facebook_status, instagram_status, published_at")
-                .gte("published_at", cutoff)
+                self._scope_query(
+                    client.table("published_posts")
+                    .select("content_id, facebook_post_id, instagram_post_id, facebook_status, instagram_status, published_at")
+                    .gte("published_at", cutoff)
+                )
                 .execute()
             )
 
@@ -92,12 +116,16 @@ class PublicationTracker:
                 ):
                     published_content_ids.add(content_id)
 
+            published_article_ids: Set[str] = set()
+
             # Load content details for published posts
             if published_content_ids:
                 content_response = (
-                    client.table("processed_content")
-                    .select("id, article_id, hook, generated_text")
-                    .in_("id", list(published_content_ids))
+                    self._scope_query(
+                        client.table("processed_content")
+                        .select("id, article_id, hook, generated_text")
+                        .in_("id", list(published_content_ids))
+                    )
                     .execute()
                 )
 
@@ -105,16 +133,30 @@ class PublicationTracker:
                     text = content.get("generated_text", "")
                     content_hash = self._compute_content_hash(text)
                     self._published_hashes.add(content_hash)
+                    simhash = self._compute_simhash(text)
+                    if simhash:
+                        self._published_simhashes.append(simhash)
+                    article_id = content.get("article_id")
+                    if article_id:
+                        published_article_ids.add(str(article_id))
 
-            # Load source URLs
-            article_response = (
-                client.table("raw_articles").select("url").eq("status", "processed").execute()
-            )
+            # Only preload source URLs that are tied to successfully published
+            # content. A merely processed article must not poison duplicate
+            # gating for future drafts.
+            if published_article_ids:
+                article_response = (
+                    self._scope_query(
+                        client.table("raw_articles")
+                        .select("id, url")
+                        .in_("id", list(published_article_ids))
+                    )
+                    .execute()
+                )
 
-            for article in article_response.data or []:
-                url = article.get("url")
-                if url:
-                    self._published_urls.add(url)
+                for article in article_response.data or []:
+                    url = article.get("url")
+                    if url:
+                        self._published_urls.add(url.lower().strip().rstrip("/"))
 
             logger.info(
                 "Loaded publication history: %d posts, %d URLs, %d hashes",
@@ -208,12 +250,14 @@ class PublicationTracker:
 
         # Check database for older records
         try:
-            client = config.get_supabase_client()
+            client = _get_client()
 
             response = (
-                client.table("raw_articles")
-                .select("id, status, scraped_at")
-                .eq("url", url)
+                self._scope_query(
+                    client.table("raw_articles")
+                    .select("id, status, scraped_at")
+                    .eq("url", url)
+                )
                 .execute()
             )
 
@@ -233,14 +277,21 @@ class PublicationTracker:
                         client.table("processed_content")
                         .select("id")
                         .eq("article_id", article_id)
+                    )
+                    if getattr(self, "user_id", None):
+                        pub_check = pub_check.eq("user_id", self.user_id)
+                    pub_check = (
+                        pub_check
                         .execute()
                     )
                     for content in pub_check.data or []:
                         content_id = content.get("id")
                         pub_response = (
-                            client.table("published_posts")
-                            .select("id")
-                            .eq("content_id", content_id)
+                            self._scope_query(
+                                client.table("published_posts")
+                                .select("id")
+                                .eq("content_id", content_id)
+                            )
                             .execute()
                         )
                         if pub_response.data:
@@ -267,12 +318,14 @@ class PublicationTracker:
             Tuple of (is_published, reason)
         """
         try:
-            client = config.get_supabase_client()
+            client = _get_client()
 
             response = (
-                client.table("published_posts")
-                .select("id, facebook_post_id, instagram_post_id, facebook_status, instagram_status, published_at")
-                .eq("content_id", content_id)
+                self._scope_query(
+                    client.table("published_posts")
+                    .select("id, facebook_post_id, instagram_post_id, facebook_status, instagram_status, published_at")
+                    .eq("content_id", content_id)
+                )
                 .execute()
             )
 
@@ -317,56 +370,13 @@ class PublicationTracker:
         if content_hash in self._published_hashes:
             return True, 1.0, "Exact content match found"
 
-        # SimHash similarity check - ONLY against PUBLISHED content
         try:
             new_simhash = self._compute_simhash(text)
-
-            client = config.get_supabase_client()
-
-            # Only consider rows where at least one platform actually succeeded.
-            # Failure-only rows (diagnostic telemetry) must not block similarity checks.
-            published_response = (
-                client.table("published_posts")
-                .select("content_id, facebook_post_id, instagram_post_id, facebook_status, instagram_status")
-                .execute()
-            )
-
-            published_content_ids = [
-                row.get("content_id")
-                for row in (published_response.data or [])
-                if row.get("content_id") and (
-                    row.get("facebook_post_id")
-                    or row.get("instagram_post_id")
-                    or row.get("facebook_status") == "published"
-                    or row.get("instagram_status") == "published"
-                )
-            ]
-
-            if not published_content_ids:
-                # No published content yet, so nothing to compare against
-                return False, 0.0, ""
-
-            response = (
-                client.table("processed_content")
-                .select("id, generated_text, article_id")
-                .in_("id", published_content_ids)
-                .execute()
-            )
-
-            for content in response.data or []:
-                existing_text = content.get("generated_text", "")
-                if not existing_text:
-                    continue
-
-                existing_simhash = self._compute_simhash(existing_text)
+            for existing_simhash in getattr(self, "_published_simhashes", []):
                 distance = self._hamming_distance(new_simhash, existing_simhash)
-
-                # Convert distance to similarity (0-1)
                 similarity = 1 - (distance / 64)
-
                 if similarity >= self.HASH_SIMILARITY_THRESHOLD:
                     return True, similarity, f"Similar content found (similarity: {similarity:.1%})"
-
         except Exception as e:
             logger.warning("Similarity check failed: %s", e)
 
@@ -395,12 +405,14 @@ class PublicationTracker:
 
         # Get content details
         try:
-            client = config.get_supabase_client()
+            client = _get_client()
 
             response = (
-                client.table("processed_content")
-                .select("generated_text, article_id")
-                .eq("id", content_id)
+                self._scope_query(
+                    client.table("processed_content")
+                    .select("generated_text, article_id")
+                    .eq("id", content_id)
+                )
                 .single()
                 .execute()
             )
@@ -461,13 +473,15 @@ class PublicationTracker:
             self._published_urls.add(article_url.lower().strip())
 
         try:
-            client = config.get_supabase_client()
+            client = _get_client()
 
             # Get content text for hash
             response = (
-                client.table("processed_content")
-                .select("generated_text")
-                .eq("id", content_id)
+                self._scope_query(
+                    client.table("processed_content")
+                    .select("generated_text")
+                    .eq("id", content_id)
+                )
                 .single()
                 .execute()
             )
@@ -476,6 +490,11 @@ class PublicationTracker:
                 text = response.data.get("generated_text", "")
                 content_hash = self._compute_content_hash(text)
                 self._published_hashes.add(content_hash)
+                simhash = self._compute_simhash(text)
+                if simhash:
+                    if not hasattr(self, "_published_simhashes"):
+                        self._published_simhashes = []
+                    self._published_simhashes.append(simhash)
 
             logger.info(
                 "📝 Recorded publication: content=%s, fb=%s", content_id[:8], facebook_post_id[:15]
@@ -497,22 +516,26 @@ class PublicationTracker:
         unpublished = []
 
         try:
-            client = config.get_supabase_client()
+            client = _get_client()
 
             # Get all processed content
             content_response = (
-                client.table("processed_content")
-                .select("id, article_id, hook, post_type, generated_at")
-                .order("generated_at", desc=True)
-                .limit(limit * 2)
+                self._scope_query(
+                    client.table("processed_content")
+                    .select("id, article_id, hook, post_type, generated_at, generated_text")
+                    .order("generated_at", desc=True)
+                    .limit(limit * 2)
+                )
                 .execute()
             )
 
             # Get successfully published content IDs only.
             # Failure-only rows (diagnostic telemetry) must not prevent re-publishing.
             published_response = (
-                client.table("published_posts")
-                .select("content_id, facebook_post_id, instagram_post_id, facebook_status, instagram_status")
+                self._scope_query(
+                    client.table("published_posts")
+                    .select("content_id, facebook_post_id, instagram_post_id, facebook_status, instagram_status")
+                )
                 .execute()
             )
 
@@ -527,17 +550,45 @@ class PublicationTracker:
                 )
             }
 
-            # Filter to unpublished
+            article_ids = [
+                row.get("article_id")
+                for row in (content_response.data or [])
+                if row.get("article_id")
+            ]
+            article_url_lookup: Dict[str, str] = {}
+            if article_ids:
+                article_rows = (
+                    client.table("raw_articles")
+                    .select("id, url")
+                    .in_("id", article_ids)
+                    .execute()
+                ).data or []
+                article_url_lookup = {
+                    str(article.get("id")): str(article.get("url") or "")
+                    for article in article_rows
+                }
+
+            # Filter to unpublished using the preloaded publication snapshot only.
             for content in content_response.data or []:
                 content_id = content.get("id")
+                article_url = article_url_lookup.get(str(content.get("article_id") or ""), "")
 
-                if content_id not in published_ids:
-                    can_publish, reason = self.can_publish(content_id)
+                if content_id in published_ids:
+                    logger.debug("Skipping %s: already published", str(content_id or "")[:8])
+                    continue
 
-                    if can_publish:
-                        unpublished.append(content)
-                    else:
-                        logger.debug("Skipping %s: %s", content_id[:8], reason)
+                text = str(content.get("generated_text") or "")
+                is_similar, _similarity, reason = self.is_similar_content_recent(text)
+                if is_similar:
+                    logger.debug("Skipping %s: %s", str(content_id or "")[:8], reason)
+                    continue
+
+                normalized_url = article_url.lower().strip().rstrip("/")
+                if normalized_url and normalized_url in self._published_urls:
+                    logger.debug("Skipping %s: source URL already used", str(content_id or "")[:8])
+                    continue
+
+                unpublished.append(content)
 
                 if len(unpublished) >= limit:
                     break
@@ -557,27 +608,33 @@ class PublicationTracker:
             Dict with stats
         """
         try:
-            client = config.get_supabase_client()
+            client = _get_client()
 
             # Count total processed
             processed = client.table("processed_content").select("id", count="exact").execute()
+            if getattr(self, "user_id", None):
+                processed = self._scope_query(client.table("processed_content").select("id", count="exact")).execute()
 
             # Count published
-            published = client.table("published_posts").select("id", count="exact").execute()
+            published = self._scope_query(client.table("published_posts").select("id", count="exact")).execute()
 
             # Count scheduled
             scheduled = (
-                client.table("scheduled_posts")
-                .select("id", count="exact")
-                .eq("status", "scheduled")
+                self._scope_query(
+                    client.table("scheduled_posts")
+                    .select("id", count="exact")
+                    .eq("status", "scheduled")
+                )
                 .execute()
             )
 
             # Count pending articles
             pending = (
-                client.table("raw_articles")
-                .select("id", count="exact")
-                .eq("status", "pending")
+                self._scope_query(
+                    client.table("raw_articles")
+                    .select("id", count="exact")
+                    .eq("status", "pending")
+                )
                 .execute()
             )
 
@@ -621,7 +678,7 @@ class PublicationTracker:
 
         try:
             # TODO: Implement actual database cleanup via SQL function
-            # client = config.get_supabase_client()
+            # client = config.get_database_client()
             # cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
             # This would be implemented with proper SQL function
@@ -635,38 +692,43 @@ class PublicationTracker:
 
 
 # Global instance for easy access
-_tracker_instance: Optional[PublicationTracker] = None
+_tracker_instances: Dict[Optional[str], PublicationTracker] = {}
 
 
-def get_tracker() -> PublicationTracker:
-    """Get or create the global publication tracker instance."""
-    global _tracker_instance
-    if _tracker_instance is None:
-        _tracker_instance = PublicationTracker()
-    return _tracker_instance
+def get_tracker(user_id: Optional[str] = None) -> PublicationTracker:
+    """Get or create a publication tracker instance scoped to a tenant."""
+    key = str(user_id).strip() if user_id else None
+    if key not in _tracker_instances:
+        _tracker_instances[key] = PublicationTracker(user_id=key)
+    return _tracker_instances[key]
 
 
 # Convenience functions
 
 
-def can_publish_content(content_id: str) -> Tuple[bool, str]:
+def can_publish_content(content_id: str, user_id: Optional[str] = None) -> Tuple[bool, str]:
     """Check if content can be published."""
-    return get_tracker().can_publish(content_id)
+    return get_tracker(user_id=user_id).can_publish(content_id)
 
 
-def record_publication(content_id: str, facebook_post_id: str, article_url: str = "") -> None:
+def record_publication(
+    content_id: str,
+    facebook_post_id: str,
+    article_url: str = "",
+    user_id: Optional[str] = None,
+) -> None:
     """Record a successful publication."""
-    get_tracker().record_publication(content_id, facebook_post_id, article_url)
+    get_tracker(user_id=user_id).record_publication(content_id, facebook_post_id, article_url)
 
 
-def get_unpublished_content(limit: int = 50) -> List[Dict[str, Any]]:
+def get_unpublished_content(limit: int = 50, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Get content ready for publishing."""
-    return get_tracker().get_unpublished_content(limit)
+    return get_tracker(user_id=user_id).get_unpublished_content(limit)
 
 
-def get_publication_stats() -> Dict[str, Any]:
+def get_publication_stats(user_id: Optional[str] = None) -> Dict[str, Any]:
     """Get publication statistics."""
-    return get_tracker().get_publication_stats()
+    return get_tracker(user_id=user_id).get_publication_stats()
 
 
 if __name__ == "__main__":

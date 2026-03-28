@@ -22,15 +22,24 @@ class AdaptiveRateLimiter:
     # Configuration
     MIN_ENGAGEMENT_RATE = 0.5  # 0.5% minimum to continue posting
     
-    def __init__(self, page_id: Optional[str] = None):
+    def __init__(self, user_id: Optional[str] = None, page_id: Optional[str] = None):
         """
         Initialize rate limiter for a specific page.
         
         Args:
+            user_id: Tenant scope for multi-tenant SaaS flows
             page_id: Facebook page ID (defaults to config value)
         """
+        self.user_id = user_id
         self.page_id = page_id or config.FACEBOOK_PAGE_ID
-        self.client = config.get_supabase_client()
+        self.client = config.get_database_client()
+
+    def _scope_query(self, query):
+        if self.user_id:
+            return query.eq("user_id", self.user_id)
+        if self.page_id:
+            return query.eq("page_id", self.page_id)
+        return query
     
     def get_page_age_days(self) -> int:
         """
@@ -41,8 +50,10 @@ class AdaptiveRateLimiter:
         """
         try:
             result = (
-                self.client.table("published_posts")
-                .select("published_at")
+                self._scope_query(
+                    self.client.table("published_posts")
+                    .select("published_at")
+                )
                 .order("published_at", desc=False)
                 .limit(1)
                 .execute()
@@ -52,7 +63,11 @@ class AdaptiveRateLimiter:
                 logger.info("📅 New page - no posts yet")
                 return 0
             
-            first_post = datetime.fromisoformat(result.data[0]["published_at"].replace("Z", "+00:00"))
+            first_post = datetime.fromisoformat(
+                result.data[0]["published_at"].replace("Z", "+00:00")
+            )
+            if first_post.tzinfo is None:
+                first_post = first_post.replace(tzinfo=timezone.utc)
             age = (datetime.now(timezone.utc) - first_post).days
             
             logger.debug(f"📅 Page age: {age} days")
@@ -96,9 +111,11 @@ class AdaptiveRateLimiter:
             today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
             
             result = (
-                self.client.table("published_posts")
-                .select("id")
-                .gte("published_at", today_start.isoformat())
+                self._scope_query(
+                    self.client.table("published_posts")
+                    .select("id")
+                    .gte("published_at", today_start.isoformat())
+                )
                 .execute()
             )
             
@@ -122,8 +139,10 @@ class AdaptiveRateLimiter:
         """
         try:
             result = (
-                self.client.table("published_posts")
-                .select("likes, comments, shares, reach")
+                self._scope_query(
+                    self.client.table("published_posts")
+                    .select("likes, comments, shares, reach")
+                )
                 .order("published_at", desc=True)
                 .limit(lookback_posts)
                 .execute()
@@ -235,22 +254,21 @@ class AdaptiveRateLimiter:
         return timedelta(hours=1)  # Default wait
 
 
-# Global instance
-_rate_limiter = None
-
-
-def get_rate_limiter(page_id: Optional[str] = None) -> AdaptiveRateLimiter:
-    """Get or create rate limiter instance."""
-    global _rate_limiter
-    if _rate_limiter is None or (page_id and _rate_limiter.page_id != page_id):
-        _rate_limiter = AdaptiveRateLimiter(page_id)
-    return _rate_limiter
+def get_rate_limiter(
+    user_id: Optional[str] = None,
+    page_id: Optional[str] = None,
+) -> AdaptiveRateLimiter:
+    """Build a scoped rate limiter instance."""
+    return AdaptiveRateLimiter(user_id=user_id, page_id=page_id)
 
 
 # Convenience function
-def can_post_now(page_id: Optional[str] = None) -> Tuple[bool, str]:
+def can_post_now(
+    user_id: Optional[str] = None,
+    page_id: Optional[str] = None,
+) -> Tuple[bool, str]:
     """Check if posting allowed right now."""
-    limiter = get_rate_limiter(page_id)
+    limiter = get_rate_limiter(user_id=user_id, page_id=page_id)
     return limiter.can_post_now()
 
 

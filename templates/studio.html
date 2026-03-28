@@ -1,0 +1,247 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ t('Studio') }} | Content Factory{% endblock %}
+
+{% block content %}
+<section class="cf-screen cf-studio-page" data-cf-studio>
+    <header class="cf-page-intro cf-page-intro-actions cf-studio-page-head">
+        <div>
+            <h1 class="cf-page-title">{{ t('Design, test, and route every post') }}</h1>
+            <p class="cf-page-copy">{{ t('Shape the brief like a creator, run an AI preview, inspect the final publish surface, then decide what the agent should save, review, schedule, or publish.') }}</p>
+        </div>
+        <div class="cf-page-intro-meta cf-studio-head-actions">
+            <button type="button" class="cf-btn-ghost cf-studio-head-drawer" id="cf-studio-library-toggle">
+                <span>{{ t('Library') }}</span>
+                <span id="cf-studio-library-count" class="cf-studio-head-count">0</span>
+            </button>
+            <button type="button" class="cf-btn" id="cf-studio-new-draft">{{ t('New Draft') }}</button>
+        </div>
+    </header>
+
+    <section class="cf-studio-shell" data-library-open="false" aria-label="{{ t('Studio') }}">
+        <div class="cf-studio-library-backdrop" id="cf-studio-library-backdrop" hidden></div>
+
+        <aside class="cf-card cf-studio-library-drawer" id="cf-studio-library-drawer" aria-label="{{ t('Library') }}">
+            <div class="cf-studio-library-bar">
+                <div class="cf-studio-rail-head">
+                    <div class="cf-studio-step-kicker">
+                        <span class="cf-step-chip">01</span>
+                        <span class="cf-label">{{ t('Library') }}</span>
+                    </div>
+                    <span class="cf-inline-note">{{ t('Queue and draft archive') }}</span>
+                </div>
+                <button type="button" class="cf-btn-ghost cf-studio-library-close" id="cf-studio-library-close">{{ t('Close') }}</button>
+            </div>
+            <div class="cf-tab-row" id="cf-studio-library-tabs">
+                <button type="button" class="cf-tab is-active" data-tab="drafts">{{ t('Drafts') }}</button>
+                <button type="button" class="cf-tab" data-tab="review">{{ t('Needs review') }}</button>
+                <button type="button" class="cf-tab" data-tab="scheduled">{{ t('Scheduled') }}</button>
+                <button type="button" class="cf-tab" data-tab="published">{{ t('Published') }}</button>
+            </div>
+            <div class="cf-field">
+                <label class="cf-field-label" for="cf-studio-search">{{ t('Search') }}</label>
+                <input id="cf-studio-search" class="cf-input" type="search" placeholder="{{ t('Search content') }}">
+            </div>
+            <div id="cf-studio-library-list" class="cf-draft-list" aria-live="polite"></div>
+        </aside>
+
+        <div class="cf-studio-stage">
+            <article class="cf-card cf-panel cf-studio-composer-card">
+                <div class="cf-studio-panel-head cf-studio-panel-head-simple">
+                    <div class="cf-studio-panel-copy">
+                        <div class="cf-studio-mini-kicker">{{ t('Creator brief') }}</div>
+                        <h2 class="cf-studio-panel-title">{{ t('Start with the post idea') }}</h2>
+                        <p class="cf-inline-note">{{ t('Choose the format, set the route, write the core idea, then run the AI preview.') }}</p>
+                    </div>
+                    <div class="cf-inline-actions cf-studio-brief-toolbar">
+                        <button type="button" class="cf-btn" id="cf-studio-generate">{{ t('Run AI Preview') }}</button>
+                        <button type="button" class="cf-btn-ghost" id="cf-studio-regenerate">{{ t('Iterate Preview') }}</button>
+                    </div>
+                </div>
+
+                <div class="cf-studio-composer-grid">
+                    <div class="cf-field">
+                        <label class="cf-field-label" for="cf-studio-format">{{ t('Format') }}</label>
+                        <select id="cf-studio-format" class="cf-select">
+                            <option value="post">{{ t('Post') }}</option>
+                            <option value="carousel">{{ t('Carousel') }}</option>
+                            <option value="story_sequence">{{ t('Story sequence') }}</option>
+                            <option value="reel_script">{{ t('Reel script') }}</option>
+                        </select>
+                    </div>
+                    <div class="cf-field">
+                        <label class="cf-field-label" for="cf-studio-platform">{{ t('Publish route') }}</label>
+                        <select id="cf-studio-platform" class="cf-select">
+                            <option value="facebook">{{ t('Facebook only') }}</option>
+                            <option value="facebook,instagram">{{ t('Facebook + Instagram') }}</option>
+                            <option value="instagram">{{ t('Instagram only') }}</option>
+                        </select>
+                    </div>
+                    <div class="cf-field">
+                        <label class="cf-field-label" for="cf-studio-language">{{ t('Language') }}</label>
+                        <select id="cf-studio-language" class="cf-select">
+                            <option value="en">{{ t('English') }}</option>
+                            <option value="fr">{{ t('French') }}</option>
+                            <option value="ar">{{ t('Arabic') }}</option>
+                        </select>
+                    </div>
+                    <div class="cf-field cf-field-span">
+                        <label class="cf-field-label" for="cf-studio-topic">{{ t('Core topic') }}</label>
+                        <textarea id="cf-studio-topic" class="cf-textarea cf-textarea-sm" rows="3" placeholder="{{ t('Describe the main idea, claim, or lesson you want to publish.') }}"></textarea>
+                    </div>
+                </div>
+
+                <div class="cf-studio-composer-foot">
+                    <span class="cf-inline-note" id="cf-studio-feedback">{{ t('Set the brief, run an AI preview, then decide what the agent should save, review, schedule, or publish.') }}</span>
+                    <button type="button" class="cf-brief-toggle" id="cf-brief-toggle">
+                        <span class="cf-brief-toggle-text">{{ t('More options') }}</span>
+                        <span class="cf-brief-toggle-icon">▾</span>
+                    </button>
+                </div>
+
+                <div class="cf-brief-advanced" id="cf-brief-advanced">
+                    <div class="cf-studio-brief-grid">
+                        <div class="cf-field">
+                            <label class="cf-field-label" for="cf-studio-tone">{{ t('Tone') }}</label>
+                            <select id="cf-studio-tone" class="cf-select">
+                                <option value="professional">{{ t('Professional') }}</option>
+                                <option value="casual">{{ t('Casual') }}</option>
+                                <option value="educational">{{ t('Educational') }}</option>
+                                <option value="humorous">{{ t('Humorous') }}</option>
+                            </select>
+                        </div>
+                        <div class="cf-field">
+                            <label class="cf-field-label" for="cf-studio-niche">{{ t('Niche') }}</label>
+                            <select id="cf-studio-niche" class="cf-select">
+                                <option value="">{{ t('General creator') }}</option>
+                            </select>
+                        </div>
+                        <div class="cf-field">
+                            <label class="cf-field-label" for="cf-studio-goal">{{ t('Content goal') }}</label>
+                            <select id="cf-studio-goal" class="cf-select">
+                                <option value="educate">{{ t('Educate') }}</option>
+                                <option value="engage">{{ t('Engage') }}</option>
+                                <option value="authority">{{ t('Build authority') }}</option>
+                                <option value="community">{{ t('Spark community') }}</option>
+                                <option value="promote">{{ t('Promote offer') }}</option>
+                            </select>
+                        </div>
+                        <div class="cf-field">
+                            <label class="cf-field-label" for="cf-studio-hook-style">{{ t('Hook style') }}</label>
+                            <select id="cf-studio-hook-style" class="cf-select">
+                                <option value="bold statement">{{ t('Bold statement') }}</option>
+                                <option value="question">{{ t('Question') }}</option>
+                                <option value="story">{{ t('Story') }}</option>
+                                <option value="checklist">{{ t('Checklist') }}</option>
+                                <option value="contrarian">{{ t('Contrarian angle') }}</option>
+                            </select>
+                        </div>
+                        <div class="cf-field">
+                            <label class="cf-field-label" for="cf-studio-audience">{{ t('Audience') }}</label>
+                            <input id="cf-studio-audience" class="cf-input" type="text" placeholder="{{ t('Founders, local shoppers, coaches, students') }}">
+                        </div>
+                        <div class="cf-field">
+                            <label class="cf-field-label" for="cf-studio-pillar">{{ t('Content pillar') }}</label>
+                            <input id="cf-studio-pillar" class="cf-input" type="text" placeholder="{{ t('Education, proof, behind the scenes, offer') }}">
+                        </div>
+                        <div class="cf-field cf-field-span">
+                            <label class="cf-field-label" for="cf-studio-angle">{{ t('Angle and hook direction') }}</label>
+                            <textarea id="cf-studio-angle" class="cf-textarea cf-textarea-sm" rows="2" placeholder="{{ t('What is the sharpest angle for this post and what should the opening feel like?') }}"></textarea>
+                        </div>
+                        <div class="cf-field cf-field-span">
+                            <label class="cf-field-label" for="cf-studio-proof">{{ t('Proof points and key points') }}</label>
+                            <textarea id="cf-studio-proof" class="cf-textarea cf-textarea-sm" rows="3" placeholder="{{ t('Add facts, examples, steps, takeaways, or talking points the AI should use.') }}"></textarea>
+                        </div>
+                        <div class="cf-field">
+                            <label class="cf-field-label" for="cf-studio-cta">{{ t('Offer or CTA') }}</label>
+                            <input id="cf-studio-cta" class="cf-input" type="text" placeholder="{{ t('Comment, click, DM, save, share, visit site') }}">
+                        </div>
+                        <div class="cf-field">
+                            <label class="cf-field-label" for="cf-studio-visual">{{ t('Visual direction') }}</label>
+                            <input id="cf-studio-visual" class="cf-input" type="text" placeholder="{{ t('Talking head, quote card, checklist carousel, brand-led') }}">
+                        </div>
+                        <div class="cf-field cf-field-span">
+                            <label class="cf-field-label" for="cf-studio-must-include">{{ t('Must include') }}</label>
+                            <input id="cf-studio-must-include" class="cf-input" type="text" placeholder="{{ t('Keywords, product names, offer details, exact phrases, constraints') }}">
+                        </div>
+                        <div class="cf-field cf-field-span">
+                            <label class="cf-field-label" for="cf-studio-avoid">{{ t('Avoid and guardrails') }}</label>
+                            <input id="cf-studio-avoid" class="cf-input" type="text" placeholder="{{ t('Claims to avoid, overused phrases, forbidden words, wrong positioning') }}">
+                        </div>
+                        <div class="cf-field cf-field-span">
+                            <label class="cf-field-label" for="cf-studio-source">{{ t('Source or context') }}</label>
+                            <textarea id="cf-studio-source" class="cf-textarea cf-textarea-sm" rows="2" placeholder="{{ t('Optional article notes, campaign context, event details, or references.') }}"></textarea>
+                        </div>
+                        <div class="cf-field cf-field-span">
+                            <label class="cf-field-label" for="cf-studio-regenerate-note">{{ t('Iteration note') }}</label>
+                            <textarea id="cf-studio-regenerate-note" class="cf-textarea cf-textarea-sm" rows="2" placeholder="{{ t('Use this when you want the next AI preview to be tighter, sharper, shorter, more premium, more playful, and so on.') }}"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </article>
+
+            <div class="cf-studio-canvas-simple">
+                <section class="cf-studio-preview-column">
+                    <article class="cf-card cf-panel cf-studio-preview-shell">
+                        <div class="cf-studio-preview-hero">
+                            <div class="cf-studio-preview-hero-copy">
+                                <div class="cf-studio-mini-kicker">{{ t('Final preview') }}</div>
+                                <div id="cf-studio-workspace-header" class="cf-studio-workspace-head" aria-live="polite"></div>
+                            </div>
+                            <div id="cf-studio-preview-tabs" class="cf-studio-preview-tabs" aria-live="polite"></div>
+                        </div>
+                        <div id="cf-studio-banner-stack" class="cf-studio-banner-stack" aria-live="polite"></div>
+                        <div id="cf-studio-review-meta" class="cf-studio-preview-notes">{{ t('Run an AI preview to inspect the final caption, slides, and route before the agent touches Facebook or Instagram.') }}</div>
+                        <div id="cf-studio-preview-card" class="cf-preview-card" aria-live="polite"></div>
+                    </article>
+
+                    <article class="cf-card cf-panel cf-studio-editor-card">
+                        <div class="cf-studio-panel-head cf-studio-panel-head-simple">
+                            <div class="cf-studio-panel-copy">
+                                <div class="cf-studio-mini-kicker">{{ t('Editor') }}</div>
+                                <h2 class="cf-studio-panel-title">{{ t('Adjust the final draft') }}</h2>
+                                <p class="cf-inline-note">{{ t('Refine the actual output before it goes to review or publish.') }}</p>
+                            </div>
+                        </div>
+                        <div id="cf-studio-editor" aria-live="polite"></div>
+                    </article>
+                </section>
+
+                <aside class="cf-studio-side-rail">
+                    <article class="cf-card cf-panel cf-studio-publish-card">
+                        <div class="cf-studio-panel-head cf-studio-panel-head-simple">
+                            <div class="cf-studio-panel-copy">
+                                <div class="cf-studio-mini-kicker">{{ t('Publish route') }}</div>
+                                <h2 class="cf-studio-panel-title">{{ t('Choose the next action') }}</h2>
+                                <p class="cf-inline-note">{{ t('Choose what the agent should save, review, schedule, or publish.') }}</p>
+                            </div>
+                        </div>
+                        <div id="cf-studio-preview-meta" class="cf-studio-route-card" aria-live="polite"></div>
+                        <div class="cf-field">
+                            <label class="cf-field-label" for="cf-studio-schedule">{{ t('Scheduled time') }}</label>
+                            <input id="cf-studio-schedule" class="cf-input" type="datetime-local">
+                            <div class="cf-tz-hint" id="cf-studio-tz-hint"></div>
+                        </div>
+                        <div class="cf-action-stack cf-studio-publish-actions">
+                            <button type="button" class="cf-btn" id="cf-studio-primary-action">{{ t('Save Draft') }}</button>
+                            <button type="button" class="cf-btn-ghost" id="cf-studio-secondary-action">{{ t('Send to Review') }}</button>
+                            <button type="button" class="cf-btn-ghost cf-btn-danger-soft" id="cf-studio-tertiary-action">{{ t('Clear Draft') }}</button>
+                        </div>
+                    </article>
+
+                    <article class="cf-card cf-panel cf-studio-insights-card">
+                        <div class="cf-studio-panel-head cf-studio-panel-head-simple">
+                            <div class="cf-studio-panel-copy">
+                                <div class="cf-studio-mini-kicker">{{ t('Agent plan') }}</div>
+                                <h2 class="cf-studio-panel-title">{{ t('Quick creative cues') }}</h2>
+                                <p class="cf-inline-note">{{ t('What the agent understands from your current parameters.') }}</p>
+                            </div>
+                        </div>
+                        <div id="cf-studio-brief-summary" class="cf-studio-insights-list" aria-live="polite"></div>
+                    </article>
+                </aside>
+            </div>
+        </div>
+    </section>
+</section>
+{% endblock %}

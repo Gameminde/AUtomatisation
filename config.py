@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import os
+from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from dotenv import load_dotenv
 
@@ -49,11 +51,71 @@ DEFAULT_KEYWORDS = [
     "robotics",
 ]
 
-TARGET_TIMEZONES = {
-    "US_EST": "America/New_York",
-    "US_PST": "America/Los_Angeles",
-    "UK_GMT": "Europe/London",
-}
+SUPPORTED_LANGUAGE_CODES = ("ar", "fr", "en")
+SUPPORTED_CONTENT_TONES = (
+    "professional",
+    "casual",
+    "educational",
+    "humorous",
+)
+SUPPORTED_AI_PROVIDERS = (
+    "gemini",
+    "claude",
+    "openai",
+    "openrouter",
+    "grok",
+    "groq",
+    "deepseek",
+    "minimax",
+    "glm",
+    "nvidia",
+)
+
+DEFAULT_COUNTRY_CODE = os.getenv("DEFAULT_COUNTRY_CODE", "OTHER").strip().upper() or "OTHER"
+STATIC_PRESETS_PATH = BASE_DIR / "data" / "static_presets.json"
+_STATIC_PRESET_NAMES = frozenset(
+    {
+        "TARGET_TIMEZONES",
+        "TARGET_POSTING_PRESETS",
+        "LANGUAGE_SOURCE_PRESETS",
+        "CONTENT_SOURCE_PRESETS",
+        "NICHE_KEYWORD_PRESETS",
+    }
+)
+_STATIC_COUNTRY_CODES = frozenset(
+    {"US", "UK", "FR", "DE", "AE", "QA", "KW", "DZ", "MA", "EG", "SA", "OTHER"}
+)
+
+if DEFAULT_COUNTRY_CODE not in _STATIC_COUNTRY_CODES:
+    DEFAULT_COUNTRY_CODE = "OTHER"
+
+
+@lru_cache(maxsize=1)
+def _load_static_presets() -> dict[str, Any]:
+    with STATIC_PRESETS_PATH.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise RuntimeError("Static preset payload must be a JSON object.")
+    return payload
+
+
+def _get_static_preset(name: str) -> Any:
+    payload = _load_static_presets()
+    if name not in payload:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = payload[name]
+    globals()[name] = value
+    return value
+
+
+def __getattr__(name: str) -> Any:
+    if name in _STATIC_PRESET_NAMES:
+        return _get_static_preset(name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_STATIC_PRESET_NAMES))
 
 
 def require_env(name: str) -> str:
@@ -63,18 +125,66 @@ def require_env(name: str) -> str:
     return value
 
 
-def get_supabase_client():
+def get_database_client():
     """
-    Get database client (SQLite by default, Supabase if configured).
-    
-    This is the main entry point for database access in Content Factory v2.0.
-    - Default: SQLite (local, no account needed)
-    - Optional: Supabase (cloud, needs SUPABASE_URL and SUPABASE_KEY)
-    
-    Set DB_MODE=supabase in .env to use Supabase.
+    Return the configured database adapter.
+
+    This is the main entry point for application data access:
+    - SQLiteDB in local/single-user mode
+    - SupabaseWrapper in cloud/multi-tenant mode
     """
     from database import get_db
     return get_db()
+
+
+_supabase_service_instance = None
+_supabase_service_signature = None
+
+
+def get_supabase_service_client():
+    """
+    Return a cached Supabase service-role client (singleton).
+
+    The client is created once and reused for the lifetime of the process.
+    If SUPABASE_URL or SUPABASE_KEY change (e.g. in tests), the cache is
+    invalidated and a new client is created.
+
+    Use this only when raw Supabase SDK behaviour is required (auth, license
+    validation, user lookups). Most runtime code should use
+    get_database_client() instead.
+    """
+    global _supabase_service_instance, _supabase_service_signature
+    from supabase import create_client
+    from supabase.lib.client_options import SyncClientOptions
+
+    url = require_env("SUPABASE_URL")
+    key = require_env("SUPABASE_KEY")
+    sig = (url, key)
+
+    if _supabase_service_instance is not None and _supabase_service_signature == sig:
+        return _supabase_service_instance
+
+    _supabase_service_instance = create_client(
+        url,
+        key,
+        options=SyncClientOptions(
+            postgrest_client_timeout=HTTP_TIMEOUT_SECONDS,
+            storage_client_timeout=int(HTTP_TIMEOUT_SECONDS),
+            function_client_timeout=int(min(max(HTTP_TIMEOUT_SECONDS, 1), 30)),
+        ),
+    )
+    _supabase_service_signature = sig
+    return _supabase_service_instance
+
+
+def get_supabase_client():
+    """
+    Compatibility alias for legacy call sites.
+
+    Despite the historical name, this returns the configured database adapter,
+    not necessarily a raw Supabase SDK client.
+    """
+    return get_database_client()
 
 
 def get_logger(name: str) -> logging.Logger:

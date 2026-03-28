@@ -12,22 +12,32 @@ from randomization import get_randomizer
 logger = config.get_logger("scheduler")
 
 
+DEFAULT_COUNTRY_CODE = (
+    config.DEFAULT_COUNTRY_CODE
+    if config.DEFAULT_COUNTRY_CODE in config.TARGET_POSTING_PRESETS
+    else next(iter(config.TARGET_POSTING_PRESETS))
+)
+
 PEAK_HOURS = {
-    "US_EST": [7, 12, 18, 20],
-    "US_PST": [9, 14, 20, 22],
-    "UK_GMT": [8, 13, 17, 21],
+    country_code: preset["peak_hours"]
+    for country_code, preset in config.TARGET_POSTING_PRESETS.items()
+}
+DEFAULT_POSTING_WINDOWS = {
+    country_code: preset["posting_times"]
+    for country_code, preset in config.TARGET_POSTING_PRESETS.items()
 }
 
-# Simplified: Photo posts only (no Reels for v2.0 Gumroad)
 CONTENT_MIX = {
-    "text": 1.0,  # 100% photo posts with text
+    "post": 0.7,
+    "carousel": 0.3,
 }
+AUTO_SCHEDULE_TYPES = {"post", "carousel", "text"}
 
 
 def get_adaptive_interval(base_min: int = 2, base_max: int = 4) -> Tuple[int, int]:
     """
     v2.1: Get adaptive posting interval based on error rate.
-    
+
     - If error_rate > 0.2 (20% failures) -> widen to 4-6h
     - If error_rate > 0.4 (40% failures) -> widen to 6-8h
     - Otherwise -> use base interval
@@ -35,35 +45,71 @@ def get_adaptive_interval(base_min: int = 2, base_max: int = 4) -> Tuple[int, in
     try:
         # Import here to avoid circular imports
         import error_handler
+
         error_rate = error_handler.get_recent_error_rate(hours=24)
-        
+
         if error_rate > 0.4:
-            logger.warning("🚨 High error rate (%.1f%%) - using 6-8h intervals", error_rate * 100)
+            logger.warning(
+                "High error rate (%.1f%%) - using 6-8h intervals",
+                error_rate * 100,
+            )
             return (6, 8)
-        elif error_rate > 0.2:
-            logger.warning("⚠️ Elevated error rate (%.1f%%) - using 4-6h intervals", error_rate * 100)
+        if error_rate > 0.2:
+            logger.warning(
+                "Elevated error rate (%.1f%%) - using 4-6h intervals",
+                error_rate * 100,
+            )
             return (4, 6)
     except Exception as e:
         logger.debug("Could not get error rate: %s", e)
-    
+
     return (base_min, base_max)
 
 
-def _build_slots_from_times(day: date, posting_times: str) -> List[Dict]:
+def get_schedule_preset(
+    country_code: Optional[str] = None,
+    timezone_name: Optional[str] = None,
+) -> Dict:
+    normalized_country = (country_code or DEFAULT_COUNTRY_CODE).strip().upper()
+    preset = config.TARGET_POSTING_PRESETS.get(
+        normalized_country,
+        config.TARGET_POSTING_PRESETS[DEFAULT_COUNTRY_CODE],
+    )
+    return {
+        "country_code": preset["country_code"],
+        "timezone": timezone_name or preset["timezone"],
+        "posting_times": preset["posting_times"],
+        "peak_hours": list(preset["peak_hours"]),
+    }
+
+
+def _build_slots_from_times(
+    day: date,
+    posting_times: str,
+    timezone_name: str = "UTC",
+) -> List[Dict]:
     """
     Build UTC posting slots from a user-supplied comma-separated HH:MM string.
 
-    Each time token is interpreted as UTC.  A random 0–10 min jitter is applied
-    to avoid exact-hour posting.  Overflow is resolved BEFORE datetime construction
-    to avoid ValueError for minute >= 60.
+    Each time token is interpreted in the provided local timezone, then
+    converted to UTC for storage. A random 0-10 min jitter is applied to avoid
+    exact-hour posting.
 
     Args:
         day:           Target date.
-        posting_times: e.g. "08:00,13:00,19:00"
+        posting_times: e.g. "12:00,19:00,21:00"
+        timezone_name: IANA timezone name for the local interpretation.
     """
     import random
+
     slots: List[Dict] = []
     tokens = [t.strip() for t in posting_times.split(",") if t.strip()]
+    try:
+        local_tz = ZoneInfo(timezone_name)
+    except Exception:
+        local_tz = ZoneInfo("UTC")
+        timezone_name = "UTC"
+
     for token in tokens:
         try:
             parts = token.split(":")
@@ -72,45 +118,55 @@ def _build_slots_from_times(day: date, posting_times: str) -> List[Dict]:
             continue
         jitter_min = random.randint(0, 10)
         total_minute = minute + jitter_min
-        # Resolve overflow BEFORE constructing datetime to avoid ValueError
         extra_hours, clamped_minute = divmod(total_minute, 60)
         clamped_hour = (hour + extra_hours) % 24
-        # Build the base datetime for the target day, then add any day-wrap offset
-        base_dt = datetime(
-            day.year, day.month, day.day,
-            clamped_hour, clamped_minute,
-            tzinfo=timezone.utc,
+        local_dt = datetime(
+            day.year,
+            day.month,
+            day.day,
+            clamped_hour,
+            clamped_minute,
+            tzinfo=local_tz,
         )
         if hour + extra_hours >= 24:
-            base_dt = base_dt + timedelta(days=1)
-        slots.append({
-            "scheduled_time": base_dt.replace(tzinfo=None).isoformat(),
-            "timezone": "UTC",
-        })
+            local_dt = local_dt + timedelta(days=1)
+        utc_dt = local_dt.astimezone(timezone.utc).replace(tzinfo=None)
+        slots.append(
+            {
+                "scheduled_time": utc_dt.isoformat(),
+                "timezone": timezone_name,
+            }
+        )
     slots.sort(key=lambda s: s["scheduled_time"])
     return slots
 
 
-def build_slots_for_day(day: date) -> List[Dict]:
+def build_slots_for_day(
+    day: date,
+    country_code: Optional[str] = None,
+    timezone_name: Optional[str] = None,
+) -> List[Dict]:
+    schedule_preset = get_schedule_preset(
+        country_code=country_code,
+        timezone_name=timezone_name,
+    )
     randomizer = get_randomizer()
     slots: List[Dict] = []
-    for tz_key, hours in PEAK_HOURS.items():
-        tz_name = config.TARGET_TIMEZONES[tz_key]
-        tz = ZoneInfo(tz_name)
-        for hour in hours:
-            local_dt = datetime(day.year, day.month, day.day, hour, 0, tzinfo=tz)
-            # Add random minute jitter (5-25 min) to avoid posting at exact hours
-            jitter = randomizer.add_minute_jitter(local_dt)
-            local_dt = local_dt + jitter
-            utc_dt = local_dt.astimezone(timezone.utc).replace(tzinfo=None)
-            slots.append(
-                {
-                    "scheduled_time": utc_dt.isoformat(),
-                    "timezone": tz_name,
-                }
-            )
+    tz_name = schedule_preset["timezone"]
+    tz = ZoneInfo(tz_name)
+    for hour in schedule_preset["peak_hours"]:
+        local_dt = datetime(day.year, day.month, day.day, hour, 0, tzinfo=tz)
+        # Add random minute jitter (5-25 min) to avoid posting at exact hours
+        jitter = randomizer.add_minute_jitter(local_dt)
+        local_dt = local_dt + jitter
+        utc_dt = local_dt.astimezone(timezone.utc).replace(tzinfo=None)
+        slots.append(
+            {
+                "scheduled_time": utc_dt.isoformat(),
+                "timezone": tz_name,
+            }
+        )
     slots.sort(key=lambda item: item["scheduled_time"])
-    # v2.1: Use adaptive intervals based on error rate
     min_h, max_h = get_adaptive_interval()
     return enforce_min_gap_random(slots, min_hours=min_h, max_hours=max_h)
 
@@ -137,7 +193,6 @@ def enforce_min_gap_random(slots: List[Dict], min_hours: int, max_hours: int) ->
     last_time = datetime.fromisoformat(slots[0]["scheduled_time"])
     for slot in slots[1:]:
         current = datetime.fromisoformat(slot["scheduled_time"])
-        # Random interval for this gap
         random_interval = randomizer.randomize_interval(min_hours, max_hours)
         required_gap = random_interval.total_seconds()
         if (current - last_time).total_seconds() >= required_gap:
@@ -149,18 +204,16 @@ def enforce_min_gap_random(slots: List[Dict], min_hours: int, max_hours: int) ->
 def process_retries() -> int:
     """
     v2.1.1: Maintenance task to move due retries back to 'scheduled'.
-    
+
     Checks for:
     - status = 'retry_scheduled'
     - next_retry_at <= NOW
     - fb_post_id IS NULL (safety)
     """
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     now = datetime.now(timezone.utc).isoformat()
-    
+
     try:
-        # Find due retries
-        # v2.1.1 fix: PostgREST null check syntax
         result = (
             client.table("processed_content")
             .select("id, status")
@@ -168,41 +221,37 @@ def process_retries() -> int:
             .lte("next_retry_at", now)
             .execute()
         )
-        
-        # Filter out items that already have fb_post_id (double-safety in Python)
+
         items = [item for item in (result.data or []) if not item.get("fb_post_id")]
         count = 0
-        
+
         for item in items:
-            # Move back to scheduled
-            client.table("processed_content").update({
-                "status": "scheduled",
-                "last_error": None  # Clear error for fresh attempt
-                # Note: retry_count is preserved
-            }).eq("id", item["id"]).execute()
-            
-            # Also update schedule table if needed (though publisher drives from content status now?)
-            # Actually publisher looks at scheduled_posts JOIN processed_content (implicitly via logic)
-            # But let's make sure the schedule entry is also 'scheduled'
-            client.table("scheduled_posts").update({
-                "status": "scheduled"
-            }).eq("content_id", item["id"]).execute()
-            
+            client.table("processed_content").update(
+                {
+                    "status": "scheduled",
+                    "last_error": None,
+                }
+            ).eq("id", item["id"]).execute()
+
+            client.table("scheduled_posts").update({"status": "scheduled"}).eq(
+                "content_id", item["id"]
+            ).execute()
+
             count += 1
-            
+
         if count > 0:
-            logger.info("♻️ Processed %d retries -> scheduled", count)
-        
+            logger.info("Processed %d retries -> scheduled", count)
+
         return count
-        
+
     except Exception as e:
-        logger.error(f"Error processing retries: {e}")
+        logger.error("Error processing retries: %s", e)
         return 0
 
 
 def fetch_content_pool(limit: int = 100, user_id: Optional[str] = None):
     """Return unscheduled content items, optionally scoped to a single tenant."""
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     query = (
         client.table("processed_content")
         .select("id,post_type,user_id")
@@ -221,6 +270,8 @@ def schedule_posts(
     platforms: str = "facebook",
     user_id: Optional[str] = None,
     posting_times_override: Optional[str] = None,
+    country_code: Optional[str] = None,
+    timezone_name: Optional[str] = None,
 ) -> int:
     """
     Schedule posts for the next N days.
@@ -228,11 +279,11 @@ def schedule_posts(
     Args:
         days: Number of days to schedule
         max_per_day: Maximum posts per day (configurable 1-5 for Gumroad users)
-        platforms: Comma-separated platforms to publish to, e.g. "facebook" or "facebook,instagram"
-        user_id: Tenant ID — only schedule this user's content and tag rows with their ID.
-                 Always pass current_user.id from the request context.
-        posting_times_override: Comma-separated HH:MM slot string from UserConfig.posting_times,
-                 e.g. "08:00,13:00,19:00".  When set, replaces the global PEAK_HOURS slot logic.
+        platforms: Comma-separated platforms to publish to, e.g. "facebook"
+        user_id: Tenant ID – only schedule this user's content and tag rows with their ID
+        posting_times_override: Comma-separated HH:MM slot string from UserConfig.posting_times.
+        country_code: Country preset code used when no explicit times are supplied.
+        timezone_name: IANA timezone used to interpret explicit posting_times and stamp rows.
 
     Returns:
         Number of posts scheduled
@@ -242,21 +293,35 @@ def schedule_posts(
         logger.warning("No content found in processed_content (user_id=%s)", user_id)
         return 0
 
-    # Simplified: All posts are text/photo (no Reels)
-    text_items = [item for item in content_items if item.get("post_type") == "text"]
+    text_items = [
+        item
+        for item in content_items
+        if str(item.get("post_type") or "").strip().lower() in AUTO_SCHEDULE_TYPES
+    ]
 
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     scheduled = 0
     start_day = date.today()
+    schedule_preset = get_schedule_preset(
+        country_code=country_code,
+        timezone_name=timezone_name,
+    )
 
     for offset in range(days):
         day = start_day + timedelta(days=offset)
         if posting_times_override:
-            slots = _build_slots_from_times(day, posting_times_override)
+            slots = _build_slots_from_times(
+                day,
+                posting_times_override,
+                timezone_name=schedule_preset["timezone"],
+            )
         else:
-            slots = build_slots_for_day(day)
+            slots = build_slots_for_day(
+                day,
+                country_code=schedule_preset["country_code"],
+                timezone_name=schedule_preset["timezone"],
+            )
 
-        # Limit slots to max_per_day
         slots = slots[:max_per_day]
 
         for slot in slots:
@@ -265,7 +330,6 @@ def schedule_posts(
                 break
 
             content = text_items.pop(0)
-            # Use the content row's own user_id as the canonical tenant tag
             row_user_id = content.get("user_id") or user_id
 
             payload: Dict = {
@@ -279,11 +343,23 @@ def schedule_posts(
             if row_user_id:
                 payload["user_id"] = row_user_id
             client.table("scheduled_posts").insert(payload).execute()
+            status_query = (
+                client.table("processed_content")
+                .update({"status": "scheduled"})
+                .eq("id", content["id"])
+            )
+            if row_user_id:
+                status_query = status_query.eq("user_id", row_user_id)
+            status_query.execute()
             scheduled += 1
 
     logger.info(
         "Scheduled %s posts over %s days (max %s/day, platforms=%s, user_id=%s)",
-        scheduled, days, max_per_day, platforms, user_id,
+        scheduled,
+        days,
+        max_per_day,
+        platforms,
+        user_id,
     )
     return scheduled
 
@@ -292,25 +368,16 @@ def schedule_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-de
     """
     Schedule posts for a single tenant using a UserConfig object.
 
-    This is the preferred entry point for the multi-tenant pipeline runner.
-    The tenant's ``posts_per_day`` and ``posting_times`` (from managed_pages)
-    are used automatically — no ad-hoc overrides needed.
-
-    Parameters
-    ----------
-    user_config : UserConfig
-        Fully-populated tenant configuration object.
-
-    Returns
-    -------
-    int
-        Number of posts scheduled.
+    The tenant's locale preset, posts_per_day, and posting_times are used
+    automatically.
     """
     return schedule_posts(
         days=1,
         max_per_day=user_config.posts_per_day,
         posting_times_override=user_config.posting_times or None,
         user_id=user_config.user_id,
+        country_code=user_config.country_code,
+        timezone_name=user_config.timezone,
     )
 
 

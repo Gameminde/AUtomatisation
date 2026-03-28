@@ -16,6 +16,8 @@ from database.database import (  # noqa: E402, F401
     SQLiteDB,
     SupabaseWrapper,
     get_db,
+    get_db_mode,
+    get_database_client,
     DB_FILE,
     DB_MODE,
 )
@@ -23,4 +25,13 @@ from database.database import (  # noqa: E402, F401
 # Alias for code that imports `SupabaseDB`
 SupabaseDB = SupabaseWrapper  # noqa: F401
 
-__all__ = ["SQLiteDB", "SupabaseWrapper", "SupabaseDB", "get_db", "DB_FILE", "DB_MODE"]
+__all__ = [
+    "SQLiteDB",
+    "SupabaseWrapper",
+    "SupabaseDB",
+    "get_db",
+    "get_db_mode",
+    "get_database_client",
+    "DB_FILE",
+    "DB_MODE",
+]

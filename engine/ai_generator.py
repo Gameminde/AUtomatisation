@@ -1,14 +1,16 @@
-"""Generate viral content using OpenRouter with batching support."""
+"""Generate viral content using the configured AI provider with batching support."""
 
 from __future__ import annotations
 
 import json
 import os
 import time
-from typing import Dict, List, Optional
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from typing import Any, Dict, List, Optional
 
 import config
-from openrouter_client import OpenRouterClient, AllKeysExhaustedError
+from ai_provider import AIProviderError, generate as run_ai_generation
 
 logger = config.get_logger("ai_generator")
 
@@ -126,10 +128,360 @@ def set_prompts(batch: Optional[str] = None, single: Optional[str] = None) -> No
 BATCH_PROMPT_TEMPLATE = get_prompts()["batch"]
 SINGLE_PROMPT_TEMPLATE = get_prompts()["single"]
 
+LEGACY_POST_TYPE_MAP = {
+    "text": "post",
+    "photo": "post",
+    "story": "story_sequence",
+    "reel": "reel_script",
+}
 
-def get_ai_client_instance(user_id: Optional[str] = None) -> GeminiClient:
-    """Get configured AI client, optionally resolving a per-user Gemini key."""
-    return get_ai_client(user_id=user_id)
+SUPPORTED_CONTENT_FORMATS = {"post", "carousel", "story_sequence", "reel_script"}
+DRAFT_ONLY_FORMATS = {"story_sequence", "reel_script"}
+
+
+def normalize_content_format(post_type: Optional[str]) -> str:
+    candidate = str(post_type or "post").strip().lower()
+    candidate = LEGACY_POST_TYPE_MAP.get(candidate, candidate)
+    if candidate in SUPPORTED_CONTENT_FORMATS:
+        return candidate
+    return "post"
+
+
+def _resolve_generation_preferences(
+    runtime_profile: Optional[Any] = None,
+    user_id: Optional[str] = None,
+) -> tuple[str, str]:
+    profile = runtime_profile
+    if profile is None and user_id:
+        try:
+            from user_config import get_user_config
+
+            profile = get_user_config(user_id)
+        except Exception as exc:
+            logger.debug("Could not resolve generation preferences for %s: %s", user_id[:8], exc)
+            profile = None
+
+    language = "en"
+    tone = "professional"
+    if profile is not None:
+        language = (
+            getattr(profile, "content_language", "")
+            or (getattr(profile, "content_languages", []) or ["en"])[0]
+            or "en"
+        )
+        tone = getattr(profile, "content_tone", "") or "professional"
+    return str(language).lower(), str(tone).lower()
+
+
+def _truncate_words(text: str, max_words: int) -> str:
+    words = [word for word in str(text or "").strip().split() if word]
+    return " ".join(words[:max_words]).strip()
+
+
+def _coerce_hashtags(raw_value: Any) -> List[str]:
+    if isinstance(raw_value, list):
+        return [str(item).strip() for item in raw_value if str(item).strip()][:8]
+    if isinstance(raw_value, str):
+        return [token.strip() for token in raw_value.split() if token.strip().startswith("#")][:8]
+    return []
+
+
+def _sanitize_post_payload(payload: Dict[str, Any], language: str) -> Dict[str, Any]:
+    return {
+        "format": "post",
+        "language": str(payload.get("language") or language or "en").lower(),
+        "hook": str(payload.get("hook") or "").strip(),
+        "body": str(payload.get("body") or "").strip(),
+        "cta": str(payload.get("cta") or payload.get("call_to_action") or "").strip(),
+        "hashtags": _coerce_hashtags(payload.get("hashtags")),
+    }
+
+
+def _sanitize_carousel_payload(payload: Dict[str, Any], language: str) -> Dict[str, Any]:
+    raw_slides = payload.get("slides") or []
+    slides: List[Dict[str, Any]] = []
+    if isinstance(raw_slides, list):
+        for index, slide in enumerate(raw_slides[:5], start=1):
+            if not isinstance(slide, dict):
+                continue
+            slides.append(
+                {
+                    "slide_number": int(slide.get("slide_number") or index),
+                    "headline": _truncate_words(str(slide.get("headline") or ""), 8),
+                    "body": _truncate_words(str(slide.get("body") or ""), 20),
+                    "visual_suggestion": str(slide.get("visual_suggestion") or "").strip(),
+                }
+            )
+    return {
+        "format": "carousel",
+        "language": str(payload.get("language") or language or "en").lower(),
+        "slides": slides,
+        "caption": str(payload.get("caption") or "").strip(),
+        "hashtags": _coerce_hashtags(payload.get("hashtags")),
+    }
+
+
+def _sanitize_story_payload(payload: Dict[str, Any], language: str) -> Dict[str, Any]:
+    frames: List[Dict[str, Any]] = []
+    raw_frames = payload.get("frames") or payload.get("story_frames") or []
+    if isinstance(raw_frames, list):
+        for index, frame in enumerate(raw_frames[:3], start=1):
+            if not isinstance(frame, dict):
+                continue
+            frames.append(
+                {
+                    "frame_number": int(frame.get("frame_number") or index),
+                    "text": str(frame.get("text") or "").strip(),
+                    "visual_suggestion": str(frame.get("visual_suggestion") or "").strip(),
+                }
+            )
+    return {
+        "format": "story_sequence",
+        "language": str(payload.get("language") or language or "en").lower(),
+        "frames": frames,
+    }
+
+
+def _sanitize_reel_script_payload(payload: Dict[str, Any], language: str) -> Dict[str, Any]:
+    raw_points = payload.get("points") or payload.get("three_points") or []
+    points = [str(point).strip() for point in raw_points if str(point).strip()][:3] if isinstance(raw_points, list) else []
+    return {
+        "format": "reel_script",
+        "language": str(payload.get("language") or language or "en").lower(),
+        "hook": str(payload.get("hook") or "").strip(),
+        "points": points,
+        "cta": str(payload.get("cta") or payload.get("call_to_action") or "").strip(),
+    }
+
+
+def normalize_generated_payload(
+    post_type: Optional[str],
+    payload: Any,
+    language: str,
+) -> Dict[str, Any]:
+    content_format = normalize_content_format(post_type)
+    payload_dict = payload if isinstance(payload, dict) else {}
+    if content_format == "carousel":
+        return _sanitize_carousel_payload(payload_dict, language)
+    if content_format == "story_sequence":
+        return _sanitize_story_payload(payload_dict, language)
+    if content_format == "reel_script":
+        return _sanitize_reel_script_payload(payload_dict, language)
+    return _sanitize_post_payload(payload_dict, language)
+
+
+def build_generation_prompt(
+    article: dict,
+    content_format: Optional[str],
+    language: str,
+    tone: str,
+) -> str:
+    return _build_single_prompt(
+        article,
+        normalize_content_format(content_format),
+        language,
+        tone,
+    )
+
+
+def build_regeneration_prompt(
+    existing_content: dict,
+    content_format: Optional[str],
+    language: str,
+    tone: str,
+    instruction: str = "",
+) -> str:
+    format_name = normalize_content_format(content_format)
+    hook = existing_content.get("hook", "")
+    body = existing_content.get("generated_text", "")
+    prompt = build_generation_prompt(
+        {
+            "title": hook or existing_content.get("title", "") or "Existing draft",
+            "content": (
+                f"Current content:\n{body}\n\n"
+                f"Existing metadata:\n{json.dumps(existing_content, ensure_ascii=False)}"
+            ),
+        },
+        format_name,
+        language,
+        tone,
+    )
+    if instruction:
+        prompt += f"\nAdditional instruction: {instruction.strip()}\n"
+    return prompt
+
+
+def _build_single_prompt(article: dict, content_format: str, language: str, tone: str) -> str:
+    title = article.get("title", "")
+    summary = (article.get("content") or "")[:1200]
+    if content_format == "carousel":
+        return f"""You create publishable Facebook carousel content.
+
+Target language: {language}
+Target tone: {tone}
+Article title: {title}
+Article summary: {summary}
+
+Return JSON only using this exact structure:
+{{
+  "format": "carousel",
+  "language": "{language}",
+  "slides": [
+    {{
+      "slide_number": 1,
+      "headline": "headline here",
+      "body": "main slide text here",
+      "visual_suggestion": "description of what image should show"
+    }}
+  ],
+  "caption": "Main post caption for Facebook",
+  "hashtags": ["tag1", "tag2"]
+}}
+
+Rules:
+- Maximum 5 slides.
+- Each headline must be maximum 8 words.
+- Each body must be maximum 20 words.
+- Keep slides concise, clear, and publishable.
+"""
+    if content_format == "story_sequence":
+        return f"""You create Instagram and Facebook story sequences.
+
+Target language: {language}
+Target tone: {tone}
+Article title: {title}
+Article summary: {summary}
+
+Return JSON only:
+{{
+  "format": "story_sequence",
+  "language": "{language}",
+  "frames": [
+    {{
+      "frame_number": 1,
+      "text": "Story frame text",
+      "visual_suggestion": "What the frame should show"
+    }}
+  ]
+}}
+
+Rules:
+- Return exactly 3 frames.
+- Keep each frame short and visual.
+"""
+    if content_format == "reel_script":
+        return f"""You create short-form reel scripts.
+
+Target language: {language}
+Target tone: {tone}
+Article title: {title}
+Article summary: {summary}
+
+Return JSON only:
+{{
+  "format": "reel_script",
+  "language": "{language}",
+  "hook": "Opening hook",
+  "points": ["Point 1", "Point 2", "Point 3"],
+  "cta": "Call to action"
+}}
+
+Rules:
+- Give exactly 3 points.
+- Make it clear enough for a creator to record manually.
+"""
+    return f"""You create concise social media posts for Facebook and Instagram.
+
+Target language: {language}
+Target tone: {tone}
+Article title: {title}
+Article summary: {summary}
+
+Return JSON only:
+{{
+  "format": "post",
+  "language": "{language}",
+  "hook": "Opening hook",
+  "body": "Main post body",
+  "cta": "Call to action",
+  "hashtags": ["tag1", "tag2"]
+}}
+"""
+
+
+class ProviderTextClient:
+    """Adapter that exposes a `.generate()` method backed by engine.ai_provider."""
+
+    def __init__(self, runtime_profile: Any):
+        self.runtime_profile = runtime_profile
+
+    def generate(self, prompt: str, max_tokens: int = 2048, temperature: float = 0.7) -> str:
+        return run_ai_generation(
+            prompt,
+            self.runtime_profile,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+
+
+def _build_runtime_ai_profile(
+    user_id: Optional[str] = None,
+    ai_key: Optional[str] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    provider_fallback: Optional[str] = None,
+) -> Any:
+    """Resolve the runtime AI profile for the current generation request."""
+    if user_id:
+        from user_config import get_user_config
+
+        resolved = get_user_config(user_id)
+        if ai_key:
+            resolved.ai_api_key = ai_key
+        if provider:
+            resolved.ai_provider = provider
+        if model:
+            resolved.ai_model = model
+        if provider_fallback is not None:
+            resolved.provider_fallback = provider_fallback
+        return resolved
+
+    default_provider = "openrouter" if any(config.OPENROUTER_API_KEYS) else config.SUPPORTED_AI_PROVIDERS[0]
+    return SimpleNamespace(
+        user_id="",
+        ai_provider=provider or default_provider,
+        provider_fallback=provider_fallback or "",
+        ai_model=model or "",
+        ai_api_key=ai_key or "",
+    )
+
+
+def get_ai_client_instance(
+    user_id: Optional[str] = None,
+    ai_key: Optional[str] = None,
+    provider: Optional[str] = None,
+    model: Optional[str] = None,
+    provider_fallback: Optional[str] = None,
+) -> ProviderTextClient:
+    """Return a text-generation client wrapper for the configured provider."""
+    return ProviderTextClient(
+        _build_runtime_ai_profile(
+            user_id=user_id,
+            ai_key=ai_key,
+            provider=provider,
+            model=model,
+            provider_fallback=provider_fallback,
+        )
+    )
+
+
+def _generate_text(client, prompt: str, max_tokens: int, temperature: float) -> str:
+    """Support both the newer `.generate()` API and older `.call()` clients."""
+    if hasattr(client, "call"):
+        return client.call(prompt, max_tokens=max_tokens, temperature=temperature)
+    if hasattr(client, "generate"):
+        return client.generate(prompt, max_tokens=max_tokens, temperature=temperature)
+    raise TypeError(f"Unsupported AI client: {type(client)!r}")
 
 
 def fix_json_string(text: str) -> str:
@@ -231,7 +583,12 @@ def parse_json_response(text: str) -> any:
     raise ValueError(f"Failed to parse JSON after recovery attempts: {json_text[:300]}...")
 
 
-def generate_batch(articles: List[dict], client: Optional[GeminiClient] = None, user_id: Optional[str] = None) -> List[Dict]:
+def generate_batch(
+    articles: List[dict],
+    client: Optional[Any] = None,
+    user_id: Optional[str] = None,
+    runtime_profile: Optional[Any] = None,
+) -> List[Dict]:
     """
     Generate content for multiple articles in a single API call.
 
@@ -246,7 +603,11 @@ def generate_batch(articles: List[dict], client: Optional[GeminiClient] = None, 
         return []
 
     if client is None:
-        client = get_ai_client_instance(user_id=user_id)
+        client = (
+            ProviderTextClient(runtime_profile)
+            if runtime_profile is not None
+            else get_ai_client_instance(user_id=user_id)
+        )
 
     # Format articles for prompt
     articles_for_prompt = []
@@ -278,7 +639,7 @@ def generate_batch(articles: List[dict], client: Optional[GeminiClient] = None, 
     )
 
     try:
-        response = client.generate(prompt, max_tokens=2000, temperature=0.7)
+        response = _generate_text(client, prompt, max_tokens=2000, temperature=0.7)
         results = parse_json_response(response)
 
         if not isinstance(results, list):
@@ -293,11 +654,10 @@ def generate_batch(articles: List[dict], client: Optional[GeminiClient] = None, 
         logger.info("Batch generation successful: %d articles processed", len(results))
         return results
 
-    except AllKeysExhaustedError:
-        logger.error("All API keys exhausted - wait for rate limit reset")
-        raise
     except json.JSONDecodeError as exc:
         logger.error("Failed to parse JSON response: %s", exc)
+        raise
+    except AIProviderError:
         raise
     except Exception as exc:
         logger.error("Batch generation failed: %s", exc)
@@ -305,7 +665,11 @@ def generate_batch(articles: List[dict], client: Optional[GeminiClient] = None, 
 
 
 def generate_single(
-    article: dict, client: Optional[GeminiClient] = None, user_id: Optional[str] = None
+    article: dict,
+    client: Optional[Any] = None,
+    user_id: Optional[str] = None,
+    post_type: Optional[str] = None,
+    runtime_profile: Optional[Any] = None,
 ) -> Dict:
     """
     Generate content for a single article (fallback method).
@@ -318,20 +682,26 @@ def generate_single(
         Generated content dict
     """
     if client is None:
-        client = get_ai_client_instance(user_id=user_id)
+        client = (
+            ProviderTextClient(runtime_profile)
+            if runtime_profile is not None
+            else get_ai_client_instance(user_id=user_id)
+        )
 
-    prompt = SINGLE_PROMPT_TEMPLATE.format(
-        title=article.get("title", ""),
-        summary=(article.get("content") or "")[:500],
-    )
-
-    response = client.generate(prompt, max_tokens=1024, temperature=0.7)
-    return parse_json_response(response)
+    content_format = normalize_content_format(post_type)
+    language, tone = _resolve_generation_preferences(runtime_profile=runtime_profile, user_id=user_id)
+    prompt = _build_single_prompt(article, content_format, language, tone)
+    response = _generate_text(client, prompt, max_tokens=1024, temperature=0.7)
+    parsed = parse_json_response(response)
+    if isinstance(parsed, list):
+        parsed = parsed[0] if parsed else {}
+    return normalize_generated_payload(content_format, parsed, language)
 
 
 def save_processed_content(
     article_id: str, post_type: str, payload: Dict,
-    article_title: str = "", user_id: Optional[str] = None
+    article_title: str = "", user_id: Optional[str] = None,
+    runtime_profile: Optional[Any] = None,
 ) -> None:
     """Save generated content to Supabase and generate social image.
 
@@ -343,34 +713,68 @@ def save_processed_content(
         user_id:       Tenant ID — tags the row so only this user sees it.
                        Required for multi-tenant operation.
     """
-    db_client = config.get_supabase_client()
+    db_client = config.get_database_client()
+
+    canonical_post_type = normalize_content_format(post_type)
+    target_language = str(payload.get("language") or "multi").upper()
+    generated_text = ""
+    hook = None
+    call_to_action = None
+    status = "drafted"
+    hashtags = _coerce_hashtags(payload.get("hashtags"))
 
     # Generate social media image
     image_path = ""
     arabic_text = ""
-    try:
-        from image_pipeline import generate_social_post
+    if canonical_post_type == "post":
+        generated_text = str(payload.get("body") or "")
+        hook = payload.get("hook")
+        call_to_action = payload.get("cta")
+        try:
+            from image_pipeline import generate_social_post
 
-        ai_client = get_ai_client_instance(user_id=user_id)
-        image_path, arabic_text = generate_social_post(
-            article_id=article_id,
-            title=article_title or payload.get("hook", ""),
-            client=ai_client,
-        )
-        logger.info("Generated social image: %s", image_path)
-    except Exception as e:
-        logger.warning("Image generation failed (continuing): %s", e)
+            ai_client = (
+                ProviderTextClient(runtime_profile)
+                if runtime_profile is not None
+                else get_ai_client_instance(user_id=user_id)
+            )
+            image_path, arabic_text = generate_social_post(
+                article_id=article_id,
+                title=article_title or payload.get("hook", ""),
+                client=ai_client,
+            )
+            logger.info("Generated social image: %s", image_path)
+        except Exception as e:
+            logger.warning("Image generation failed (continuing): %s", e)
+    else:
+        generated_text = json.dumps(payload, ensure_ascii=False)
+        if canonical_post_type == "carousel":
+            slides = payload.get("slides") or []
+            first_slide = slides[0] if isinstance(slides, list) and slides else {}
+            hook = str(first_slide.get("headline") or "") or None
+            call_to_action = payload.get("caption")
+            arabic_text = str(first_slide.get("headline") or "")
+        elif canonical_post_type == "story_sequence":
+            frames = payload.get("frames") or []
+            first_frame = frames[0] if isinstance(frames, list) and frames else {}
+            hook = str(first_frame.get("text") or "") or None
+            status = "draft_only"
+        elif canonical_post_type == "reel_script":
+            hook = payload.get("hook")
+            call_to_action = payload.get("cta")
+            status = "draft_only"
 
     record = {
         "article_id": article_id,
-        "post_type": post_type,
-        "generated_text": payload.get("body", ""),
-        "hashtags": payload.get("hashtags", []),
-        "hook": payload.get("hook"),
-        "call_to_action": payload.get("cta"),
-        "target_audience": "AR",  # v2.0: Target Arabic audience
+        "post_type": canonical_post_type,
+        "generated_text": generated_text,
+        "hashtags": hashtags,
+        "hook": hook,
+        "call_to_action": call_to_action,
+        "target_audience": target_language,
         "image_path": image_path,
         "arabic_text": arabic_text,
+        "status": status,
     }
     if user_id:
         record["user_id"] = user_id
@@ -386,18 +790,77 @@ def mark_article_processed(article_id: str, user_id: Optional[str] = None) -> No
         article_id: Row id in raw_articles.
         user_id:    Tenant scope — restricts the UPDATE to this user's rows.
     """
-    client = config.get_supabase_client()
+    client = config.get_database_client()
     query = client.table("raw_articles").update({"status": "processed"}).eq("id", article_id)
     if user_id:
         query = query.eq("user_id", user_id)
     query.execute()
 
 
+def mark_article_failed(article_id: str, error_message: str, user_id: Optional[str] = None) -> None:
+    """Mark the source article as failed so it does not remain stuck in pending."""
+    client = config.get_database_client()
+    update_payload = {"status": "failed"}
+    query = client.table("raw_articles").update(update_payload).eq("id", article_id)
+    if user_id:
+        query = query.eq("user_id", user_id)
+    query.execute()
+    logger.debug("Marked raw article %s as failed (user_id=%s)", article_id, user_id)
+
+
+def save_failed_content(
+    article_id: str,
+    article_title: str,
+    error_message: str,
+    user_id: Optional[str] = None,
+) -> None:
+    """Persist a generation failure row so health and support tooling can see it."""
+    db_client = config.get_database_client()
+    record = {
+        "article_id": article_id,
+        "post_type": "text",
+        "generated_text": "",
+        "hashtags": [],
+        "hook": article_title[:120] if article_title else None,
+        "call_to_action": None,
+        "target_audience": "MULTI",
+        "status": "failed",
+        "last_error": error_message,
+        "last_error_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if user_id:
+        record["user_id"] = user_id
+    db_client.table("processed_content").insert(record).execute()
+
+
+def notify_provider_failure(
+    user_id: Optional[str],
+    provider_name: str,
+    error_message: str,
+) -> None:
+    """Notify the user via Telegram when AI generation fails completely."""
+    if not user_id:
+        return
+    try:
+        from tasks.telegram_bot import telegram_notify_ai_provider_failure
+
+        telegram_notify_ai_provider_failure(
+            user_id=user_id,
+            provider_name=provider_name,
+            error_message=error_message,
+        )
+    except Exception as exc:
+        logger.debug("AI provider failure notification skipped: %s", exc)
+
+
 def process_pending_articles(
     limit: int = 10,
     batch_size: int = 5,
     user_id: Optional[str] = None,
-    gemini_api_key: Optional[str] = None,
+    ai_api_key: Optional[str] = None,
+    ai_provider: Optional[str] = None,
+    ai_model: Optional[str] = None,
+    provider_fallback: Optional[str] = None,
 ) -> int:
     """Process pending articles with batching for efficiency.
 
@@ -407,15 +870,17 @@ def process_pending_articles(
         user_id:         Tenant ID — only process this user's pending articles and
                          tag all generated content rows with their ID.
                          Required for multi-tenant operation.
-        gemini_api_key:  Per-user Gemini API key — when provided this key is
-                         used directly, bypassing DB lookup and the global env var.
-                         Pass from UserConfig.gemini_api_key for strict per-user
-                         credential isolation.
+        ai_api_key:      Explicit provider key for this run.
+        ai_provider:     Explicit provider override for this run.
+        ai_model:        Explicit model override for this run.
+        provider_fallback:
+                         Optional backup provider to try after the primary provider
+                         fails three times.
 
     Returns:
         Number of articles processed.
     """
-    db_client = config.get_supabase_client()
+    db_client = config.get_database_client()
 
     # Fetch pending articles — scoped to tenant if user_id provided
     query = (
@@ -425,7 +890,7 @@ def process_pending_articles(
         .limit(limit)
     )
     if user_id:
-        query = query.eq("user_id", user_id)
+        query.eq("user_id", user_id)
 
     response = query.execute()
     rows = response.data or []
@@ -438,12 +903,14 @@ def process_pending_articles(
         len(rows), batch_size, user_id
     )
 
-    # Build AI client: explicit key takes precedence over DB/env lookup
-    if gemini_api_key:
-        from gemini_client import GeminiClient
-        ai_client = GeminiClient(api_key=gemini_api_key)
-    else:
-        ai_client = get_ai_client_instance(user_id=user_id)
+    runtime_profile = _build_runtime_ai_profile(
+        user_id=user_id,
+        ai_key=ai_api_key,
+        provider=ai_provider,
+        model=ai_model,
+        provider_fallback=provider_fallback,
+    )
+    ai_client = ProviderTextClient(runtime_profile)
     processed = 0
 
     # Process in batches
@@ -478,9 +945,10 @@ def process_pending_articles(
                         text_data.get("hook") or text_data.get("body")
                     ):
                         save_processed_content(
-                            article_id, "text", text_data,
+                            article_id, "post", text_data,
                             article_title=article.get("title", ""),
                             user_id=user_id,
+                            runtime_profile=runtime_profile,
                         )
 
                     mark_article_processed(article_id, user_id=user_id)
@@ -493,9 +961,23 @@ def process_pending_articles(
             if i + batch_size < len(rows):
                 time.sleep(config.REQUEST_SLEEP_SECONDS)
 
-        except AllKeysExhaustedError:
-            logger.error("All API keys exhausted, stopping batch processing")
-            break
+        except AIProviderError as exc:
+            logger.error("Batch processing failed with provider error: %s", exc.user_message)
+            for article in batch:
+                article_id = article["id"]
+                article_title = article.get("title", "")
+                try:
+                    save_failed_content(
+                        article_id=article_id,
+                        article_title=article_title,
+                        error_message=exc.user_message,
+                        user_id=user_id,
+                    )
+                    mark_article_failed(article_id, exc.user_message, user_id=user_id)
+                except Exception as item_exc:
+                    logger.error("Failed to persist generation failure for article %s: %s", article_id, item_exc)
+            notify_provider_failure(user_id, exc.provider, exc.user_message)
+            continue
         except Exception as exc:
             logger.error("Batch processing failed: %s", exc)
             # Continue with next batch
@@ -510,8 +992,8 @@ def generate_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-de
     Process pending articles for a single tenant using a UserConfig object.
 
     This is the preferred entry point for the multi-tenant pipeline runner.
-    ``user_config.gemini_api_key`` is used explicitly rather than relying on
-    a DB lookup or the global env var, satisfying the per-user credential contract.
+    The resolved provider profile is used explicitly rather than relying on
+    ambient globals, satisfying the per-user credential contract.
 
     Parameters
     ----------
@@ -527,7 +1009,10 @@ def generate_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-de
         limit=10,
         batch_size=5,
         user_id=user_config.user_id,
-        gemini_api_key=user_config.gemini_api_key or None,
+        ai_api_key=user_config.ai_api_key or None,
+        ai_provider=user_config.ai_provider,
+        ai_model=user_config.ai_model or None,
+        provider_fallback=user_config.provider_fallback or None,
     )
 
 

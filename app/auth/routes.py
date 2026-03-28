@@ -1,6 +1,6 @@
 """Authentication routes — login, register (via Gumroad code), logout.
 
-Auth ALWAYS uses Supabase directly (service key) rather than config.get_supabase_client()
+Auth ALWAYS uses Supabase directly (service key) rather than config.get_database_client()
 which may return a SQLite client in single-tenant mode.  The `users` and
 `activation_codes` tables only exist in Supabase.
 """
@@ -9,10 +9,11 @@ import os
 from datetime import datetime, timezone
 
 import bcrypt
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, jsonify, redirect, render_template, request, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 import config
+from app.utils import seed_session_ui_language
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
 
@@ -20,16 +21,24 @@ logger = config.get_logger("auth")
 
 
 def _get_supabase():
-    """Always return the Supabase REST client (never SQLite)."""
-    from supabase import create_client
-    url = os.getenv("SUPABASE_URL", "")
-    key = os.getenv("SUPABASE_KEY", "")
-    if not url or not key:
-        raise RuntimeError(
-            "SUPABASE_URL and SUPABASE_KEY must be set. "
-            "Auth requires Supabase — SQLite does not have a users table."
-        )
-    return create_client(url, key)
+    """Always return the cached Supabase REST client (never SQLite).
+
+    Auth tables (users, activation_codes) only exist in Supabase.
+    Delegates to config.get_supabase_service_client() which maintains
+    a process-level singleton so the client is created only once.
+    """
+    return config.get_supabase_service_client()
+
+
+def _validate_license_payload(data: dict):
+    """Shared public license-validation helper for pre-registration flows."""
+    from license_validator import validate_license
+
+    key = (data.get("license_key") or "").strip()
+    platform = (data.get("platform") or "").strip() or None
+    if not key:
+        return {"valid": False, "reason": "No key provided"}, 400
+    return validate_license(key, platform=platform), 200
 
 
 # ── Login ──────────────────────────────────────────────────────────────────
@@ -62,8 +71,8 @@ def login():
                     from models import User
                     user = User(user_data["id"], user_data["email"])
                     login_user(user, remember=True)
-                    next_page = request.args.get("next")
-                    return redirect(next_page or url_for("web.page_landing"))
+                    seed_session_ui_language(user.id)
+                    return redirect(url_for("web.page_dashboard"))
         except Exception as exc:
             logger.error("Login error: %s", exc)
 
@@ -159,7 +168,8 @@ def register():
             from models import User
             user = User(new_user["id"], new_user["email"])
             login_user(user, remember=True)
-            return redirect(url_for("onboarding.wizard"))
+            seed_session_ui_language(user.id)
+            return redirect(url_for("web.page_dashboard"))
 
         except RuntimeError as exc:
             logger.error("Registration config error: %s", exc)
@@ -171,9 +181,27 @@ def register():
     return render_template("auth/register.html", error=error)
 
 
+@auth_bp.route("/activate-license", methods=["POST"])
+def activate_license():
+    """
+    Public auth-scoped license validation endpoint.
+
+    This keeps the pre-registration activation flow available after /setup
+    removal and gives future auth pages a stable, non-/setup endpoint.
+    """
+    try:
+        payload, status = _validate_license_payload(request.get_json(force=True))
+        return jsonify(payload), status
+    except ImportError:
+        return jsonify({"valid": False, "reason": "License module not available"}), 500
+    except Exception as exc:
+        logger.error("Auth license activation error: %s", exc)
+        return jsonify({"valid": False, "reason": str(exc)}), 500
+
+
 # ── Logout ─────────────────────────────────────────────────────────────────
 
-@auth_bp.route("/logout")
+@auth_bp.route("/logout", methods=["POST"])
 @login_required
 def logout():
     from flask import session

@@ -75,30 +75,30 @@ class RetryConfig:
     log_retries: bool = True
 
 
-def calculate_delay(attempt: int, config: RetryConfig) -> float:
+def calculate_delay(attempt: int, retry_config: RetryConfig) -> float:
     """
     Calculate delay for a given retry attempt.
 
     Args:
         attempt: Current attempt number (0-indexed)
-        config: Retry configuration
+        retry_config: Retry configuration
 
     Returns:
         Delay in seconds
     """
-    if config.strategy == RetryStrategy.EXPONENTIAL:
-        delay = config.base_delay * (config.exponential_base**attempt)
-    elif config.strategy == RetryStrategy.LINEAR:
-        delay = config.base_delay * (attempt + 1)
+    if retry_config.strategy == RetryStrategy.EXPONENTIAL:
+        delay = retry_config.base_delay * (retry_config.exponential_base**attempt)
+    elif retry_config.strategy == RetryStrategy.LINEAR:
+        delay = retry_config.base_delay * (attempt + 1)
     else:  # CONSTANT
-        delay = config.base_delay
+        delay = retry_config.base_delay
 
     # Apply max delay cap
-    delay = min(delay, config.max_delay)
+    delay = min(delay, retry_config.max_delay)
 
     # Apply jitter
-    if config.jitter:
-        jitter_amount = delay * config.jitter_range
+    if retry_config.jitter:
+        jitter_amount = delay * retry_config.jitter_range
         delay = delay + random.uniform(-jitter_amount, jitter_amount)
         delay = max(0, delay)  # Ensure non-negative
 

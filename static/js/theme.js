@@ -34,8 +34,14 @@ class ThemeManager {
         if (btn) {
             const isDark = this.currentTheme === 'dark';
             btn.innerHTML = isDark ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun text-warning"></i>';
-            btn.title = isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode';
+            btn.title = isDark ? this.tr('Switch to Light Mode') : this.tr('Switch to Dark Mode');
         }
+    }
+
+    tr(text) {
+        const locale = String(window.CF_LOCALE || document.body?.dataset?.systemLang || 'EN').toUpperCase();
+        const catalog = window.CF_I18N || {};
+        return catalog[locale]?.[text] || text;
     }
 }
 

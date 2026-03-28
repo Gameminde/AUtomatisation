@@ -412,10 +412,33 @@ CREATE TABLE IF NOT EXISTS user_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     gemini_api_key TEXT,
+    ai_provider TEXT DEFAULT 'gemini',
+    provider_fallback TEXT,
+    ai_model TEXT,
+    ai_api_key TEXT,
     onboarding_step INTEGER DEFAULT 1,
     onboarding_complete BOOLEAN DEFAULT FALSE,
     telegram_chat_id TEXT,
     pexels_api_key TEXT,
+    newsdata_api_key TEXT,
+    language_ratio NUMERIC(3,2) DEFAULT 0.70,
+    ui_language TEXT DEFAULT 'en',
+    content_language TEXT DEFAULT 'en',
+    content_languages TEXT DEFAULT 'en',
+    content_tone TEXT DEFAULT 'professional',
+    content_dialect TEXT DEFAULT '',
+    content_mode TEXT DEFAULT 'single_language',
+    country_code TEXT DEFAULT 'OTHER',
+    timezone TEXT DEFAULT 'UTC',
+    source_preset TEXT DEFAULT 'OTHER',
+    niche_preset TEXT,
+    rss_feed_urls TEXT,
+    niche_keywords TEXT,
+    approval_mode BOOLEAN DEFAULT FALSE,
+    daily_summary_time TEXT DEFAULT '08:00',
+    posts_per_day INTEGER DEFAULT 3,
+    posting_times TEXT DEFAULT '12:00,18:00,20:00',
+    brand_color TEXT DEFAULT '#F9C74F',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -428,6 +451,31 @@ CREATE POLICY user_settings_owner ON user_settings
     FOR ALL
     USING (user_id = auth.uid())
     WITH CHECK (user_id = auth.uid());
+
+ALTER TABLE user_settings
+    ADD COLUMN IF NOT EXISTS ai_provider TEXT DEFAULT 'gemini',
+    ADD COLUMN IF NOT EXISTS provider_fallback TEXT,
+    ADD COLUMN IF NOT EXISTS ai_model TEXT,
+    ADD COLUMN IF NOT EXISTS ai_api_key TEXT,
+    ADD COLUMN IF NOT EXISTS newsdata_api_key TEXT,
+    ADD COLUMN IF NOT EXISTS language_ratio NUMERIC(3,2) DEFAULT 0.70,
+    ADD COLUMN IF NOT EXISTS ui_language TEXT DEFAULT 'en',
+    ADD COLUMN IF NOT EXISTS content_language TEXT DEFAULT 'en',
+    ADD COLUMN IF NOT EXISTS content_languages TEXT DEFAULT 'en',
+    ADD COLUMN IF NOT EXISTS content_tone TEXT DEFAULT 'professional',
+    ADD COLUMN IF NOT EXISTS content_dialect TEXT DEFAULT '',
+    ADD COLUMN IF NOT EXISTS content_mode TEXT DEFAULT 'single_language',
+    ADD COLUMN IF NOT EXISTS country_code TEXT DEFAULT 'OTHER',
+    ADD COLUMN IF NOT EXISTS timezone TEXT DEFAULT 'UTC',
+    ADD COLUMN IF NOT EXISTS source_preset TEXT DEFAULT 'OTHER',
+    ADD COLUMN IF NOT EXISTS niche_preset TEXT,
+    ADD COLUMN IF NOT EXISTS rss_feed_urls TEXT,
+    ADD COLUMN IF NOT EXISTS niche_keywords TEXT,
+    ADD COLUMN IF NOT EXISTS approval_mode BOOLEAN DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS daily_summary_time TEXT DEFAULT '08:00',
+    ADD COLUMN IF NOT EXISTS posts_per_day INTEGER DEFAULT 3,
+    ADD COLUMN IF NOT EXISTS posting_times TEXT DEFAULT '12:00,18:00,20:00',
+    ADD COLUMN IF NOT EXISTS brand_color TEXT DEFAULT '#F9C74F';
 
 -- Migration: add instagram_account_id to managed_pages if missing
 DO $$ BEGIN

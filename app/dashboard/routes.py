@@ -7,9 +7,26 @@ from flask import (
     Blueprint, abort, redirect, render_template,
     request, send_file, session, url_for,
 )
-from flask_login import login_required
+from flask_login import current_user, login_required
 
 web_bp = Blueprint("web", __name__)
+
+
+def _setup_redirect_endpoint() -> str:
+    """
+    Return the canonical replacement for the removed /setup page.
+
+    Setup now happens inline on the dashboard, so every authenticated user
+    should land on the dashboard regardless of setup completeness.
+    """
+    return "web.page_dashboard"
+
+
+def _redirect_from_setup(**query_params):
+    """Redirect legacy /setup traffic to the canonical onboarding/settings path."""
+    endpoint = _setup_redirect_endpoint()
+    clean_params = {k: v for k, v in query_params.items() if v not in (None, "")}
+    return redirect(url_for(endpoint, **clean_params))
 
 
 # ── Dashboard pages ────────────────────────────────────────────────────────
@@ -25,37 +42,49 @@ def page_landing():
 @web_bp.route("/app/dashboard")
 @login_required
 def page_dashboard():
-    return render_template("dashboard_v3.html", active_page="dashboard")
+    return render_template("dashboard.html", active_page="dashboard")
 
 
 @web_bp.route("/studio")
 @login_required
 def page_studio():
-    return render_template("studio_v3.html", active_page="studio")
+    return render_template("studio.html", active_page="studio")
+
+
+@web_bp.route("/channels")
+@login_required
+def page_channels():
+    return render_template("channels.html", active_page="channels")
 
 
 @web_bp.route("/templates")
 @login_required
 def page_templates():
-    return render_template("templates_v3.html", active_page="templates")
+    return redirect(url_for("web.page_channels"))
 
 
 @web_bp.route("/settings")
 @login_required
 def page_settings():
-    return render_template("settings_v3.html", active_page="settings")
+    return render_template("settings.html", active_page="settings")
+
+
+@web_bp.route("/diagnostics")
+@login_required
+def page_diagnostics():
+    return render_template("health.html", active_page="diagnostics")
 
 
 @web_bp.route("/health")
 @login_required
 def page_health():
-    return render_template("health_v3.html", active_page="health")
+    return redirect(url_for("web.page_diagnostics"))
 
 
 @web_bp.route("/setup")
 @login_required
 def page_setup():
-    return render_template("setup_v3.html", active_page="setup")
+    return _redirect_from_setup()
 
 
 # ── Public media serving (needed by Instagram CDN — no auth) ──────────────
@@ -132,12 +161,9 @@ def oauth_facebook_callback():
         error = request.args.get("error")
 
         if error:
-            return render_template("setup_v3.html", active_page="setup", oauth_error=error)
+            return _redirect_from_setup(oauth_error=error)
         if not code:
-            return render_template(
-                "setup_v3.html", active_page="setup",
-                oauth_error="No authorization code received",
-            )
+            return _redirect_from_setup(oauth_error="No authorization code received")
 
         result = handle_callback(code)
         session["fb_oauth_result"] = result
@@ -145,7 +171,7 @@ def oauth_facebook_callback():
 
     except Exception as e:
         logger.error("OAuth callback error: %s", e)
-        return render_template("setup_v3.html", active_page="setup", oauth_error=str(e))
+        return _redirect_from_setup(oauth_error=str(e))
 
 
 @web_bp.route("/oauth/facebook/select-page", methods=["GET", "POST"])
@@ -160,8 +186,8 @@ def oauth_select_page():
         if not result:
             return redirect(url_for("web.oauth_facebook_start"))
         return render_template(
-            "pages_v3.html",
-            active_page="setup",
+            "page_select.html",
+            active_page="channels",
             oauth_pages=result.get("pages", []),
             user_token=result.get("user_token"),
             expires_at=result.get("expires_at"),
@@ -173,11 +199,24 @@ def oauth_select_page():
         from app.utils import save_fb_page_for_user
 
         page_id = request.form.get("page_id")
-        page_name = request.form.get("page_name")
         result = session.get("fb_oauth_result")
 
         if not result or not page_id:
-            return redirect(url_for("web.page_setup"))
+            return _redirect_from_setup()
+
+        selected_page = next(
+            (
+                page
+                for page in (result.get("pages") or [])
+                if str(page.get("id") or "").strip() == str(page_id).strip()
+            ),
+            None,
+        )
+        page_name = (
+            str((selected_page or {}).get("name") or "").strip()
+            or str(request.form.get("page_name") or "").strip()
+            or "My Page"
+        )
 
         page_token = get_page_token(result["user_token"], page_id)
 
@@ -189,21 +228,25 @@ def oauth_select_page():
         except Exception:
             pass
 
-        save_fb_page_for_user(
+        if not save_fb_page_for_user(
             user_id=_cu.id,
             page_id=page_id,
             page_name=page_name or "My Page",
             page_token=page_token,
             instagram_account_id=ig_account_id,
             token_expires_in_seconds=int(result.get("expires_in") or 0),
-        )
+        ):
+            logger.error("Could not persist selected Facebook page %s for user %s", page_id, _cu.id)
+            return _redirect_from_setup(oauth_error="Could not save the selected Facebook page.")
         session.pop("fb_oauth_result", None)
         logger.info("Connected page %s for user %s", page_name, _cu.id)
 
-        # If user came from onboarding, return them there; otherwise dashboard
-        next_url = request.args.get("next") or url_for("onboarding.wizard")
+        # Channel setup now owns the destination-management experience, so
+        # page-connect returns there by default unless an explicit next target
+        # was supplied.
+        next_url = request.args.get("next") or url_for("web.page_channels")
         return redirect(next_url)
 
     except Exception as e:
         logger.error("Page selection error: %s", e)
-        return render_template("setup_v3.html", active_page="setup", oauth_error=str(e))
+        return _redirect_from_setup(oauth_error=str(e))

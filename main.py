@@ -1,4 +1,8 @@
-"""CLI entry point for the content factory."""
+"""Developer CLI utility for manual local pipeline runs.
+
+This file is not part of the Flask web runtime or the worker entrypoints.
+Keep it as an opt-in developer tool for one-off local orchestration only.
+"""
 
 from __future__ import annotations
 
@@ -45,5 +49,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    config.load_dotenv()
     main()

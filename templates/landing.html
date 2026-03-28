@@ -1,795 +1,100 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
-
+<html lang="{{ system_language|lower }}" dir="{{ system_dir }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Content Factory — أتمتة المحتوى العربي</title>
-    <meta name="description" content="أتمتة نشر المحتوى العربي على فيسبوك وإنستغرام بالذكاء الاصطناعي. دفعة واحدة $49.">
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #08090d;
-            --card: rgba(255,255,255,0.04);
-            --border: rgba(255,255,255,0.09);
-            --text: #f0f2f8;
-            --text-dim: #8a95a3;
-            --primary: #44f1a6;
-            --primary-dark: #0fd084;
-            --accent: #f9c74f;
-            --radius: 20px;
-            --font-ar: "IBM Plex Sans Arabic", system-ui, sans-serif;
-            --font-en: "Space Grotesk", system-ui, sans-serif;
-        }
-        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-        html { scroll-behavior: smooth; }
-
-        body {
-            background: var(--bg);
-            color: var(--text);
-            font-family: var(--font-ar);
-            line-height: 1.7;
-            overflow-x: hidden;
-        }
-
-        #bg-canvas {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            pointer-events: none;
-        }
-
-        .bg-fallback {
-            position: fixed;
-            inset: 0;
-            z-index: 0;
-            pointer-events: none;
-            background:
-                radial-gradient(ellipse 80% 60% at 20% -10%, rgba(68,241,166,0.13), transparent),
-                radial-gradient(ellipse 60% 50% at 90% 20%, rgba(249,199,79,0.08), transparent),
-                radial-gradient(ellipse 50% 80% at 50% 110%, rgba(68,241,166,0.06), transparent);
-            display: none;
-        }
-        .bg-fallback.active { display: block; }
-
-        .landing-nav {
-            position: fixed;
-            inset-block-start: 0;
-            inset-inline: 0;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 1rem 2rem;
-            background: rgba(8,9,13,0.7);
-            backdrop-filter: blur(16px);
-            border-block-end: 1px solid var(--border);
-        }
-
-        .nav-brand {
-            display: flex;
-            align-items: center;
-            gap: 0.6rem;
-            font-weight: 700;
-            font-size: 1.1rem;
-        }
-
-        .nav-brand .icon {
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            background: rgba(68,241,166,0.15);
-            display: grid;
-            place-items: center;
-            color: var(--primary);
-            font-size: 1rem;
-        }
-
-        .nav-actions { display: flex; gap: 0.75rem; align-items: center; }
-
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.45rem;
-            padding: 0.6rem 1.2rem;
-            border-radius: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            text-decoration: none;
-            font-family: inherit;
-            font-size: 0.9rem;
-            transition: all 0.2s ease;
-            border: none;
-        }
-        .btn-ghost {
-            background: transparent;
-            color: var(--text-dim);
-            border: 1px solid var(--border);
-        }
-        .btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,0.2); }
-        .btn-primary {
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: #060e0a;
-        }
-        .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); box-shadow: 0 6px 24px rgba(68,241,166,0.3); }
-        .btn-lg { padding: 0.85rem 1.8rem; font-size: 1rem; border-radius: 14px; }
-
-        .section { position: relative; z-index: 1; }
-
-        .hero {
-            min-height: 100svh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 8rem 2rem 4rem;
-        }
-
-        .hero-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.4rem 1rem;
-            border-radius: 999px;
-            background: rgba(68,241,166,0.1);
-            border: 1px solid rgba(68,241,166,0.25);
-            color: var(--primary);
-            font-size: 0.82rem;
-            font-weight: 600;
-            margin-block-end: 1.5rem;
-            letter-spacing: 0.02em;
-        }
-
-        .hero h1 {
-            font-size: clamp(2.4rem, 6vw, 4.5rem);
-            font-weight: 700;
-            line-height: 1.2;
-            max-width: 800px;
-            margin-block-end: 1.2rem;
-        }
-
-        .hero h1 .highlight {
-            background: linear-gradient(135deg, var(--primary), var(--accent));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hero .sub {
-            font-size: clamp(1rem, 2.5vw, 1.25rem);
-            color: var(--text-dim);
-            max-width: 560px;
-            line-height: 1.8;
-            margin-block-end: 2.5rem;
-        }
-
-        .hero-cta {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .hero-stats {
-            display: flex;
-            gap: 2.5rem;
-            margin-block-start: 4rem;
-            flex-wrap: wrap;
-            justify-content: center;
-        }
-
-        .stat {
-            text-align: center;
-        }
-
-        .stat-num {
-            font-size: clamp(1.8rem, 4vw, 2.5rem);
-            font-weight: 700;
-            color: var(--primary);
-        }
-
-        .stat-label {
-            font-size: 0.82rem;
-            color: var(--text-dim);
-            margin-block-start: 0.2rem;
-        }
-
-        .features-section {
-            padding: 6rem 2rem;
-            max-width: 1100px;
-            margin-inline: auto;
-        }
-
-        .section-label {
-            text-align: center;
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: var(--primary);
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            margin-block-end: 0.75rem;
-        }
-
-        .section-title {
-            text-align: center;
-            font-size: clamp(1.8rem, 4vw, 2.8rem);
-            font-weight: 700;
-            margin-block-end: 3.5rem;
-            line-height: 1.25;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .feature-card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 1.75rem;
-            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
-            perspective: 1000px;
-            transform-style: preserve-3d;
-            cursor: default;
-        }
-
-        .feature-card:hover {
-            border-color: rgba(68,241,166,0.25);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.4), 0 0 0 1px rgba(68,241,166,0.08);
-        }
-
-        .feature-icon {
-            width: 52px;
-            height: 52px;
-            border-radius: 14px;
-            display: grid;
-            place-items: center;
-            font-size: 1.3rem;
-            margin-block-end: 1.1rem;
-        }
-
-        .feature-card h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-block-end: 0.6rem;
-        }
-
-        .feature-card p {
-            color: var(--text-dim);
-            font-size: 0.9rem;
-            line-height: 1.8;
-        }
-
-        .pricing-section {
-            padding: 6rem 2rem;
-            text-align: center;
-        }
-
-        .pricing-card {
-            max-width: 420px;
-            margin-inline: auto;
-            background: linear-gradient(135deg, rgba(68,241,166,0.07), rgba(249,199,79,0.04));
-            border: 1px solid rgba(68,241,166,0.25);
-            border-radius: 28px;
-            padding: 3rem 2.5rem;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .pricing-card::before {
-            content: '';
-            position: absolute;
-            inset-block-start: -60px;
-            inset-inline-start: 50%;
-            transform: translateX(-50%);
-            width: 200px;
-            height: 200px;
-            background: radial-gradient(circle, rgba(68,241,166,0.15), transparent 70%);
-            pointer-events: none;
-        }
-
-        .pricing-badge {
-            display: inline-flex;
-            padding: 0.35rem 1rem;
-            border-radius: 999px;
-            background: rgba(68,241,166,0.15);
-            color: var(--primary);
-            font-size: 0.78rem;
-            font-weight: 600;
-            margin-block-end: 1.5rem;
-        }
-
-        .pricing-price {
-            font-size: clamp(3rem, 8vw, 4.5rem);
-            font-weight: 700;
-            color: var(--primary);
-            line-height: 1;
-        }
-
-        .pricing-price sup {
-            font-size: 1.5rem;
-            vertical-align: super;
-            color: var(--text-dim);
-        }
-
-        .pricing-period {
-            color: var(--text-dim);
-            margin-block: 0.5rem 1.5rem;
-            font-size: 0.9rem;
-        }
-
-        .pricing-features {
-            list-style: none;
-            margin-block-end: 2rem;
-            text-align: start;
-        }
-
-        .pricing-features li {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            padding: 0.55rem 0;
-            font-size: 0.92rem;
-            border-block-end: 1px solid var(--border);
-        }
-
-        .pricing-features li:last-child { border-block-end: none; }
-
-        .pricing-features li i {
-            color: var(--primary);
-            width: 18px;
-            flex-shrink: 0;
-        }
-
-        .faq-section {
-            padding: 6rem 2rem;
-            max-width: 720px;
-            margin-inline: auto;
-        }
-
-        .faq-item {
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            margin-block-end: 0.75rem;
-            overflow: hidden;
-            background: var(--card);
-        }
-
-        .faq-q {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 1.2rem 1.5rem;
-            cursor: pointer;
-            font-weight: 600;
-            font-size: 1rem;
-            gap: 1rem;
-        }
-
-        .faq-q .icon {
-            color: var(--primary);
-            transition: transform 0.3s ease;
-            flex-shrink: 0;
-        }
-
-        .faq-item.open .faq-q .icon { transform: rotate(45deg); }
-
-        .faq-a {
-            padding: 0 1.5rem;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.35s ease, padding 0.35s ease;
-            color: var(--text-dim);
-            font-size: 0.92rem;
-            line-height: 1.8;
-        }
-
-        .faq-item.open .faq-a {
-            max-height: 300px;
-            padding: 0 1.5rem 1.2rem;
-        }
-
-        .landing-footer {
-            position: relative;
-            z-index: 1;
-            text-align: center;
-            padding: 3rem 2rem;
-            border-block-start: 1px solid var(--border);
-            color: var(--text-dim);
-            font-size: 0.85rem;
-        }
-
-        .footer-links {
-            display: flex;
-            gap: 1.5rem;
-            justify-content: center;
-            margin-block-end: 1rem;
-        }
-
-        .footer-links a {
-            color: var(--text-dim);
-            text-decoration: none;
-            transition: color 0.2s;
-        }
-        .footer-links a:hover { color: var(--primary); }
-
-        .scroll-fade {
-            opacity: 0;
-            transform: translateY(30px);
-            transition: opacity 0.6s ease, transform 0.6s ease;
-        }
-        .scroll-fade.visible { opacity: 1; transform: translateY(0); }
-
-        @media (max-width: 640px) {
-            .landing-nav { padding: 0.85rem 1.25rem; }
-            .hero { padding: 7rem 1.25rem 3rem; }
-            .hero-stats { gap: 1.5rem; }
-            .pricing-card { padding: 2rem 1.5rem; }
-            .btn-lg { padding: 0.75rem 1.4rem; font-size: 0.95rem; }
-        }
-
-        @starting-style {
-            .landing-nav { opacity: 0; transform: translateY(-8px); }
-        }
-        .landing-nav { transition: opacity 0.4s ease, transform 0.4s ease; }
-    </style>
+    <title>Content Factory</title>
+    <meta name="description" content="{{ t('Automate social content for Facebook and Instagram with your own AI provider. One payment, premium workflow.') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cf.css') }}">
 </head>
+<body class="cf-public-page">
+    <div class="cf-public-shell">
+        <header class="cf-public-nav">
+            <a class="cf-brand" href="{{ url_for('web.page_landing') }}">
+                <span class="cf-brand-mark">CF</span>
+                <span class="cf-brand-copy">
+                    <span class="cf-brand-title">Content Factory</span>
+                    <span class="cf-brand-sub">{{ t('Editorial control for Facebook and Instagram') }}</span>
+                </span>
+            </a>
 
-<body>
-
-<canvas id="bg-canvas"></canvas>
-<div class="bg-fallback" id="bg-fallback"></div>
-
-<nav class="landing-nav section">
-    <div class="nav-brand">
-        <div class="icon"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
-        <span>Content Factory</span>
-    </div>
-    <div class="nav-actions">
-        <a href="/auth/login" class="btn btn-ghost" dir="rtl">تسجيل الدخول</a>
-        <a href="https://gumroad.com/l/contentfactory" target="_blank" class="btn btn-primary" dir="rtl">
-            <i class="fa-solid fa-bag-shopping"></i> شراء الآن
-        </a>
-    </div>
-</nav>
-
-<section class="hero section">
-    <div class="hero-badge">
-        <i class="fa-solid fa-bolt"></i>
-        <span>مدفوع بالذكاء الاصطناعي · دفعة واحدة · بدون اشتراك</span>
-    </div>
-    <h1>
-        <span class="highlight">أتمتة المحتوى</span><br>
-        العربي بالكامل
-    </h1>
-    <p class="sub">
-        أنشئ ونشر محتوى احترافياً على فيسبوك وإنستغرام كل يوم، تلقائياً — بالعربية الفصحى أو الدارجة.
-        وفّر ساعات يومياً.
-    </p>
-    <div class="hero-cta">
-        <a href="https://gumroad.com/l/contentfactory" target="_blank" class="btn btn-primary btn-lg" dir="rtl">
-            <i class="fa-solid fa-rocket"></i> ابدأ الآن — $49
-        </a>
-        <a href="/auth/login" class="btn btn-ghost btn-lg" dir="rtl">
-            <i class="fa-solid fa-right-to-bracket"></i> تسجيل الدخول
-        </a>
-    </div>
-    <div class="hero-stats">
-        <div class="stat">
-            <div class="stat-num" id="counter-posts">0</div>
-            <div class="stat-label">منشور يومياً</div>
-        </div>
-        <div class="stat">
-            <div class="stat-num" id="counter-time">0</div>
-            <div class="stat-label">ساعة موفّرة أسبوعياً</div>
-        </div>
-        <div class="stat">
-            <div class="stat-num" id="counter-price">$0</div>
-            <div class="stat-label">دفعة واحدة فقط</div>
-        </div>
-    </div>
-</section>
-
-<!-- Demo placeholder -->
-<section class="section scroll-fade" style="padding-block: 1rem 3rem;">
-    <div style="
-        max-width: 900px;
-        margin-inline: auto;
-        border-radius: 24px;
-        overflow: hidden;
-        border: 1px solid rgba(255,255,255,0.07);
-        background: rgba(255,255,255,0.025);
-        aspect-ratio: 16/9;
-        display: grid;
-        place-items: center;
-        position: relative;
-    ">
-        <div style="text-align:center; padding: 2rem;">
-            <div style="font-size:3.5rem; color:var(--primary); margin-block-end:1rem; opacity:0.7;">
-                <i class="fa-solid fa-play-circle"></i>
+            <div class="cf-public-actions">
+                <a class="cf-btn-ghost" href="{{ url_for('auth.login') }}">{{ t('Sign in') }}</a>
+                <a class="cf-btn" href="{{ url_for('auth.register') }}">{{ t('Get access - $49') }}</a>
             </div>
-            <p style="color:var(--text-dim); font-size:1.1rem; margin:0;">
-                عرض توضيحي — قريباً
-            </p>
-        </div>
+        </header>
+
+        <main>
+            <section class="cf-marketing-hero">
+                <article class="cf-marketing-copy">
+                    <div class="cf-label">{{ t('Premium workflow') }}</div>
+                    <h1 class="cf-proof-number cf-proof-number-hero">49$</h1>
+                    <h2 class="cf-page-title">{{ t('One payment. Clean control of every client page.') }}</h2>
+                    <p class="cf-page-copy">{{ t('Content Factory collects ideas, generates client-ready drafts in English, French or Arabic, and sends them through a calm approval workflow before publishing.') }}</p>
+
+                    <div class="cf-feature-list">
+                        <div class="cf-feature-row">
+                            <strong>{{ t('Bring your own AI') }}</strong>
+                            <span class="cf-inline-note">Gemini, Claude, OpenAI, OpenRouter</span>
+                        </div>
+                        <div class="cf-feature-row">
+                            <strong>{{ t('Work in three languages') }}</strong>
+                            <span class="cf-inline-note">EN / FR / AR content generation</span>
+                        </div>
+                        <div class="cf-feature-row">
+                            <strong>{{ t('Stay in control') }}</strong>
+                            <span class="cf-inline-note">Approve on desktop or Telegram</span>
+                        </div>
+                    </div>
+
+                    <div class="cf-public-actions">
+                        <a class="cf-btn" href="{{ url_for('auth.register') }}">{{ t('Start with your license') }}</a>
+                        <a class="cf-btn-ghost" href="{{ url_for('auth.login') }}">{{ t('Return to account') }}</a>
+                    </div>
+                </article>
+
+                <aside class="cf-marketing-proof">
+                    <div class="cf-label">{{ t('What you feel first') }}</div>
+                    <div class="cf-page-title">{{ t('A publishing desk, not another dashboard.') }}</div>
+                    <div class="cf-proof-grid">
+                        <div class="cf-proof-row">
+                            <strong>{{ t('Drafts') }}</strong>
+                            <span class="cf-inline-note">Post, carousel, story sequence</span>
+                        </div>
+                        <div class="cf-proof-row">
+                            <strong>{{ t('Approval') }}</strong>
+                            <span class="cf-inline-note">Manual review when you want it</span>
+                        </div>
+                        <div class="cf-proof-row">
+                            <strong>{{ t('Pages') }}</strong>
+                            <span class="cf-inline-note">Facebook + Instagram connections</span>
+                        </div>
+                        <div class="cf-proof-row">
+                            <strong>{{ t('Health') }}</strong>
+                            <span class="cf-inline-note">Token, AI and pipeline visibility</span>
+                        </div>
+                    </div>
+                </aside>
+            </section>
+
+            <section class="cf-marketing-band">
+                <article class="cf-band-card">
+                    <div class="cf-label">{{ t('For agencies') }}</div>
+                    <p class="cf-card-copy">{{ t('Keep client pages moving without handing over your standards.') }}</p>
+                </article>
+                <article class="cf-band-card">
+                    <div class="cf-label">{{ t('For creators') }}</div>
+                    <p class="cf-card-copy">{{ t('Build a repeatable publishing rhythm with less manual effort.') }}</p>
+                </article>
+                <article class="cf-band-card">
+                    <div class="cf-label">{{ t('For multilingual brands') }}</div>
+                    <p class="cf-card-copy">{{ t('Separate system language from content language without compromise.') }}</p>
+                </article>
+            </section>
+        </main>
     </div>
-</section>
-
-<section class="features-section section scroll-fade">
-    <p class="section-label">الميزات</p>
-    <h2 class="section-title">كل ما تحتاجه لإدارة محتواك</h2>
-    <div class="features-grid">
-        <div class="feature-card" data-tilt>
-            <div class="feature-icon" style="background:rgba(68,241,166,0.12); color:#44f1a6;">
-                <i class="fa-solid fa-brain"></i>
-            </div>
-            <h3>توليد ذكي بالعربية</h3>
-            <p>يكتب Gemini AI منشوراتك بالعربية الفصحى أو العامية المحلية — بأسلوب يناسب جمهورك تماماً.</p>
-        </div>
-        <div class="feature-card" data-tilt>
-            <div class="feature-icon" style="background:rgba(249,199,79,0.12); color:#f9c74f;">
-                <i class="fa-solid fa-calendar-days"></i>
-            </div>
-            <h3>جدولة تلقائية</h3>
-            <p>يجدول النظام منشوراتك في أوقات الذروة تلقائياً — 3 منشورات يومياً بدون أي تدخل منك.</p>
-        </div>
-        <div class="feature-card" data-tilt>
-            <div class="feature-icon" style="background:rgba(24,119,242,0.12); color:#1877f2;">
-                <i class="fa-brands fa-facebook"></i>
-            </div>
-            <h3>فيسبوك وإنستغرام</h3>
-            <p>اربط صفحاتك مرة واحدة، ثم انسَ الأمر. النظام ينشر تلقائياً على فيسبوك وإنستغرام معاً.</p>
-        </div>
-        <div class="feature-card" data-tilt>
-            <div class="feature-icon" style="background:rgba(239,68,68,0.12); color:#ef4444;">
-                <i class="fa-solid fa-fire"></i>
-            </div>
-            <h3>محتوى فيروسي</h3>
-            <p>خوارزمية Virality Score تحدد أفضل الصياغات والأنماط لتحقيق أقصى وصول ومشاركة.</p>
-        </div>
-        <div class="feature-card" data-tilt>
-            <div class="feature-icon" style="background:rgba(168,85,247,0.12); color:#a855f7;">
-                <i class="fa-solid fa-chart-line"></i>
-            </div>
-            <h3>تحليلات متقدمة</h3>
-            <p>تتبع الوصول والإعجابات والمشاركات لكل منشور. اعرف ما ينجح وكرّره.</p>
-        </div>
-        <div class="feature-card" data-tilt>
-            <div class="feature-icon" style="background:rgba(14,165,233,0.12); color:#0ea5e9;">
-                <i class="fa-solid fa-image"></i>
-            </div>
-            <h3>صور احترافية</h3>
-            <p>تكامل مع Pexels لإضافة صور مجانية عالية الجودة لكل منشور تلقائياً.</p>
-        </div>
-    </div>
-</section>
-
-<section class="pricing-section section scroll-fade">
-    <p class="section-label">التسعير</p>
-    <h2 class="section-title" style="margin-block-end:2.5rem;">سعر واحد. إلى الأبد.</h2>
-    <div class="pricing-card">
-        <div class="pricing-badge"><i class="fa-solid fa-infinity"></i> &nbsp; ترخيص مدى الحياة</div>
-        <div class="pricing-price"><sup>$</sup>49</div>
-        <p class="pricing-period">دفعة واحدة — بلا اشتراك شهري</p>
-        <ul class="pricing-features">
-            <li><i class="fa-solid fa-check"></i> توليد محتوى بالذكاء الاصطناعي غير محدود</li>
-            <li><i class="fa-solid fa-check"></i> فيسبوك + إنستغرام</li>
-            <li><i class="fa-solid fa-check"></i> جدولة تلقائية 24/7</li>
-            <li><i class="fa-solid fa-check"></i> تحليلات مفصّلة</li>
-            <li><i class="fa-solid fa-check"></i> تحديثات مجانية مدى الحياة</li>
-            <li><i class="fa-solid fa-check"></i> دعم أولوية عبر Telegram</li>
-        </ul>
-        <a href="https://gumroad.com/l/contentfactory" target="_blank" class="btn btn-primary btn-lg" style="width:100%; justify-content:center;">
-            <i class="fa-solid fa-bag-shopping"></i> اشترِ الآن عبر Gumroad
-        </a>
-        <p style="margin-block-start:1rem; font-size:0.8rem; color:var(--text-dim);">
-            ستتلقى كود تفعيل على بريدك الإلكتروني فور الشراء
-        </p>
-    </div>
-</section>
-
-<section class="faq-section section scroll-fade">
-    <p class="section-label">الأسئلة الشائعة</p>
-    <h2 class="section-title">أسئلة وأجوبة</h2>
-
-    <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">
-            <span>هل أحتاج لخبرة تقنية؟</span>
-            <i class="fa-solid fa-plus icon"></i>
-        </div>
-        <div class="faq-a">لا — الإعداد يستغرق 5 دقائق فقط. تربط صفحتك على فيسبوك وتضع مفتاح Gemini المجاني، وتنتهي القصة.</div>
-    </div>
-
-    <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">
-            <span>هل الأداة آمنة لحسابي؟</span>
-            <i class="fa-solid fa-plus icon"></i>
-        </div>
-        <div class="faq-a">نعم. نستخدم OAuth الرسمي من فيسبوك، ولا نخزن كلمات المرور أبداً. كل الرموز مشفّرة في قاعدة البيانات.</div>
-    </div>
-
-    <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">
-            <span>ما مصادر المحتوى التي يستخدمها؟</span>
-            <i class="fa-solid fa-plus icon"></i>
-        </div>
-        <div class="faq-a">يجمع النظام أحدث الأخبار والمقالات من مصادر عربية ودولية، ثم يعيد صياغتها بأسلوب ملائم لجمهور صفحتك.</div>
-    </div>
-
-    <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">
-            <span>هل يعمل مع أكثر من صفحة؟</span>
-            <i class="fa-solid fa-plus icon"></i>
-        </div>
-        <div class="faq-a">نعم. يمكنك إدارة صفحات متعددة من نفس الحساب، لكل صفحة إعداداتها وجدولها الزمني المستقل.</div>
-    </div>
-
-    <div class="faq-item">
-        <div class="faq-q" onclick="toggleFaq(this)">
-            <span>هل أحتاج خادماً (server)؟</span>
-            <i class="fa-solid fa-plus icon"></i>
-        </div>
-        <div class="faq-a">التطبيق يعمل على Replit أو أي خادم Python. الاشتراك المجاني في Replit يكفي للبدء، والترقية اختيارية.</div>
-    </div>
-</section>
-
-<footer class="landing-footer section">
-    <div class="footer-links">
-        <a href="/auth/login">تسجيل الدخول</a>
-        <a href="https://gumroad.com/l/contentfactory" target="_blank">الشراء</a>
-        <a href="https://t.me/contentfactoryar" target="_blank">Telegram</a>
-    </div>
-    <p>© 2026 Content Factory. جميع الحقوق محفوظة.</p>
-</footer>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<script>
-(function() {
-    const canvas = document.getElementById('bg-canvas');
-    const fallback = document.getElementById('bg-fallback');
-    let renderer, scene, camera, points, animId;
-    let frameCount = 0, fpsStart = null, fpsDead = false;
-
-    function initThree() {
-        try {
-            renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
-            renderer.setSize(window.innerWidth, window.innerHeight);
-
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.z = 4;
-
-            const geometry = new THREE.BufferGeometry();
-            const count = 800;
-            const positions = new Float32Array(count * 3);
-            const speeds = new Float32Array(count);
-            for (let i = 0; i < count; i++) {
-                positions[i * 3]     = (Math.random() - 0.5) * 12;
-                positions[i * 3 + 1] = (Math.random() - 0.5) * 8;
-                positions[i * 3 + 2] = (Math.random() - 0.5) * 6;
-                speeds[i] = 0.0002 + Math.random() * 0.0004;
-            }
-            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geometry._speeds = speeds;
-
-            const material = new THREE.PointsMaterial({
-                size: 0.045,
-                color: 0x44f1a6,
-                transparent: true,
-                opacity: 0.55,
-                sizeAttenuation: true,
-            });
-
-            points = new THREE.Points(geometry, material);
-            scene.add(points);
-
-            window.addEventListener('resize', onResize);
-            animate();
-        } catch(e) {
-            killThree();
-        }
-    }
-
-    function animate(ts) {
-        if (fpsDead) return;
-        animId = requestAnimationFrame(animate);
-
-        if (fpsStart === null) fpsStart = ts;
-        frameCount++;
-        const elapsed = ts - fpsStart;
-
-        if (elapsed > 3000) {
-            const fps = frameCount / (elapsed / 1000);
-            if (fps < 30) { killThree(); return; }
-            fpsStart = ts;
-            frameCount = 0;
-        }
-
-        const pos = points.geometry.attributes.position.array;
-        const speeds = points.geometry._speeds;
-        for (let i = 0; i < speeds.length; i++) {
-            pos[i * 3 + 1] += speeds[i];
-            if (pos[i * 3 + 1] > 4) pos[i * 3 + 1] = -4;
-        }
-        points.geometry.attributes.position.needsUpdate = true;
-        points.rotation.y += 0.0003;
-        renderer.render(scene, camera);
-    }
-
-    function onResize() {
-        if (!renderer) return;
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-        renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function killThree() {
-        fpsDead = true;
-        if (animId) cancelAnimationFrame(animId);
-        if (renderer) { renderer.dispose(); }
-        canvas.style.display = 'none';
-        fallback.classList.add('active');
-    }
-
-    if (typeof THREE !== 'undefined') {
-        initThree();
-    } else {
-        fallback.classList.add('active');
-    }
-})();
-
-function toggleFaq(el) {
-    const item = el.closest('.faq-item');
-    const isOpen = item.classList.contains('open');
-    document.querySelectorAll('.faq-item.open').forEach(i => i.classList.remove('open'));
-    if (!isOpen) item.classList.add('open');
-}
-
-function animateCounter(el, target, prefix, suffix, duration) {
-    const start = Date.now();
-    function tick() {
-        const progress = Math.min((Date.now() - start) / duration, 1);
-        const eased = 1 - Math.pow(1 - progress, 3);
-        el.textContent = prefix + Math.round(eased * target) + suffix;
-        if (progress < 1) requestAnimationFrame(tick);
-    }
-    tick();
-}
-
-const io = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-        if (e.isIntersecting) {
-            e.target.classList.add('visible');
-            io.unobserve(e.target);
-        }
-    });
-}, { threshold: 0.12 });
-
-document.querySelectorAll('.scroll-fade').forEach(el => io.observe(el));
-
-setTimeout(() => {
-    animateCounter(document.getElementById('counter-posts'), 3, '', '+', 1200);
-    animateCounter(document.getElementById('counter-time'), 14, '', 'h', 1500);
-    animateCounter(document.getElementById('counter-price'), 49, '$', '', 1800);
-}, 600);
-
-document.querySelectorAll('[data-tilt]').forEach(card => {
-    card.addEventListener('mousemove', e => {
-        const r = card.getBoundingClientRect();
-        const x = (e.clientX - r.left) / r.width - 0.5;
-        const y = (e.clientY - r.top)  / r.height - 0.5;
-        card.style.transform = `perspective(800px) rotateY(${x * 8}deg) rotateX(${-y * 6}deg) translateZ(4px)`;
-    });
-    card.addEventListener('mouseleave', () => {
-        card.style.transform = 'perspective(800px) rotateY(0deg) rotateX(0deg) translateZ(0px)';
-    });
-});
-</script>
 </body>
 </html>

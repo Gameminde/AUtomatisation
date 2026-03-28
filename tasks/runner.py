@@ -10,10 +10,9 @@ Responsibilities
   for each tenant concurrently in a ThreadPoolExecutor
 - APScheduler fires `run_all_users` every PIPELINE_INTERVAL_SECONDS (default 30 min)
 
-Usage (called from dashboard_app.py / wsgi.py at startup)
-----------------------------------------------------------
-    from tasks.runner import start_scheduler
-    start_scheduler()
+Usage (explicit worker process)
+-------------------------------
+    python -m tasks.runner
 """
 
 from __future__ import annotations
@@ -21,6 +20,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import time
 
 # Ensure the project root and engine/ are on sys.path so bare module imports
 # (scraper, publisher, scheduler, etc.) resolve correctly regardless of how
@@ -32,7 +32,7 @@ for _p in (_ROOT, _ENGINE):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
@@ -44,9 +44,13 @@ MAX_WORKERS: int = int(os.getenv("PIPELINE_MAX_WORKERS", "10"))
 PIPELINE_INTERVAL_SECONDS: int = int(os.getenv("PIPELINE_INTERVAL_SECONDS", "1800"))
 PIPELINE_STARTUP_DELAY_SECONDS: int = int(os.getenv("PIPELINE_STARTUP_DELAY", "90"))
 PIPELINE_TIMEOUT_SECONDS: int = int(os.getenv("PIPELINE_TIMEOUT", "300"))
+PIPELINE_REQUEST_POLL_SECONDS: int = int(
+    os.getenv("PIPELINE_REQUEST_POLL_SECONDS", "30")
+)
 
 # Key prefix used in system_status for per-user pipeline locks
 _LOCK_KEY_PREFIX = "pipeline_lock:"
+_RUN_REQUEST_KEY_PREFIX = "pipeline_request:"
 
 
 # ── Distributed lock helpers (system_status table) ──────────────────────────
@@ -172,6 +176,70 @@ def _release_user_lock(user_id: str, owner_token: str) -> None:
 def _get_sb():
     from app.utils import _get_supabase_client
     return _get_supabase_client()
+
+
+def request_immediate_run(user_id: str) -> None:
+    """
+    Queue a one-shot pipeline run for ``user_id`` in ``system_status``.
+
+    The scheduler worker consumes these requests outside the regular all-users
+    interval so onboarding can trigger a fast first run without using a web
+    thread.
+    """
+    if not user_id:
+        raise ValueError("user_id is required")
+
+    sb = _get_sb()
+    now_iso = datetime.now(timezone.utc).isoformat()
+    sb.table("system_status").upsert(
+        {
+            "key": f"{_RUN_REQUEST_KEY_PREFIX}{user_id}",
+            "value": "requested",
+            "updated_at": now_iso,
+        },
+        on_conflict="key",
+    ).execute()
+
+
+def _clear_immediate_run_request(user_id: str) -> None:
+    """Remove any queued one-shot pipeline request for ``user_id``."""
+    try:
+        sb = _get_sb()
+        sb.table("system_status").delete().eq(
+            "key", f"{_RUN_REQUEST_KEY_PREFIX}{user_id}"
+        ).execute()
+    except Exception as exc:
+        logger.warning(
+            "Could not clear immediate pipeline request for user %s: %s",
+            user_id[:8],
+            exc,
+        )
+
+
+def _load_requested_user_ids() -> List[str]:
+    """Return distinct user_ids that have a queued one-shot pipeline request."""
+    try:
+        sb = _get_sb()
+        result = (
+            sb.table("system_status")
+            .select("key")
+            .like("key", f"{_RUN_REQUEST_KEY_PREFIX}%")
+            .execute()
+        )
+        seen: set = set()
+        ids: List[str] = []
+        for row in result.data or []:
+            key = row.get("key") or ""
+            if not key.startswith(_RUN_REQUEST_KEY_PREFIX):
+                continue
+            uid = key[len(_RUN_REQUEST_KEY_PREFIX):]
+            if uid and uid not in seen:
+                seen.add(uid)
+                ids.append(uid)
+        return ids
+    except Exception as exc:
+        logger.error("_load_requested_user_ids failed: %s", exc)
+        return []
 
 
 # ── Active user discovery ────────────────────────────────────────────────────
@@ -300,6 +368,7 @@ def _run_pipeline_for_user(user_config) -> Dict:
         logger.info("Pipeline done: user=%s result=%s", uid_short, result)
 
     finally:
+        _clear_immediate_run_request(uid)
         _release_user_lock(uid, owner_token)
 
     return result
@@ -330,14 +399,15 @@ def run_all_users(max_workers: int = MAX_WORKERS) -> Dict:
 
     logger.info("Found %d active user(s)", len(user_ids))
 
-    from user_config import UserConfig
+    from user_config import get_user_config
 
     results: List[Dict] = []
     effective_workers = min(max_workers, len(user_ids))
+    user_configs = {uid: get_user_config(uid) for uid in user_ids}
 
     with ThreadPoolExecutor(max_workers=effective_workers, thread_name_prefix="pipeline") as executor:
         futures = {
-            executor.submit(_run_pipeline_for_user, UserConfig.from_db(uid)): uid
+            executor.submit(_run_pipeline_for_user, user_configs[uid]): uid
             for uid in user_ids
         }
         # Iterate without a global batch timeout so queued users are always
@@ -373,6 +443,69 @@ def run_all_users(max_workers: int = MAX_WORKERS) -> Dict:
 
 # ── APScheduler entry point ──────────────────────────────────────────────────
 
+def run_requested_users(max_workers: int = MAX_WORKERS) -> Dict:
+    """
+    Consume queued one-shot pipeline requests and run them through the worker.
+
+    Requests are stored in ``system_status`` so they survive web-process
+    restarts and are handled exclusively by the scheduler worker.
+    """
+    logger.info("run_requested_users starting")
+    user_ids = _load_requested_user_ids()
+
+    if not user_ids:
+        logger.debug("No queued pipeline requests")
+        return {"users": 0, "results": [], "published_total": 0}
+
+    logger.info("Found %d queued pipeline request(s)", len(user_ids))
+
+    from user_config import get_user_config
+
+    results: List[Dict] = []
+    effective_workers = min(max_workers, len(user_ids))
+    user_configs = {uid: get_user_config(uid) for uid in user_ids}
+
+    with ThreadPoolExecutor(
+        max_workers=effective_workers,
+        thread_name_prefix="pipeline-request",
+    ) as executor:
+        futures = {
+            executor.submit(_run_pipeline_for_user, user_configs[uid]): uid
+            for uid in user_ids
+        }
+        for future in as_completed(futures):
+            uid = futures[future]
+            try:
+                res = future.result(timeout=PIPELINE_TIMEOUT_SECONDS)
+                results.append(res)
+            except TimeoutError:
+                logger.error(
+                    "Queued pipeline request timed out for user=%s after %ds",
+                    uid[:8],
+                    PIPELINE_TIMEOUT_SECONDS,
+                )
+                results.append({"user_id": uid, "error": "timeout"})
+            except Exception as exc:
+                logger.error(
+                    "Queued pipeline request failed (user=%s): %s",
+                    uid[:8],
+                    exc,
+                )
+                results.append({"user_id": uid, "error": str(exc)})
+
+    summary: Dict = {
+        "users": len(user_ids),
+        "results": results,
+        "published_total": sum(r.get("published", 0) for r in results),
+    }
+    logger.info(
+        "run_requested_users done: users=%d published_total=%d",
+        summary["users"],
+        summary["published_total"],
+    )
+    return summary
+
+
 _scheduler_started: bool = False
 _scheduler_instance = None  # Exposed so telegram_bot can attach its own jobs
 
@@ -405,6 +538,14 @@ def start_scheduler() -> None:
             replace_existing=True,
             next_run_time=None,  # Will be set after startup delay below
         )
+        scheduler.add_job(
+            func=run_requested_users,
+            trigger=IntervalTrigger(seconds=PIPELINE_REQUEST_POLL_SECONDS),
+            id="pipeline_requested_users",
+            name="Pipeline - requested users",
+            replace_existing=True,
+            next_run_time=datetime.now(timezone.utc),
+        )
         scheduler.start()
         global _scheduler_instance
         _scheduler_instance = scheduler
@@ -429,10 +570,39 @@ def start_scheduler() -> None:
         t.start()
 
         logger.info(
-            "APScheduler started: first run in %ds, then every %ds",
+            "APScheduler started: first run in %ds, recurring=%ds, request-poll=%ds",
             PIPELINE_STARTUP_DELAY_SECONDS,
             PIPELINE_INTERVAL_SECONDS,
+            PIPELINE_REQUEST_POLL_SECONDS,
         )
 
     except Exception as exc:
         logger.error("Failed to start APScheduler: %s", exc, exc_info=True)
+
+
+def run_scheduler_worker() -> None:
+    """
+    Explicit entrypoint for the standalone scheduler worker process.
+
+    Keeps the process alive after APScheduler starts so daemon threads are not
+    terminated when the module finishes executing.
+    """
+    start_scheduler()
+    if not _scheduler_started or _scheduler_instance is None:
+        raise RuntimeError("Scheduler worker failed to start")
+
+    logger.info("Scheduler worker running")
+    try:
+        while True:
+            time.sleep(3600)
+    except KeyboardInterrupt:
+        logger.info("Scheduler worker stopping")
+    finally:
+        try:
+            _scheduler_instance.shutdown(wait=False)
+        except Exception:
+            pass
+
+
+if __name__ == "__main__":
+    run_scheduler_worker()

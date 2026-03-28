@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ t('Diagnostics') }} | Content Factory{% endblock %}
+
+{% block content %}
+<section class="cf-screen cf-diagnostics-page" data-cf-diagnostics>
+    <header class="cf-page-intro">
+        <div>
+            <div class="cf-label">{{ t('Diagnostics') }}</div>
+            <h1 class="cf-page-title">{{ t('Reliability and issue actions') }}</h1>
+            <p class="cf-page-copy">{{ t('See what is broken, what is waiting to recover, and the fastest next action to restore the pipeline.') }}</p>
+        </div>
+    </header>
+
+    <article class="cf-card cf-panel">
+        <div class="cf-section-head cf-section-head-quiet">
+            <span class="cf-label">{{ t('Issues summary') }}</span>
+        </div>
+        <div id="cf-diagnostics-summary" class="cf-grid cols-4" aria-live="polite"></div>
+    </article>
+
+    <section class="cf-grid cols-2">
+        <article class="cf-card cf-panel">
+            <div class="cf-section-head cf-section-head-quiet">
+                <span class="cf-label">{{ t('Failed items') }}</span>
+            </div>
+            <div id="cf-diagnostics-failures" aria-live="polite"></div>
+        </article>
+
+        <article class="cf-card cf-panel">
+            <div class="cf-section-head cf-section-head-quiet">
+                <span class="cf-label">{{ t('Destination health') }}</span>
+            </div>
+            <div id="cf-diagnostics-destinations" aria-live="polite"></div>
+        </article>
+    </section>
+
+    <section class="cf-grid cols-2">
+        <article class="cf-card cf-panel">
+            <div class="cf-section-head cf-section-head-quiet">
+                <span class="cf-label">{{ t('Service checks') }}</span>
+            </div>
+            <div id="cf-diagnostics-checks" aria-live="polite"></div>
+        </article>
+
+        <article class="cf-card cf-panel">
+            <div class="cf-section-head cf-section-head-quiet">
+                <span class="cf-label">{{ t('Event timeline') }}</span>
+            </div>
+            <div id="cf-diagnostics-events" class="cf-timeline" aria-live="polite"></div>
+        </article>
+    </section>
+</section>
+{% endblock %}

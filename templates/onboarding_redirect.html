@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="{{ system_language|lower }}" dir="{{ system_dir }}">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="refresh" content="2; url={{ redirect_url }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ t('Setup moved') }} | Content Factory</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/cf.css') }}">
+</head>
+<body class="cf-public-page">
+    <main class="cf-centered-card">
+        <div class="cf-label">{{ t('Setup updated') }}</div>
+        <h1 class="cf-page-title">{{ t('Setup has moved to your dashboard.') }}</h1>
+        <p class="cf-page-copy">{{ t('Your account now guides setup inline from the dashboard banner. You will be redirected automatically.') }}</p>
+        <div class="cf-public-actions">
+            <a class="cf-btn" href="{{ redirect_url }}">{{ t('Go to dashboard') }}</a>
+        </div>
+    </main>
+</body>
+</html>

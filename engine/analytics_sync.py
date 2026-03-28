@@ -95,7 +95,7 @@ def sync_metrics(user_config) -> int:
         return 0
 
     try:
-        client = config.get_supabase_client()
+        client = config.get_database_client()
         cutoff = (datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)).isoformat()
 
         result = (

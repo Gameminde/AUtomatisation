@@ -27,15 +27,24 @@ class BanDetector:
     ENGAGEMENT_DROP_THRESHOLD = 0.4  # 60% drop = warning
     MIN_POSTS_FOR_ANALYSIS = 5
     
-    def __init__(self, page_id: Optional[str] = None):
+    def __init__(self, user_id: Optional[str] = None, page_id: Optional[str] = None):
         """
         Initialize ban detector.
         
         Args:
+            user_id: Tenant scope for multi-tenant SaaS flows
             page_id: Facebook page ID to monitor
         """
+        self.user_id = user_id
         self.page_id = page_id or config.FACEBOOK_PAGE_ID
-        self.client = config.get_supabase_client()
+        self.client = config.get_database_client()
+
+    def _scope_query(self, query):
+        if self.user_id:
+            return query.eq("user_id", self.user_id)
+        if self.page_id:
+            return query.eq("page_id", self.page_id)
+        return query
     
     def check_for_shadowban(self) -> Dict:
         """
@@ -82,8 +91,10 @@ class BanDetector:
         """Fetch recent published posts."""
         try:
             result = (
-                self.client.table("published_posts")
-                .select("id, published_at, reach, likes, comments, shares, impressions")
+                self._scope_query(
+                    self.client.table("published_posts")
+                    .select("id, published_at, reach, likes, comments, shares, impressions")
+                )
                 .order("published_at", desc=True)
                 .limit(lookback)
                 .execute()
@@ -312,28 +323,30 @@ Content Factory Automation System
         return False
 
 
-# Global instance
-_detector = None
-
-
-def get_detector(page_id: Optional[str] = None) -> BanDetector:
-    """Get or create ban detector instance."""
-    global _detector
-    if _detector is None or (page_id and _detector.page_id != page_id):
-        _detector = BanDetector(page_id)
-    return _detector
+def get_detector(
+    user_id: Optional[str] = None,
+    page_id: Optional[str] = None,
+) -> BanDetector:
+    """Build a scoped ban detector instance."""
+    return BanDetector(user_id=user_id, page_id=page_id)
 
 
 # Convenience functions
-def check_for_shadowban(page_id: Optional[str] = None) -> Dict:
+def check_for_shadowban(
+    user_id: Optional[str] = None,
+    page_id: Optional[str] = None,
+) -> Dict:
     """Check for shadowban indicators."""
-    detector = get_detector(page_id)
+    detector = get_detector(user_id=user_id, page_id=page_id)
     return detector.check_for_shadowban()
 
 
-def should_pause_automation(page_id: Optional[str] = None) -> bool:
+def should_pause_automation(
+    user_id: Optional[str] = None,
+    page_id: Optional[str] = None,
+) -> bool:
     """Check if automation should pause due to ban risk."""
-    detector = get_detector(page_id)
+    detector = get_detector(user_id=user_id, page_id=page_id)
     result = detector.check_for_shadowban()
     return detector.auto_pause_if_needed(result)
 

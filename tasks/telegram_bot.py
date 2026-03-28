@@ -1,5 +1,5 @@
 """
-tasks/telegram_bot.py — Telegram bot for Content Factory SaaS.
+tasks/telegram_bot.py â€” Telegram bot for Content Factory SaaS.
 
 Responsibilities
 ----------------
@@ -44,14 +44,14 @@ logger = logging.getLogger("telegram_bot")
 TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
 BOT_USERNAME: str = os.getenv("TELEGRAM_BOT_USERNAME", "ContentFactoryBot")
 
-# ── Supabase helpers ─────────────────────────────────────────────────────────
+# â”€â”€ Supabase helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _get_sb():
     from app.utils import _get_supabase_client
     return _get_supabase_client()
 
 
-# ── Telegram connection helpers ───────────────────────────────────────────────
+# â”€â”€ Telegram connection helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def get_chat_id_for_user(user_id: str) -> Optional[str]:
     """Look up the Telegram chat_id for a user (returns None if not connected)."""
@@ -73,7 +73,7 @@ def get_chat_id_for_user(user_id: str) -> Optional[str]:
 
 
 def get_user_id_for_chat(chat_id: str) -> Optional[str]:
-    """Reverse lookup: chat_id → user_id."""
+    """Reverse lookup: chat_id â†’ user_id."""
     try:
         sb = _get_sb()
         res = (
@@ -93,7 +93,7 @@ def get_user_id_for_chat(chat_id: str) -> Optional[str]:
 
 def _mark_connection_active(user_id: str, chat_id: str) -> None:
     """
-    Upsert telegram_connections row for user_id ↔ chat_id.
+    Upsert telegram_connections row for user_id â†” chat_id.
 
     After a successful bind, the unique_code is rotated to a new UUID so that
     the original deep-link / QR code becomes single-use and cannot be replayed.
@@ -176,7 +176,7 @@ def is_telegram_connected(user_id: str) -> bool:
         return False
 
 
-# ── Automation pause/resume helpers ─────────────────────────────────────────
+# â”€â”€ Automation pause/resume helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def is_automation_paused(user_id: str) -> bool:
     """Check if automation is paused for user_id via system_status."""
@@ -210,7 +210,7 @@ def set_automation_paused(user_id: str, paused: bool) -> None:
         logger.error("set_automation_paused failed: %s", exc)
 
 
-# ── Async Telegram send helpers ──────────────────────────────────────────────
+# â”€â”€ Async Telegram send helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 _bot_app = None  # Will be set when bot starts
 
@@ -236,7 +236,7 @@ def _send_message_sync(chat_id: str, text: str, reply_markup=None) -> None:
         logger.warning("_send_message_sync failed (chat=%s): %s", chat_id, exc)
 
 
-# ── Public notification API ───────────────────────────────────────────────────
+# â”€â”€ Public notification API â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def telegram_notify_published(
     user_id: str,
@@ -262,17 +262,17 @@ def telegram_notify_published(
         return
 
     platform_ar = {
-        "facebook": "فيسبوك",
-        "instagram": "إنستغرام",
+        "facebook": "ÙÙŠØ³Ø¨ÙˆÙƒ",
+        "instagram": "Ø¥Ù†Ø³ØªØºØ±Ø§Ù…",
     }.get(platform.lower(), platform)
 
     snippet = post_text[:200].strip()
     if len(post_text) > 200:
-        snippet += "…"
+        snippet += "â€¦"
 
-    link_line = f'\n🔗 <a href="{post_url}">عرض المنشور</a>' if post_url else ""
+    link_line = f'\nðŸ”— <a href="{post_url}">Ø¹Ø±Ø¶ Ø§Ù„Ù…Ù†Ø´ÙˆØ±</a>' if post_url else ""
     msg = (
-        f"✅ <b>تم النشر بنجاح على {platform_ar}</b>\n\n"
+        f"âœ… <b>ØªÙ… Ø§Ù„Ù†Ø´Ø± Ø¨Ù†Ø¬Ø§Ø­ Ø¹Ù„Ù‰ {platform_ar}</b>\n\n"
         f"<i>{snippet}</i>"
         f"{link_line}"
     )
@@ -306,19 +306,19 @@ def telegram_send_approval_request(
 
     snippet = post_text[:300].strip()
     if len(post_text) > 300:
-        snippet += "…"
+        snippet += "â€¦"
 
     msg = (
-        f"📋 <b>مراجعة قبل النشر</b>\n\n"
+        f"ðŸ“‹ <b>Ù…Ø±Ø§Ø¬Ø¹Ø© Ù‚Ø¨Ù„ Ø§Ù„Ù†Ø´Ø±</b>\n\n"
         f"<i>{snippet}</i>\n\n"
-        f"هل توافق على نشر هذا المحتوى؟"
+        f"Ù‡Ù„ ØªÙˆØ§ÙÙ‚ Ø¹Ù„Ù‰ Ù†Ø´Ø± Ù‡Ø°Ø§ Ø§Ù„Ù…Ø­ØªÙˆÙ‰ØŸ"
     )
 
     try:
         from telegram import InlineKeyboardButton, InlineKeyboardMarkup
         keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ موافق", callback_data=f"approve:{content_id}"),
-            InlineKeyboardButton("❌ رفض", callback_data=f"reject:{content_id}"),
+            InlineKeyboardButton("âœ… Ù…ÙˆØ§ÙÙ‚", callback_data=f"approve:{content_id}"),
+            InlineKeyboardButton("âŒ Ø±ÙØ¶", callback_data=f"reject:{content_id}"),
         ]])
         _send_message_sync(chat_id, msg, reply_markup=keyboard)
         return True
@@ -339,23 +339,23 @@ def telegram_send_token_expiry_warning(
 
     if days_remaining <= 0:
         msg = (
-            "🔴 <b>انتهت صلاحية اتصال فيسبوك</b>\n\n"
-            "تم إيقاف الأتمتة تلقائياً. يرجى إعادة ربط صفحتك على فيسبوك "
-            "لاستئناف النشر التلقائي."
+            "ðŸ”´ <b>Ø§Ù†ØªÙ‡Øª ØµÙ„Ø§Ø­ÙŠØ© Ø§ØªØµØ§Ù„ ÙÙŠØ³Ø¨ÙˆÙƒ</b>\n\n"
+            "ØªÙ… Ø¥ÙŠÙ‚Ø§Ù Ø§Ù„Ø£ØªÙ…ØªØ© ØªÙ„Ù‚Ø§Ø¦ÙŠØ§Ù‹. ÙŠØ±Ø¬Ù‰ Ø¥Ø¹Ø§Ø¯Ø© Ø±Ø¨Ø· ØµÙØ­ØªÙƒ Ø¹Ù„Ù‰ ÙÙŠØ³Ø¨ÙˆÙƒ "
+            "Ù„Ø§Ø³ØªØ¦Ù†Ø§Ù Ø§Ù„Ù†Ø´Ø± Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠ."
         )
     else:
         msg = (
-            f"⚠️ <b>تنبيه: صلاحية فيسبوك تنتهي خلال {days_remaining} أيام</b>\n\n"
-            "يرجى إعادة ربط صفحتك على فيسبوك قبل انتهاء الصلاحية "
-            "لتجنب توقف النشر التلقائي."
+            f"âš ï¸ <b>ØªÙ†Ø¨ÙŠÙ‡: ØµÙ„Ø§Ø­ÙŠØ© ÙÙŠØ³Ø¨ÙˆÙƒ ØªÙ†ØªÙ‡ÙŠ Ø®Ù„Ø§Ù„ {days_remaining} Ø£ÙŠØ§Ù…</b>\n\n"
+            "ÙŠØ±Ø¬Ù‰ Ø¥Ø¹Ø§Ø¯Ø© Ø±Ø¨Ø· ØµÙØ­ØªÙƒ Ø¹Ù„Ù‰ ÙÙŠØ³Ø¨ÙˆÙƒ Ù‚Ø¨Ù„ Ø§Ù†ØªÙ‡Ø§Ø¡ Ø§Ù„ØµÙ„Ø§Ø­ÙŠØ© "
+            "Ù„ØªØ¬Ù†Ø¨ ØªÙˆÙ‚Ù Ø§Ù„Ù†Ø´Ø± Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠ."
         )
     if reconnect_url:
-        msg += f'\n\n🔗 <a href="{reconnect_url}">إعادة الربط الآن</a>'
+        msg += f'\n\nðŸ”— <a href="{reconnect_url}">Ø¥Ø¹Ø§Ø¯Ø© Ø§Ù„Ø±Ø¨Ø· Ø§Ù„Ø¢Ù†</a>'
 
     _send_message_sync(chat_id, msg)
 
 
-# ── Daily summary ─────────────────────────────────────────────────────────────
+# â”€â”€ Daily summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def _send_daily_summary_for_user(user_id: str) -> None:
     """Compose and send the daily summary message for one user."""
@@ -454,20 +454,20 @@ def _send_daily_summary_for_user(user_id: str) -> None:
                 next_post_time = raw_time[:16].replace("T", " ") + " UTC"
 
         # Build message
-        lines = ["📊 <b>ملخص اليوم</b>\n"]
-        lines.append(f"📅 منشورات اليوم المجدولة: <b>{scheduled_today}</b>")
+        lines = ["ðŸ“Š <b>Ù…Ù„Ø®Øµ Ø§Ù„ÙŠÙˆÙ…</b>\n"]
+        lines.append(f"ðŸ“… Ù…Ù†Ø´ÙˆØ±Ø§Øª Ø§Ù„ÙŠÙˆÙ… Ø§Ù„Ù…Ø¬Ø¯ÙˆÙ„Ø©: <b>{scheduled_today}</b>")
 
         if best:
             lines.append(
-                f"\n🏆 أفضل منشور أمس:\n"
-                f"  👍 {best.get('likes',0)}  |  🔁 {best.get('shares',0)}"
-                f"  |  💬 {best.get('comments',0)}  |  👁 {best.get('reach',0)}"
+                f"\nðŸ† Ø£ÙØ¶Ù„ Ù…Ù†Ø´ÙˆØ± Ø£Ù…Ø³:\n"
+                f"  ðŸ‘ {best.get('likes',0)}  |  ðŸ” {best.get('shares',0)}"
+                f"  |  ðŸ’¬ {best.get('comments',0)}  |  ðŸ‘ {best.get('reach',0)}"
             )
         else:
-            lines.append("\n📭 لا توجد منشورات نُشرت أمس.")
+            lines.append("\nðŸ“­ Ù„Ø§ ØªÙˆØ¬Ø¯ Ù…Ù†Ø´ÙˆØ±Ø§Øª Ù†ÙØ´Ø±Øª Ø£Ù…Ø³.")
 
         if next_post_time:
-            lines.append(f"\n⏰ المنشور القادم: <b>{next_post_time}</b>")
+            lines.append(f"\nâ° Ø§Ù„Ù…Ù†Ø´ÙˆØ± Ø§Ù„Ù‚Ø§Ø¯Ù…: <b>{next_post_time}</b>")
 
         _send_message_sync(chat_id, "\n".join(lines))
     except Exception as exc:
@@ -513,9 +513,12 @@ def run_daily_summaries() -> None:
                     .execute()
                 )
                 if settings_res.data:
-                    summary_time = (settings_res.data[0].get("daily_summary_time") or "08:00")[:5]
+                    stored_time = str(settings_res.data[0].get("daily_summary_time") or "").strip()
                 else:
-                    summary_time = "08:00"
+                    stored_time = ""
+                if not stored_time:
+                    continue
+                summary_time = stored_time[:5]
 
                 # Look up user timezone from scheduled_posts.timezone (most recent row)
                 user_tz_str = "UTC"
@@ -550,7 +553,7 @@ def run_daily_summaries() -> None:
                 target_minutes = target_h * 60 + target_m
                 current_minutes = now_local.hour * 60 + now_local.minute
 
-                # Use ±5-minute window to tolerate scheduler jitter
+                # Use Â±5-minute window to tolerate scheduler jitter
                 if abs(current_minutes - target_minutes) > 5:
                     continue
 
@@ -582,14 +585,14 @@ def run_daily_summaries() -> None:
         logger.error("run_daily_summaries failed: %s", exc)
 
 
-# ── Facebook token expiry monitor ────────────────────────────────────────────
+# â”€â”€ Facebook token expiry monitor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 def run_token_expiry_check() -> None:
     """
     Daily check for Facebook token expiry across all active users.
 
-    - Token within 7 days of expiry → send Telegram warning (once per day)
-    - Token already expired → pause automation + send alert
+    - Token within 7 days of expiry â†’ send Telegram warning (once per day)
+    - Token already expired â†’ pause automation + send alert
     """
     try:
         sb = _get_sb()
@@ -625,12 +628,12 @@ def run_token_expiry_check() -> None:
             days_remaining = int(seconds_remaining // 86400)  # for alert message only
 
             if seconds_remaining <= 0:
-                # Truly expired — pause automation and alert
+                # Truly expired â€” pause automation and alert
                 set_automation_paused(uid, True)
                 _check_and_send_expiry_alert(sb, uid, 0)
 
             elif seconds_remaining <= 7 * 86400:
-                # Less than 7 days remaining — warn once per day
+                # Less than 7 days remaining â€” warn once per day
                 _check_and_send_expiry_alert(sb, uid, max(1, days_remaining))
 
     except Exception as exc:
@@ -665,18 +668,18 @@ def _check_and_send_expiry_alert(sb, user_id: str, days_remaining: int) -> None:
     telegram_send_token_expiry_warning(user_id, days_remaining, reconnect_url)
 
 
-# ── Bot handlers (python-telegram-bot v20 async) ─────────────────────────────
+# â”€â”€ Bot handlers (python-telegram-bot v20 async) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 async def _cmd_start(update, context):
-    """Handle /start <code> — connect user to their Telegram chat."""
+    """Handle /start <code> â€” connect user to their Telegram chat."""
     args = context.args or []
     chat_id = str(update.effective_chat.id)
 
     if not args:
         await update.message.reply_text(
-            "مرحباً! 👋\n"
-            "أرسل /start <كود_التفعيل> للربط بحسابك.\n"
-            "ستجد الكود في خطوة تيليغرام أثناء الإعداد."
+            "Ù…Ø±Ø­Ø¨Ø§Ù‹! ðŸ‘‹\n"
+            "Ø£Ø±Ø³Ù„ /start <ÙƒÙˆØ¯_Ø§Ù„ØªÙØ¹ÙŠÙ„> Ù„Ù„Ø±Ø¨Ø· Ø¨Ø­Ø³Ø§Ø¨Ùƒ.\n"
+            "Ø³ØªØ¬Ø¯ Ø§Ù„ÙƒÙˆØ¯ ÙÙŠ Ø®Ø·ÙˆØ© ØªÙŠÙ„ÙŠØºØ±Ø§Ù… Ø£Ø«Ù†Ø§Ø¡ Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯."
         )
         return
 
@@ -692,7 +695,7 @@ async def _cmd_start(update, context):
         )
         if not res.data:
             await update.message.reply_text(
-                "❌ الكود غير صحيح. تأكد من نسخ الكود الصحيح من صفحة الإعداد."
+                "âŒ Ø§Ù„ÙƒÙˆØ¯ ØºÙŠØ± ØµØ­ÙŠØ­. ØªØ£ÙƒØ¯ Ù…Ù† Ù†Ø³Ø® Ø§Ù„ÙƒÙˆØ¯ Ø§Ù„ØµØ­ÙŠØ­ Ù…Ù† ØµÙØ­Ø© Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯."
             )
             return
 
@@ -700,59 +703,59 @@ async def _cmd_start(update, context):
         _mark_connection_active(user_id, chat_id)
 
         await update.message.reply_text(
-            "✅ <b>تم الربط بنجاح!</b>\n\n"
-            "ستصلك إشعارات فورية بكل منشور من الآن.\n\n"
-            "الأوامر المتاحة:\n"
-            "  /pause — إيقاف الأتمتة مؤقتاً\n"
-            "  /resume — استئناف الأتمتة\n"
-            "  /status — حالة النظام",
+            "âœ… <b>ØªÙ… Ø§Ù„Ø±Ø¨Ø· Ø¨Ù†Ø¬Ø§Ø­!</b>\n\n"
+            "Ø³ØªØµÙ„Ùƒ Ø¥Ø´Ø¹Ø§Ø±Ø§Øª ÙÙˆØ±ÙŠØ© Ø¨ÙƒÙ„ Ù…Ù†Ø´ÙˆØ± Ù…Ù† Ø§Ù„Ø¢Ù†.\n\n"
+            "Ø§Ù„Ø£ÙˆØ§Ù…Ø± Ø§Ù„Ù…ØªØ§Ø­Ø©:\n"
+            "  /pause â€” Ø¥ÙŠÙ‚Ø§Ù Ø§Ù„Ø£ØªÙ…ØªØ© Ù…Ø¤Ù‚ØªØ§Ù‹\n"
+            "  /resume â€” Ø§Ø³ØªØ¦Ù†Ø§Ù Ø§Ù„Ø£ØªÙ…ØªØ©\n"
+            "  /status â€” Ø­Ø§Ù„Ø© Ø§Ù„Ù†Ø¸Ø§Ù…",
             parse_mode="HTML",
         )
         logger.info("Telegram connected: user=%s chat=%s", user_id[:8], chat_id)
     except Exception as exc:
         logger.error("_cmd_start error: %s", exc)
-        await update.message.reply_text("حدث خطأ. يرجى المحاولة لاحقاً.")
+        await update.message.reply_text("Ø­Ø¯Ø« Ø®Ø·Ø£. ÙŠØ±Ø¬Ù‰ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ù„Ø§Ø­Ù‚Ø§Ù‹.")
 
 
 async def _cmd_pause(update, context):
-    """Handle /pause — pause automation for this user."""
+    """Handle /pause â€” pause automation for this user."""
     chat_id = str(update.effective_chat.id)
     user_id = get_user_id_for_chat(chat_id)
     if not user_id:
-        await update.message.reply_text("يجب ربط حسابك أولاً. أرسل /start <كود_التفعيل>")
+        await update.message.reply_text("ÙŠØ¬Ø¨ Ø±Ø¨Ø· Ø­Ø³Ø§Ø¨Ùƒ Ø£ÙˆÙ„Ø§Ù‹. Ø£Ø±Ø³Ù„ /start <ÙƒÙˆØ¯_Ø§Ù„ØªÙØ¹ÙŠÙ„>")
         return
     set_automation_paused(user_id, True)
     await update.message.reply_text(
-        "⏸️ <b>تم إيقاف الأتمتة</b>\n\nلن تُنشر أي منشورات حتى ترسل /resume",
+        "â¸ï¸ <b>ØªÙ… Ø¥ÙŠÙ‚Ø§Ù Ø§Ù„Ø£ØªÙ…ØªØ©</b>\n\nÙ„Ù† ØªÙÙ†Ø´Ø± Ø£ÙŠ Ù…Ù†Ø´ÙˆØ±Ø§Øª Ø­ØªÙ‰ ØªØ±Ø³Ù„ /resume",
         parse_mode="HTML",
     )
 
 
 async def _cmd_resume(update, context):
-    """Handle /resume — resume automation for this user."""
+    """Handle /resume â€” resume automation for this user."""
     chat_id = str(update.effective_chat.id)
     user_id = get_user_id_for_chat(chat_id)
     if not user_id:
-        await update.message.reply_text("يجب ربط حسابك أولاً. أرسل /start <كود_التفعيل>")
+        await update.message.reply_text("ÙŠØ¬Ø¨ Ø±Ø¨Ø· Ø­Ø³Ø§Ø¨Ùƒ Ø£ÙˆÙ„Ø§Ù‹. Ø£Ø±Ø³Ù„ /start <ÙƒÙˆØ¯_Ø§Ù„ØªÙØ¹ÙŠÙ„>")
         return
     set_automation_paused(user_id, False)
     await update.message.reply_text(
-        "▶️ <b>تم استئناف الأتمتة</b>\n\nسيستأنف النشر التلقائي في الدورة القادمة.",
+        "â–¶ï¸ <b>ØªÙ… Ø§Ø³ØªØ¦Ù†Ø§Ù Ø§Ù„Ø£ØªÙ…ØªØ©</b>\n\nØ³ÙŠØ³ØªØ£Ù†Ù Ø§Ù„Ù†Ø´Ø± Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠ ÙÙŠ Ø§Ù„Ø¯ÙˆØ±Ø© Ø§Ù„Ù‚Ø§Ø¯Ù…Ø©.",
         parse_mode="HTML",
     )
 
 
 async def _cmd_status(update, context):
-    """Handle /status — show automation status for this user."""
+    """Handle /status â€” show automation status for this user."""
     chat_id = str(update.effective_chat.id)
     user_id = get_user_id_for_chat(chat_id)
     if not user_id:
-        await update.message.reply_text("يجب ربط حسابك أولاً. أرسل /start <كود_التفعيل>")
+        await update.message.reply_text("ÙŠØ¬Ø¨ Ø±Ø¨Ø· Ø­Ø³Ø§Ø¨Ùƒ Ø£ÙˆÙ„Ø§Ù‹. Ø£Ø±Ø³Ù„ /start <ÙƒÙˆØ¯_Ø§Ù„ØªÙØ¹ÙŠÙ„>")
         return
     paused = is_automation_paused(user_id)
-    status_str = "⏸️ موقوفة" if paused else "▶️ تعمل"
+    status_str = "â¸ï¸ Ù…ÙˆÙ‚ÙˆÙØ©" if paused else "â–¶ï¸ ØªØ¹Ù…Ù„"
     await update.message.reply_text(
-        f"📡 <b>حالة الأتمتة:</b> {status_str}",
+        f"ðŸ“¡ <b>Ø­Ø§Ù„Ø© Ø§Ù„Ø£ØªÙ…ØªØ©:</b> {status_str}",
         parse_mode="HTML",
     )
 
@@ -771,11 +774,11 @@ async def _callback_query_handler(update, context):
     if data.startswith("approve:"):
         content_id = data[8:]
         _approve_content(user_id, content_id)
-        await query.edit_message_text(f"✅ تمت الموافقة على النشر — سيُنشر قريباً.")
+        await query.edit_message_text(f"âœ… ØªÙ…Øª Ø§Ù„Ù…ÙˆØ§ÙÙ‚Ø© Ø¹Ù„Ù‰ Ø§Ù„Ù†Ø´Ø± â€” Ø³ÙŠÙÙ†Ø´Ø± Ù‚Ø±ÙŠØ¨Ø§Ù‹.")
     elif data.startswith("reject:"):
         content_id = data[7:]
         _reject_content(user_id, content_id)
-        await query.edit_message_text(f"❌ تم رفض المنشور وحذفه من القائمة.")
+        await query.edit_message_text(f"âŒ ØªÙ… Ø±ÙØ¶ Ø§Ù„Ù…Ù†Ø´ÙˆØ± ÙˆØ­Ø°ÙÙ‡ Ù…Ù† Ø§Ù„Ù‚Ø§Ø¦Ù…Ø©.")
 
 
 def _update_scheduled_post_for_content(sb, content_id: str, user_id: str, new_status: str) -> None:
@@ -800,11 +803,11 @@ def _update_scheduled_post_for_content(sb, content_id: str, user_id: str, new_st
 
 def _approve_content(user_id: str, content_id: str) -> None:
     """
-    Transition content from pending_approval → approved (processed_content)
-    and scheduled_posts → scheduled so the publisher picks it up.
+    Transition content from pending_approval â†’ approved (processed_content)
+    and scheduled_posts â†’ scheduled so the publisher picks it up.
 
     'approved' status tells the publisher to bypass the approval gate on the
-    next pipeline cycle — preventing infinite re-gating.
+    next pipeline cycle â€” preventing infinite re-gating.
     """
     try:
         sb = _get_sb()
@@ -823,12 +826,12 @@ def _approve_content(user_id: str, content_id: str) -> None:
 
 
 def _reject_content(user_id: str, content_id: str) -> None:
-    """Transition content from pending_approval → rejected (both tables)."""
+    """Transition content from pending_approval â†’ rejected (both tables)."""
     try:
         sb = _get_sb()
         (
             sb.table("processed_content")
-            .update({"status": "rejected", "rejected_reason": "رُفض عبر تيليغرام"})
+            .update({"status": "rejected", "rejected_reason": "Ø±ÙÙØ¶ Ø¹Ø¨Ø± ØªÙŠÙ„ÙŠØºØ±Ø§Ù…"})
             .eq("id", content_id)
             .eq("user_id", user_id)
             .eq("status", "pending_approval")
@@ -899,7 +902,7 @@ def auto_approve_expired_requests() -> None:
                     if chat_id:
                         _send_message_sync(
                             chat_id,
-                            "⏰ تمت الموافقة التلقائية على منشور لم يُراجَع خلال 4 ساعات."
+                            "â° ØªÙ…Øª Ø§Ù„Ù…ÙˆØ§ÙÙ‚Ø© Ø§Ù„ØªÙ„Ù‚Ø§Ø¦ÙŠØ© Ø¹Ù„Ù‰ Ù…Ù†Ø´ÙˆØ± Ù„Ù… ÙŠÙØ±Ø§Ø¬ÙŽØ¹ Ø®Ù„Ø§Ù„ 4 Ø³Ø§Ø¹Ø§Øª."
                         )
             except Exception as inner_exc:
                 logger.warning("auto_approve inner error: %s", inner_exc)
@@ -907,7 +910,7 @@ def auto_approve_expired_requests() -> None:
         logger.error("auto_approve_expired_requests failed: %s", exc)
 
 
-# ── Bot startup ───────────────────────────────────────────────────────────────
+# â”€â”€ Bot startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 _bot_started: bool = False
 _bot_thread: Optional[threading.Thread] = None
@@ -916,7 +919,7 @@ _bot_thread: Optional[threading.Thread] = None
 def _run_bot_polling() -> None:
     """Run the bot's long-polling loop in a dedicated event loop."""
     if not TELEGRAM_BOT_TOKEN:
-        logger.warning("TELEGRAM_BOT_TOKEN not set — Telegram bot disabled")
+        logger.warning("TELEGRAM_BOT_TOKEN not set â€” Telegram bot disabled")
         return
 
     try:
@@ -955,13 +958,13 @@ def _acquire_bot_leader_lock() -> bool:
     Try to atomically claim the Telegram bot leader lock in system_status.
 
     Strategy (fail-closed on uncertainty):
-    1. DELETE expired rows where updated_at is older than TTL — this makes
+    1. DELETE expired rows where updated_at is older than TTL â€” this makes
        room for a new leader while being idempotent if the row doesn't exist.
     2. Attempt INSERT with ON CONFLICT DO NOTHING (via upsert-like logic).
        Supabase upsert always succeeds, so we simulate atomic-ness by:
        a. Delete the row only if it is expired (conditional delete via filter).
        b. Attempt to insert. If we don't have the row after insert, another
-          process won — fail closed.
+          process won â€” fail closed.
     3. Read back the row to verify we own it (our process_id written as value).
 
     Returns the process_id string if this process won the lock, or None if
@@ -976,7 +979,7 @@ def _acquire_bot_leader_lock() -> bool:
         cutoff = (now - timedelta(seconds=_BOT_LEADER_TTL_SECONDS)).isoformat()
 
         # Step 1: Remove expired lock (conditional on staleness)
-        # This is safe to do concurrently — only the row older than TTL is deleted.
+        # This is safe to do concurrently â€” only the row older than TTL is deleted.
         sb.table("system_status").delete().eq("key", _BOT_LEADER_KEY).lt("updated_at", cutoff).execute()
 
         # Step 2: Try to insert our process_id as the leader.
@@ -990,7 +993,7 @@ def _acquire_bot_leader_lock() -> bool:
                 "updated_at": now.isoformat(),
             }).execute()
         except Exception:
-            pass  # Row already exists — another process may have inserted first
+            pass  # Row already exists â€” another process may have inserted first
 
         # Step 3: Read back and verify we own the row
         res = (
@@ -1001,22 +1004,22 @@ def _acquire_bot_leader_lock() -> bool:
             .execute()
         )
         if not res.data:
-            return None  # Can't verify — fail closed
+            return None  # Can't verify â€” fail closed
         row = res.data[0]
         if row.get("value") == process_id:
             return process_id  # We won the lock
-        # Another process owns the lock — check if it's stale
+        # Another process owns the lock â€” check if it's stale
         try:
             updated_at = datetime.fromisoformat(
                 (row.get("updated_at") or "").replace("Z", "+00:00")
             )
             if (now - updated_at).total_seconds() < _BOT_LEADER_TTL_SECONDS:
-                return None  # Live leader — defer to them
+                return None  # Live leader â€” defer to them
         except Exception:
             pass
         return None  # Fail closed on uncertainty
     except Exception as exc:
-        logger.warning("Bot leader-lock check failed: %s — deferring (fail-closed)", exc)
+        logger.warning("Bot leader-lock check failed: %s â€” deferring (fail-closed)", exc)
         return None  # Fail closed: don't risk two pollers
 
 
@@ -1051,15 +1054,15 @@ def start_telegram_bot() -> None:
     - Auto-approve expired approval requests (every 15 minutes)
     - Facebook token expiry check (daily at 7:00 UTC)
 
-    Safe to call multiple times — idempotent (in-process + distributed).
+    Safe to call multiple times â€” idempotent (in-process + distributed).
     """
     global _bot_started, _bot_thread
 
     if _bot_started:
-        logger.debug("Telegram bot already started — skipping")
+        logger.debug("Telegram bot already started â€” skipping")
         return
 
-    # ── Register background jobs that do NOT require the bot token ──────────
+    # â”€â”€ Register background jobs that do NOT require the bot token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # These run regardless of whether TELEGRAM_BOT_TOKEN is configured so that
     # auto-approve and token-expiry checks keep working even without a bot.
     try:
@@ -1077,14 +1080,14 @@ def start_telegram_bot() -> None:
             sched = BackgroundScheduler(daemon=True, timezone="UTC")
             sched.start()
 
-        # Auto-approve stale approval requests — does not need bot token
+        # Auto-approve stale approval requests â€” does not need bot token
         sched.add_job(
             auto_approve_expired_requests,
             IntervalTrigger(minutes=15),
             id="tg_auto_approve",
             replace_existing=True,
         )
-        # Token-expiry check — sends Telegram alert only if bot token is set
+        # Token-expiry check â€” sends Telegram alert only if bot token is set
         sched.add_job(
             run_token_expiry_check,
             CronTrigger(hour=7, minute=0, timezone="UTC"),
@@ -1095,10 +1098,10 @@ def start_telegram_bot() -> None:
     except Exception as exc:
         logger.warning("Could not register Telegram background jobs: %s", exc)
 
-    # ── Bot-token dependent features ─────────────────────────────────────────
+    # â”€â”€ Bot-token dependent features â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if not TELEGRAM_BOT_TOKEN:
         logger.warning(
-            "TELEGRAM_BOT_TOKEN not set — Telegram bot polling, notifications, "
+            "TELEGRAM_BOT_TOKEN not set â€” Telegram bot polling, notifications, "
             "and daily summaries disabled (background jobs still running)"
         )
         return
@@ -1106,7 +1109,7 @@ def start_telegram_bot() -> None:
     # Distributed singleton: only one gunicorn worker should run the bot.
     leader_process_id = _acquire_bot_leader_lock()
     if not leader_process_id:
-        logger.info("Telegram bot leader lock held by another process — this worker will skip polling")
+        logger.info("Telegram bot leader lock held by another process â€” this worker will skip polling")
         return
 
     _bot_thread = threading.Thread(
@@ -1158,7 +1161,7 @@ def start_telegram_bot() -> None:
                 return
             if _bot_thread is not None and _bot_thread.is_alive():
                 return
-            logger.warning("Telegram bot polling thread is dead — attempting restart")
+            logger.warning("Telegram bot polling thread is dead â€” attempting restart")
             try:
                 new_thread = threading.Thread(
                     target=_run_bot_polling,
