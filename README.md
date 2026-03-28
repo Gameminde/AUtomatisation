@@ -4,6 +4,14 @@ Content Factory is a Flask-based SaaS application for Facebook and Instagram pag
 
 This repository contains the web app, the background automation runner, the Telegram bot worker, the Supabase schema bootstrap, and the supporting engine modules used to scrape, generate, schedule, publish, and track content.
 
+## Who this repository is for
+
+This repo serves three audiences at once:
+
+- operators who need to deploy and run the SaaS safely
+- developers who need to understand the web app, workers, and data model
+- contributors who need to know which files are canonical and which ones are compatibility shims
+
 ## What the product does
 
 Content Factory is built around one core flow:
@@ -29,6 +37,36 @@ The current branch ships these user-facing surfaces:
 - Onboarding
 - Meta OAuth page selection
 - Telegram connection and summary controls
+
+### Surface overview
+
+- Dashboard
+  - setup progress
+  - pending approvals
+  - queue and publish health
+  - destination readiness
+- Studio
+  - creator brief
+  - AI preview
+  - draft editing
+  - save / review / schedule / publish actions
+- Channels
+  - connected page list
+  - active destination management
+  - Facebook and Instagram connection state
+  - Telegram connection and summary controls
+- Settings
+  - locale and profile preferences
+  - AI provider settings
+  - RSS/source configuration
+  - presets and approval mode
+- Diagnostics
+  - health view for account, pipeline, cooldown, tokens, and recent failures
+- Onboarding
+  - initial profile setup
+  - AI key test/store flow
+  - preset seeding
+  - post-onboarding immediate pipeline request
 
 ### Content formats
 
@@ -89,6 +127,8 @@ The Flask app factory lives in [`app/__init__.py`](app/__init__.py). It register
 - `studio`
 - `settings`
 - `onboarding`
+
+The authenticated shell is server-rendered and then hydrated by the modular browser runtime. Startup payloads are loaded through `/api/bootstrap`, not through per-page full refresh waterfalls.
 
 ### 2. Background automation runner
 
@@ -163,6 +203,17 @@ Internationalization uses one shared source of truth:
 - browser runtime uses `window.CF_I18N` with `tr(...)` / `tt(...)`
 - shared catalog lives in [`app/i18n.py`](app/i18n.py)
 
+## Backend module layout
+
+The backend is split into:
+
+- `app/` for Flask routes, auth, CSRF, i18n, and web-facing helpers
+- `engine/` for the canonical business/runtime modules
+- `tasks/` for long-running worker processes
+- `database/` for database adapters and helpers
+
+There are also legacy root-level compatibility modules such as [`ai_generator.py`](ai_generator.py), [`publisher.py`](publisher.py), and [`scheduler.py`](scheduler.py). These exist as import shims pointing to the canonical `engine.*` modules. New code should prefer the `engine/` modules directly.
+
 ## Data model
 
 Production mode is Supabase-backed and tenant isolation depends on `user_id` scoping across application queries.
@@ -227,7 +278,9 @@ fbautomat/
 |- data/                    Static preset data and runtime JSON resources
 |- database/                Database adapters and helpers
 |- docs/                    Audit and operator runbook
+|- downloaded_images/       Runtime-downloaded media cache
 |- engine/                  Publish, rate limiting, ban detection, config, etc.
+|- generated_images/        Runtime-generated media cache
 |- migrations/              SQL migrations
 |- static/                  CSS and JS assets
 |- tasks/                   Background workers
@@ -240,6 +293,13 @@ fbautomat/
 |- .env.example
 `- supabase_schema.sql
 ```
+
+Repo hygiene notes:
+
+- `.env.example` is the canonical environment template
+- `env.example` is not part of the supported layout
+- `downloaded_images/` and `generated_images/` are runtime directories and should not contain committed sample files
+- `attached_assets/`, local screenshots, and scratch reference documents are not part of the shipped product
 
 ## Local development setup
 
@@ -325,6 +385,11 @@ py dashboard_app.py
 
 The local server runs on `http://localhost:5000` unless you override the port.
 
+Useful local helper routes:
+
+- `/design-system` - local visual reference page
+- `/media/public/<filename>` - public serving for generated/downloaded publish images
+
 ### 6. Start background workers
 
 Open separate terminals for:
@@ -358,6 +423,10 @@ Example WSGI startup:
 ```bash
 gunicorn --bind=0.0.0.0:5000 wsgi:app
 ```
+
+Windows helper:
+
+- [`deploy/setup_windows_task.bat`](deploy/setup_windows_task.bat) can be used as a starting point for scheduled-task style deployment on Windows hosts.
 
 ### Restart order
 
@@ -491,6 +560,15 @@ python main.py run-all --limit 10
 - Release checklist: [`RELEASE_CHECKLIST.md`](RELEASE_CHECKLIST.md)
 - Rollback plan: [`ROLLBACK_PLAN.md`](ROLLBACK_PLAN.md)
 - Full project audit: [`docs/full_project_audit_2026-03-25.md`](docs/full_project_audit_2026-03-25.md)
+
+## What should stay out of GitHub
+
+These should stay local and should not be committed back into the repo:
+
+- `.env`, `.flask_secret`, `.fernet_key`
+- downloaded/generated media outputs
+- ad hoc screenshots, local design dumps, and pasted prompts
+- private local tool folders such as `.claude/` or `.local/`
 
 ## Recommended first-run validation
 

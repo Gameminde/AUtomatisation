@@ -15,8 +15,9 @@ from ai_provider import AIProviderError, generate as run_ai_generation
 logger = config.get_logger("ai_generator")
 
 
-# Batch prompt template - generates content for multiple articles in one call
-# Based on: "Écrire des posts courts et engageants sur la tech et le gaming"
+# Batch prompt template - generates content for multiple articles in one call.
+# The prompt was originally adapted from an internal local writing reference and
+# is now maintained directly in code.
 _DEFAULT_BATCH_PROMPT = """أنت منشئ محتوى فيروسي محترف لفيسبوك، متخصص في التكنولوجيا والألعاب للجمهور العربي.
 
 🎯 المبدأ الأساسي: "السطر الأول = كل شيء" - يجب أن توقف القارئ عن التمرير فوراً!
@@ -1018,3 +1019,4 @@ def generate_for_user(user_config: "UserConfig") -> int:  # type: ignore[name-de
 
 if __name__ == "__main__":
     process_pending_articles()
+

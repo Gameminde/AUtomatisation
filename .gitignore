@@ -86,6 +86,11 @@ yarn-error.log*
 
 # Cursor
 .cursor/
+.claude/
+.local/
+.agents/
+AGENTS.md
+CLAUDE.md
 
 # PyCharm
 .idea/
@@ -143,6 +148,18 @@ generated/
 # Reports
 reports/
 analytics/
+attached_assets/
+theme/
+env.example
+
+# Runtime-created image directories
+downloaded_images/*
+generated_images/*
+!downloaded_images/.gitkeep
+!generated_images/.gitkeep
+
+# Local reference docs
+*.pdf
 
 # ============================================
 # DÉPLOIEMENT
