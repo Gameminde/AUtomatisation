@@ -189,6 +189,8 @@ docker-compose.override.yml
 
 # Node modules (si utilisation MCP)
 node_modules/
+web/node_modules/
+static/web/
 package-lock.json
 yarn.lock
 

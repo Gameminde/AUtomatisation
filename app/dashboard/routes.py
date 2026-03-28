@@ -1,5 +1,6 @@
 """Web (HTML page) routes for the Content Factory dashboard."""
 
+import os
 import re
 from pathlib import Path
 
@@ -29,6 +30,31 @@ def _redirect_from_setup(**query_params):
     return redirect(url_for(endpoint, **clean_params))
 
 
+def _react_dev_server() -> str:
+    return str(os.getenv("CF_WEB_DEV_SERVER", "")).strip().rstrip("/")
+
+
+def _react_build_entry() -> Path:
+    base_dir = Path(__file__).parent.parent.parent.resolve()
+    return base_dir / "static" / "web" / "assets" / "app.js"
+
+
+def _react_frontend_ready() -> bool:
+    return bool(_react_dev_server()) or _react_build_entry().exists()
+
+
+def _render_migrated_page(*, react_page: str, react_title_key: str, legacy_template: str):
+    if _react_frontend_ready():
+        return render_template(
+            "react_shell.html",
+            react_page=react_page,
+            react_title_key=react_title_key,
+            react_dev_server=_react_dev_server(),
+            active_page=react_page,
+        )
+    return render_template(legacy_template, active_page=react_page)
+
+
 # ── Dashboard pages ────────────────────────────────────────────────────────
 
 @web_bp.route("/")
@@ -42,19 +68,31 @@ def page_landing():
 @web_bp.route("/app/dashboard")
 @login_required
 def page_dashboard():
-    return render_template("dashboard.html", active_page="dashboard")
+    return _render_migrated_page(
+        react_page="dashboard",
+        react_title_key="Dashboard",
+        legacy_template="dashboard.html",
+    )
 
 
 @web_bp.route("/studio")
 @login_required
 def page_studio():
-    return render_template("studio.html", active_page="studio")
+    return _render_migrated_page(
+        react_page="studio",
+        react_title_key="Studio",
+        legacy_template="studio.html",
+    )
 
 
 @web_bp.route("/channels")
 @login_required
 def page_channels():
-    return render_template("channels.html", active_page="channels")
+    return _render_migrated_page(
+        react_page="channels",
+        react_title_key="Channels",
+        legacy_template="channels.html",
+    )
 
 
 @web_bp.route("/templates")
@@ -66,13 +104,21 @@ def page_templates():
 @web_bp.route("/settings")
 @login_required
 def page_settings():
-    return render_template("settings.html", active_page="settings")
+    return _render_migrated_page(
+        react_page="settings",
+        react_title_key="Settings",
+        legacy_template="settings.html",
+    )
 
 
 @web_bp.route("/diagnostics")
 @login_required
 def page_diagnostics():
-    return render_template("health.html", active_page="diagnostics")
+    return _render_migrated_page(
+        react_page="diagnostics",
+        react_title_key="Diagnostics",
+        legacy_template="health.html",
+    )
 
 
 @web_bp.route("/health")

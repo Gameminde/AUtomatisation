@@ -110,12 +110,15 @@ Content Factory has three main runtime surfaces.
 
 ### 1. Web app
 
-- Framework: Flask
+- Backend framework: Flask
 - Auth: Flask-Login
 - Form CSRF: Flask-WTF protection for form posts
-- UI: Jinja templates plus a modular browser runtime under `static/js/cf/`
+- Frontend: React + Vite + TypeScript served same-origin by Flask
+- Legacy compatibility layer: Jinja templates plus the older modular browser runtime under `static/js/cf/`
 - Main entrypoints:
-  - local/dev: `py dashboard_app.py`
+  - local web server: `py dashboard_app.py`
+  - React frontend dev server: `npm run dev`
+  - production/static frontend build: `npm run build`
   - WSGI: `gunicorn wsgi:app`
 
 The Flask app factory lives in [`app/__init__.py`](app/__init__.py). It registers the blueprints for:
@@ -128,7 +131,15 @@ The Flask app factory lives in [`app/__init__.py`](app/__init__.py). It register
 - `settings`
 - `onboarding`
 
-The authenticated shell is server-rendered and then hydrated by the modular browser runtime. Startup payloads are loaded through `/api/bootstrap`, not through per-page full refresh waterfalls.
+The authenticated shell is now served by Flask through [`templates/react_shell.html`](templates/react_shell.html) for migrated app routes. Flask injects session-backed boot metadata into the page:
+
+- `csrf_token`
+- `window.CF_I18N`
+- current locale and direction
+- current user email
+- `window.__CF_WEB_BOOT__` with route and URL metadata
+
+React then hydrates the app on the same origin and loads page startup data through `/api/bootstrap`.
 
 ### 2. Background automation runner
 
@@ -177,9 +188,50 @@ python -m tasks.telegram_bot
 
 ## Frontend structure
 
-The authenticated UI uses [`templates/layout.html`](templates/layout.html) as the shell and the modular runtime in [`static/js/cf/`](static/js/cf/).
+The repository now contains two frontend layers.
+
+### Primary frontend: React + Vite
+
+The main authenticated app routes are now owned by the React app in [`web/`](web/).
+
+Current React-driven routes:
+
+- `/app/dashboard`
+- `/studio`
+- `/channels`
+- `/settings`
+- `/diagnostics`
+
+Routes still intentionally server-rendered with Jinja:
+
+- auth (`/auth/*`)
+- onboarding (`/onboarding`)
+- Meta OAuth start/callback/page selection
 
 Key pieces:
+
+- app shell and routing:
+  - [`web/src/App.tsx`](web/src/App.tsx)
+  - [`web/src/ui/AppShell.tsx`](web/src/ui/AppShell.tsx)
+- route surfaces:
+  - [`web/src/routes/DashboardPage.tsx`](web/src/routes/DashboardPage.tsx)
+  - [`web/src/routes/StudioPage.tsx`](web/src/routes/StudioPage.tsx)
+  - [`web/src/routes/ChannelsPage.tsx`](web/src/routes/ChannelsPage.tsx)
+  - [`web/src/routes/SettingsPage.tsx`](web/src/routes/SettingsPage.tsx)
+  - [`web/src/routes/DiagnosticsPage.tsx`](web/src/routes/DiagnosticsPage.tsx)
+- frontend boot/auth/i18n/api helpers:
+  - [`web/src/lib/boot.ts`](web/src/lib/boot.ts)
+  - [`web/src/lib/api.ts`](web/src/lib/api.ts)
+  - [`web/src/lib/auth.ts`](web/src/lib/auth.ts)
+  - [`web/src/lib/i18n.ts`](web/src/lib/i18n.ts)
+- React-specific style layer:
+  - [`static/css/cf_react.css`](static/css/cf_react.css)
+
+The root monorepo wrapper [`package.json`](package.json) exposes convenience scripts and delegates to [`web/package.json`](web/package.json).
+
+### Legacy compatibility frontend
+
+The older Jinja + browser-runtime layer remains in the repo as a compatibility and fallback layer:
 
 - shell and shared runtime:
   - [`static/js/cf.js`](static/js/cf.js)
@@ -194,14 +246,16 @@ Key pieces:
   - [`static/js/cf/studio/actions.js`](static/js/cf/studio/actions.js)
   - [`static/js/cf/studio/render.js`](static/js/cf/studio/render.js)
   - [`static/js/cf/studio/helpers.js`](static/js/cf/studio/helpers.js)
-- global styles:
-  - [`static/css/cf.css`](static/css/cf.css)
 
-Internationalization uses one shared source of truth:
+These files are still useful for fallback rendering and migration safety, but the main authenticated experience should now be considered React-owned.
+
+### Internationalization
+
+Internationalization still uses one shared source of truth:
 
 - server-side templates use `t(...)`
-- browser runtime uses `window.CF_I18N` with `tr(...)` / `tt(...)`
-- shared catalog lives in [`app/i18n.py`](app/i18n.py)
+- React and browser runtime use the server-injected `window.CF_I18N`
+- the shared catalog lives in [`app/i18n.py`](app/i18n.py)
 
 ## Backend module layout
 
@@ -286,9 +340,11 @@ fbautomat/
 |- tasks/                   Background workers
 |- templates/               Jinja templates
 |- tests/                   Test suite
+|- web/                     React + Vite + TypeScript frontend
 |- dashboard_app.py         Local web entrypoint
 |- wsgi.py                  WSGI entrypoint
 |- main.py                  Developer CLI utility only
+|- package.json             Monorepo frontend helper scripts
 |- requirements.txt
 |- .env.example
 `- supabase_schema.sql
@@ -306,6 +362,8 @@ Repo hygiene notes:
 ### Prerequisites
 
 - Python 3.11+ recommended
+- Node.js 20+ recommended
+- npm
 - A Supabase project
 - A Meta app with Facebook Login configured
 - Optional: Telegram bot credentials
@@ -319,6 +377,7 @@ Windows PowerShell:
 python -m venv .venv
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+npm install
 ```
 
 ### 2. Create your local environment file
@@ -379,9 +438,53 @@ Important:
 
 ### 5. Start the web app
 
+There are two supported local modes.
+
+#### Mode A: simple local run using the built frontend
+
+Use this when you want to run or smoke-test the app without React hot reload.
+
 ```powershell
+npm run build
 py dashboard_app.py
 ```
+
+Open:
+
+```text
+http://127.0.0.1:5000/app/dashboard
+```
+
+In this mode, Flask serves the built frontend bundle from `static/web/`.
+
+#### Mode B: frontend development with Vite hot reload
+
+Use this when you are actively editing files under `web/src/`.
+
+Terminal 1:
+
+```powershell
+$env:CF_WEB_DEV_SERVER="http://127.0.0.1:5173"
+py dashboard_app.py
+```
+
+Terminal 2:
+
+```powershell
+npm run dev
+```
+
+Then open:
+
+```text
+http://127.0.0.1:5000/app/dashboard
+```
+
+Important:
+
+- do not open `http://127.0.0.1:5173/static/web/`
+- do not open `http://127.0.0.1:5000/static/web/`
+- the correct app entry remains the Flask URL on port `5000`
 
 The local server runs on `http://localhost:5000` unless you override the port.
 
@@ -415,6 +518,13 @@ Production deployment assumes:
 - same-origin authenticated web traffic
 - HTTPS in front of the app
 - separate long-running worker processes
+- a built frontend bundle already present under `static/web/`
+
+Build the frontend before starting the production web process:
+
+```bash
+npm run build
+```
 
 ### Web process
 
@@ -493,7 +603,15 @@ Run the full Python suite:
 py -m pytest -q
 ```
 
-For frontend module sanity checks during refactors:
+Frontend validation:
+
+```bash
+npm run typecheck
+npm run test:web
+npm run build
+```
+
+Legacy frontend module sanity checks during refactors:
 
 ```bash
 node --check static/js/cf.js
@@ -504,6 +622,37 @@ node --check static/js/cf/studio/render.js
 For release validation, also run the manual smoke checklist in [`SMOKE_TEST_CHECKLIST.md`](SMOKE_TEST_CHECKLIST.md).
 
 ## Troubleshooting
+
+### React app loads blank in development
+
+Check these in order:
+
+1. Flask is running on `127.0.0.1:5000`
+2. Vite is running on `127.0.0.1:5173`
+3. Flask was started with:
+
+```powershell
+$env:CF_WEB_DEV_SERVER="http://127.0.0.1:5173"
+```
+
+4. You opened:
+
+```text
+http://127.0.0.1:5000/app/dashboard
+```
+
+and not a `/static/web/` URL directly.
+
+If DevTools Network does not show `@vite/client` and `/src/main.tsx` with `200` responses, the React dev shell is not wired correctly.
+
+### React app works in build mode but not in Vite dev mode
+
+That usually means one of these:
+
+- `CF_WEB_DEV_SERVER` was not set before starting Flask
+- Flask was not restarted after setting `CF_WEB_DEV_SERVER`
+- Vite is not running
+- you opened the Vite/static asset URL instead of the Flask app URL
 
 ### Dashboard bootstrap fails on missing Supabase columns
 

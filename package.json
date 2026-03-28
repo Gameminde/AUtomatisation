@@ -1,0 +1,11 @@
+{
+  "name": "content-factory-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "preview": "npm --prefix web run preview",
+    "typecheck": "npm --prefix web run typecheck",
+    "test:web": "npm --prefix web run test"
+  }
+}

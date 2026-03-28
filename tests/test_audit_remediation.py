@@ -14,9 +14,15 @@ import app.utils as app_utils
 
 
 class FakeUser:
-    def __init__(self, user_id: str = "user-123"):
+    def __init__(self, user_id: str = "user-123", email: str = "user@example.com"):
         self.id = user_id
+        self.email = email
         self.is_authenticated = True
+        self.is_active = True
+        self.is_anonymous = False
+
+    def get_id(self):
+        return self.id
 
 
 class TrackerTable:
@@ -290,9 +296,74 @@ def test_layout_uses_module_runtime_and_no_dashboard_api_key():
     assert 'type="module" src="/static/js/cf.js"' in html
 
 
+def test_dashboard_route_serves_react_shell_with_boot_payload(monkeypatch):
+    from flask_login import login_user
+
+    app = create_app()
+    fake_user = FakeUser(email="react@example.com")
+    monkeypatch.setattr(dashboard_routes, "_react_frontend_ready", lambda: True)
+    monkeypatch.setattr(dashboard_routes, "_react_dev_server", lambda: "http://127.0.0.1:5173")
+
+    with app.test_request_context("/app/dashboard"):
+        session["ui_language"] = "FR"
+        login_user(fake_user)
+        html = dashboard_routes.page_dashboard.__wrapped__()
+
+    assert 'window.__CF_WEB_BOOT__' in html
+    assert '"page": "dashboard"' in html
+    assert '"locale": "FR"' in html
+    assert '"email": "react@example.com"' in html
+    assert "/auth/logout" in html
+    assert "http://127.0.0.1:5173/@vite/client" in html
+
+
+@pytest.mark.parametrize(
+    ("path", "page_name", "view_func"),
+    [
+        ("/channels", "channels", dashboard_routes.page_channels),
+        ("/settings", "settings", dashboard_routes.page_settings),
+        ("/diagnostics", "diagnostics", dashboard_routes.page_diagnostics),
+    ],
+)
+def test_migrated_routes_serve_react_shell_when_frontend_ready(monkeypatch, path, page_name, view_func):
+    from flask_login import login_user
+
+    app = create_app()
+    fake_user = FakeUser(email="react@example.com")
+    monkeypatch.setattr(dashboard_routes, "_react_frontend_ready", lambda: True)
+    monkeypatch.setattr(dashboard_routes, "_react_dev_server", lambda: "http://127.0.0.1:5173")
+
+    with app.test_request_context(path):
+        session["ui_language"] = "EN"
+        login_user(fake_user)
+        html = view_func.__wrapped__()
+
+    assert 'window.__CF_WEB_BOOT__' in html
+    assert f'"page": "{page_name}"' in html
+    assert "http://127.0.0.1:5173/@vite/client" in html
+
+
+def test_studio_route_falls_back_to_legacy_template_when_react_frontend_is_unavailable(monkeypatch):
+    app = Flask(__name__)
+    captured = {}
+    monkeypatch.setattr(dashboard_routes, "_react_frontend_ready", lambda: False)
+    monkeypatch.setattr(
+        dashboard_routes,
+        "render_template",
+        lambda template, **context: captured.update({"template": template, "context": context}) or captured,
+    )
+
+    with app.test_request_context("/studio"):
+        response = dashboard_routes.page_studio.__wrapped__()
+
+    assert response["template"] == "studio.html"
+    assert response["context"]["active_page"] == "studio"
+
+
 def test_channels_route_renders_channels_template(monkeypatch):
     app = Flask(__name__)
     captured = {}
+    monkeypatch.setattr(dashboard_routes, "_react_frontend_ready", lambda: False)
     monkeypatch.setattr(
         dashboard_routes,
         "render_template",
