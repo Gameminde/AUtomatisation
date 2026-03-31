@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict
 
 from . import helpers as studio_helpers
@@ -175,15 +176,25 @@ def _load_dashboard_summary_payload(user_id: str) -> Dict[str, Any]:
 
 def _load_studio_bootstrap_payload(user_id: str) -> Dict[str, Any]:
     from app.utils import get_available_presets
+    from app.utils import get_user_settings
     from user_config import get_user_config
+    from . import routes as studio_routes
 
     profile = get_user_config(user_id)
+    settings = get_user_settings(user_id) or {}
+    template_defaults_raw = str(settings.get("studio_template_defaults") or "").strip()
+    try:
+        template_defaults = json.loads(template_defaults_raw) if template_defaults_raw else {}
+    except Exception:
+        template_defaults = {}
+    normalized_template_defaults = studio_routes._normalize_template_defaults(template_defaults if isinstance(template_defaults, dict) else {})
     return {
         "profile": {
             "timezone": profile.timezone,
             "content_language": profile.content_language,
             "content_tone": profile.content_tone,
             "niche_preset": profile.niche_preset,
+            "template_defaults": normalized_template_defaults,
         },
         "page_context": _load_active_page_context(user_id),
         **_load_draft_content_payload(user_id),

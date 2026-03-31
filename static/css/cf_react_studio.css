@@ -1,0 +1,770 @@
+/* Studio layout system owner.
+   This file owns the React Studio geometry, spacing, panel sizing,
+   and responsive column placement for the split Studio surface. */
+
+.cf-topbar-page-title {
+  opacity: 0.82;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] {
+  --cf-studio-space-1: 8px;
+  --cf-studio-space-2: 11px;
+  --cf-studio-space-3: 15px;
+  --cf-studio-space-4: 24px;
+  --cf-studio-space-5: 32px;
+  --cf-studio-panel-radius: 24px;
+  --cf-studio-card-radius: 16px;
+  --cf-studio-field-radius: 16px;
+  --cf-studio-panel-pad: 15px;
+  --cf-studio-control-h: 40px;
+  --cf-studio-pill-h: 32px;
+  --cf-studio-upload-h: 164px;
+  --cf-studio-rail-w: 296px;
+  --cf-preview-follow-top: calc(var(--topbar-h, 44px) + 6px);
+  --cf-studio-preview-budget-h: calc(100svh - var(--cf-preview-follow-top) - 80px);
+  --cf-studio-stage-bg: linear-gradient(180deg, rgba(242, 236, 226, 0.96) 0%, rgba(235, 228, 216, 0.98) 100%);
+  --cf-studio-stage-border: rgba(24, 22, 17, 0.05);
+  --cf-studio-card-bg: rgba(255, 253, 249, 0.96);
+  --cf-studio-card-border: rgba(24, 22, 17, 0.07);
+  --cf-studio-card-shadow: 0 10px 24px rgba(24, 22, 17, 0.045);
+  --cf-studio-inset-bg: rgba(245, 239, 231, 0.92);
+  --cf-studio-inset-border: rgba(24, 22, 17, 0.06);
+  padding: 8px 0 16px;
+  overflow: visible;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-shell {
+  display: grid;
+  grid-template-columns: 262px minmax(0, 1fr);
+  gap: var(--cf-studio-space-3);
+  align-items: start;
+  min-width: 0;
+  margin-top: 0;
+  overflow: visible;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-workarea,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-stage {
+  overflow: visible;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-workarea {
+  display: grid;
+  gap: 0;
+  align-content: start;
+  min-width: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-stage {
+  display: grid;
+  gap: var(--cf-studio-space-3);
+  align-items: start;
+  min-width: 0;
+  padding: 6px 12px 14px;
+  margin-top: 0;
+  border: 1px solid var(--cf-studio-stage-border);
+  border-radius: 32px;
+  background: var(--cf-studio-stage-bg);
+  box-shadow: 0 10px 24px rgba(24, 22, 17, 0.04);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "intro"
+    "controls"
+    "preview-head"
+    "preview"
+    "left"
+    "right";
+  gap: 8px 15px;
+  align-items: start;
+  min-width: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-intro {
+  grid-area: intro;
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  max-width: 34ch;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-middle {
+  grid-area: preview-head;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  min-width: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-title {
+  margin: 0;
+  max-width: 8.6ch;
+  font-size: clamp(1.56rem, 1.9vw, 1.94rem);
+  font-weight: 800;
+  line-height: 0.94;
+  letter-spacing: -0.05em;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-copy {
+  min-width: 0;
+  margin: 0;
+  max-width: 32ch;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: rgba(48, 43, 34, 0.72);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-controls {
+  grid-area: controls;
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-dashboard-column {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-actions,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-statusline,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-groups,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-group,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-foot-grid,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-foot-primary,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-foot-secondary,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-insights-inline,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-secondary-strip {
+  display: grid;
+  gap: var(--cf-studio-space-2);
+  min-width: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-actions,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-statusline {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-left-column {
+  grid-area: left;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-center-column {
+  grid-area: preview;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-right-column {
+  grid-area: right;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-head-drawer,
+.cf-studio-page[data-cf-studio-owned="split"] #cf-studio-new-draft,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-statusline > span {
+  min-height: var(--cf-studio-pill-h);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-head-drawer {
+  gap: var(--cf-studio-space-1);
+  padding-inline: 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(24, 22, 17, 0.12);
+  background: rgba(255, 255, 255, 0.78);
+  color: var(--ink-primary);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-head-count {
+  min-width: 22px;
+  height: 22px;
+  font-size: 0.7rem;
+  background: rgba(24, 22, 17, 0.08);
+  color: var(--ink-primary);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-stat-pill,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-status-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--cf-studio-pill-h);
+  padding-inline: 11px;
+  border-radius: 999px;
+  font: 700 0.72rem/1 var(--font-body);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-status-chip.is-ready {
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-status-chip.is-warn {
+  background: rgba(250, 234, 204, 0.82);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-card,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-card,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-editor-card,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-media-card,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-publish-card {
+  display: grid;
+  gap: var(--cf-studio-space-2);
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--cf-studio-panel-radius);
+  border: 1px solid var(--cf-studio-card-border);
+  background: var(--cf-studio-card-bg);
+  box-shadow: var(--cf-studio-card-shadow);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-panel-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--cf-studio-space-2);
+  padding: var(--cf-studio-panel-pad) var(--cf-studio-panel-pad) 12px;
+  border-bottom: 1px solid rgba(24, 22, 17, 0.08);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-panel-head-simple {
+  align-items: end;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-panel-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-mini-kicker {
+  color: var(--ink-muted);
+  font: 700 0.72rem/1 var(--font-body);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-panel-title {
+  font-size: 1.08rem;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-inline-note,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-tz-hint,
+.cf-studio-page[data-cf-studio-owned="split"] #cf-studio-feedback {
+  font-size: 0.74rem;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-section-switcher {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--cf-studio-space-2);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-section-tab {
+  min-height: 62px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 18px;
+  text-align: start;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-section-tab strong {
+  font-size: 0.74rem;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-section-tab span {
+  font-size: 0.64rem;
+  color: var(--ink-muted);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-grid,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-editor-body,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-groups,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-foot-grid {
+  padding-inline: var(--cf-studio-panel-pad);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-grid,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-editor-body {
+  padding-block: 12px 16px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-groups,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-foot-grid {
+  padding-block: 0 16px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cf-studio-space-2);
+  padding: 12px var(--cf-studio-panel-pad) 14px;
+  border-top: 1px solid rgba(24, 22, 17, 0.08);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-foot #cf-studio-feedback {
+  max-width: 52ch;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-brief-advanced.is-open {
+  padding-top: 16px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-workbench,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-grid,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-upload-row,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-brief-grid {
+  display: grid;
+  gap: var(--cf-studio-space-2);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-brief-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-editor-body .cf-studio-brief-grid,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-grid,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-upload-row {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-grid.is-media {
+  align-items: end;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-group {
+  display: grid;
+  gap: var(--cf-studio-space-2);
+  padding: 12px;
+  border-radius: var(--cf-studio-card-radius);
+  border: 1px solid var(--cf-studio-inset-border);
+  background: var(--cf-studio-inset-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-group-head {
+  display: grid;
+  gap: 4px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-field {
+  display: grid;
+  gap: var(--cf-studio-space-1);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-field-label {
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-input,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-select,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-textarea,
+.cf-studio-page[data-cf-studio-owned="split"] input[type="range"] {
+  min-height: var(--cf-studio-control-h);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-input,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-select,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-textarea {
+  padding: 10px 12px;
+  border-radius: var(--cf-studio-field-radius);
+  background: rgba(255, 255, 255, 0.84);
+  font-size: 0.8rem;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-textarea {
+  min-height: 108px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-textarea-sm {
+  min-height: 80px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] input[type="range"] {
+  margin: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-choice-card {
+  min-height: 116px;
+  padding: 14px;
+  border-radius: var(--cf-studio-card-radius);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-upload-tile {
+  position: relative;
+  min-height: var(--cf-studio-upload-h);
+  border-radius: var(--cf-studio-card-radius);
+  display: grid;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-upload-tile-body {
+  min-height: inherit;
+  display: grid;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-upload-tile-empty {
+  padding: 16px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-upload-tile:not(.is-filled) .cf-upload-tile-empty {
+  align-content: start;
+  gap: 4px;
+  padding-top: 48px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-upload-tile-badge {
+  position: absolute;
+  inset-block-start: 12px;
+  inset-inline-end: 12px;
+  z-index: 2;
+  min-height: 22px;
+  max-width: calc(100% - 24px);
+  padding-inline: 9px;
+  font-size: 0.7rem;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-upload-meta {
+  margin-top: 2px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-stack {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  align-content: start;
+  justify-items: center;
+  overflow: visible;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-topbar {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: min(100%, var(--cf-studio-rail-w));
+  margin-inline: auto;
+  text-align: center;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-topcopy {
+  display: grid;
+  gap: 2px;
+  justify-items: center;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-topcopy strong {
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-surface-switcher {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-warning-rail {
+  width: min(100%, var(--cf-studio-rail-w));
+  margin-inline: auto;
+  display: grid;
+  gap: 6px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-warning-item {
+  border-radius: 14px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-media-card {
+  padding: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-shell {
+  width: min(100%, var(--cf-studio-rail-w));
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-foot {
+  margin-top: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-secondary-strip {
+  margin-top: 4px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-route-card,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-insight-card {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--cf-studio-card-radius);
+  border: 1px solid rgba(24, 22, 17, 0.06);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-route-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--cf-studio-space-2);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-route-kicker,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-insight-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-route-title,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-insight-value {
+  font-size: 0.86rem;
+  line-height: 1.3;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-insight-copy {
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-route-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--cf-studio-space-2);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-route-grid > div {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border-radius: var(--cf-studio-card-radius);
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-foot-title {
+  font-size: 1rem;
+  line-height: 1.05;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-insights-inline {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-publish-actions {
+  display: grid;
+  gap: var(--cf-studio-space-2);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-publish-actions > .cf-btn,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-publish-actions > .cf-btn-ghost {
+  width: 100%;
+  min-height: 42px;
+  justify-content: center;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-foot-schedule {
+  gap: var(--cf-studio-space-1);
+}
+
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-panel-head,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-section-tab,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-route-title,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-insight-card,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-editor-body,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-grid {
+  text-align: right;
+}
+
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-controls {
+  justify-items: start;
+}
+
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-actions,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-statusline,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-route-head {
+  justify-content: flex-start;
+}
+
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-topbar,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-topcopy {
+  justify-items: center;
+  text-align: center;
+}
+
+@media (max-width: 1279px) {
+  .cf-studio-page[data-cf-studio-owned="split"] {
+    --cf-preview-follow-top: 0px;
+    --cf-studio-preview-budget-h: calc(100svh - var(--topbar-h, 44px) - 72px);
+  }
+}
+
+@media (max-width: 1180px) {
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-shell {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1080px) {
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-foot-grid,
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-insights-inline,
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-route-grid,
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-upload-row,
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-grid,
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-brief-grid,
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-section-switcher {
+    grid-template-columns: 1fr;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-controls {
+    justify-items: start;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-actions,
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-statusline {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 900px) {
+  .cf-studio-page[data-cf-studio-owned="split"] {
+    padding: 10px 0 18px;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-stage {
+    padding: 8px 12px 14px;
+    border-radius: 28px;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-title {
+    font-size: 1.28rem;
+    max-width: 12ch;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-panel-head,
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-topbar {
+    width: min(100%, var(--cf-studio-rail-w));
+  }
+}
+
+@media (min-width: 1280px) and (max-width: 1365px) {
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-dashboard {
+    grid-template-columns: minmax(388px, 1fr) var(--cf-studio-rail-w);
+    grid-template-areas:
+      "intro controls"
+      "left preview-head"
+      "left preview"
+      "right right";
+    align-items: start;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-controls {
+    justify-items: end;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-actions,
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-statusline {
+    justify-content: flex-end;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-center-column {
+    position: sticky;
+    top: var(--cf-preview-follow-top);
+    align-self: start;
+    width: var(--cf-studio-rail-w);
+    justify-self: center;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-foot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-secondary-strip {
+    grid-template-columns: minmax(388px, 1fr) var(--cf-studio-rail-w);
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-secondary-strip .cf-studio-template-media-card {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1366px) {
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-dashboard {
+    grid-template-columns: minmax(350px, 1fr) var(--cf-studio-rail-w) minmax(350px, 1fr);
+    grid-template-areas:
+      "intro preview-head controls"
+      "left preview right";
+    align-items: start;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-controls {
+    justify-items: end;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-actions,
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-statusline {
+    justify-content: flex-end;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-copy {
+    display: none;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-center-column {
+    position: sticky;
+    top: var(--cf-preview-follow-top);
+    align-self: start;
+    width: var(--cf-studio-rail-w);
+    justify-self: center;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-foot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-secondary-strip {
+    grid-template-columns: minmax(350px, 1fr) var(--cf-studio-rail-w) minmax(350px, 1fr);
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-secondary-strip .cf-studio-template-media-card {
+    grid-column: 1 / span 2;
+  }
+}

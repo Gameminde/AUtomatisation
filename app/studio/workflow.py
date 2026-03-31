@@ -24,6 +24,7 @@ _save_draft_record = studio_helpers._save_draft_record
 _create_schedule_record = studio_helpers._create_schedule_record
 _generate_studio_content = studio_helpers._generate_studio_content
 _regenerate_existing_content = studio_helpers._regenerate_existing_content
+_build_record_payload = studio_helpers._build_record_payload
 _current_user_id = studio_helpers._current_user_id
 _load_pending_content_payload = studio_payloads._load_pending_content_payload
 _load_draft_content_payload = studio_payloads._load_draft_content_payload
@@ -172,12 +173,40 @@ def studio_regenerate():
         content_id = str(data.get("content_id") or "").strip()
         instruction = str(data.get("instruction") or "").strip()
         tone = str(data.get("tone") or "").strip().lower() or None
-        if not content_id:
-            return _api_error("content_id required", 400)
+        content = data.get("content") if isinstance(data.get("content"), dict) else None
+        requested_format = str(data.get("format") or (content or {}).get("format") or "").strip().lower()
+        if not content_id and not content:
+            return _api_error("content_id or content required", 400)
 
-        row = _load_owned_content_row(content_id)
-        if not row:
-            return _api_error("Content not found", 404)
+        row = None
+        if content_id:
+            row = _load_owned_content_row(content_id)
+            if not row:
+                return _api_error("Content not found", 404)
+
+        if row and content:
+            content_format = str(row.get("post_type") or requested_format or "post").strip().lower()
+            hydrated = _build_record_payload(
+                content_format=content_format,
+                content=content,
+                status=str(row.get("status") or "draft_only"),
+                article_id=str(row.get("article_id") or ""),
+                user_id=str(row.get("user_id") or _current_user_id()),
+            )
+            row = {
+                **row,
+                **hydrated,
+                "id": row.get("id"),
+            }
+        elif not row and content:
+            content_format = requested_format or "post"
+            row = _build_record_payload(
+                content_format=content_format,
+                content=content,
+                status="draft_only",
+                article_id="",
+                user_id=_current_user_id(),
+            )
 
         regenerated = _regenerate_existing_content(
             row,

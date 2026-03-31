@@ -15,6 +15,7 @@ import os
 from app import create_app  # noqa: E402
 
 app = create_app()
+app.config['LOGIN_DISABLED'] = True
 
 
 if __name__ == "__main__":

@@ -209,7 +209,7 @@ def test_studio_regenerate_updates_specific_item(monkeypatch):
         studio_routes,
         "_regenerate_existing_content",
         lambda row, instruction="", tone=None: captured.update(
-            {"instruction": instruction, "tone": tone}
+            {"instruction": instruction, "tone": tone, "row": dict(row)}
         ) or {
             "format": row["post_type"],
             "language": "en",
@@ -223,7 +223,24 @@ def test_studio_regenerate_updates_specific_item(monkeypatch):
     with app.test_request_context(
         "/api/studio/regenerate",
         method="POST",
-        json={"content_id": "pc-1", "instruction": "make it shorter", "tone": "casual", "user_id": fake_user.id},
+        json={
+            "content_id": "pc-1",
+            "instruction": "make it shorter",
+            "tone": "casual",
+            "user_id": fake_user.id,
+            "content": {
+                "format": "post",
+                "language": "en",
+                "hook": "Edited hook",
+                "body": "Edited body",
+                "cta": "Edited CTA",
+                "hashtags": ["edited"],
+                "image_path": "/tmp/example.png",
+                "slides": [],
+                "frames": [],
+                "points": [],
+            },
+        },
     ):
         response = studio_routes.studio_regenerate()
 
@@ -232,6 +249,9 @@ def test_studio_regenerate_updates_specific_item(monkeypatch):
     assert payload["content_id"] == "pc-1"
     assert payload["content"]["hook"] == "New hook"
     assert captured["tone"] == "casual"
+    assert captured["row"]["hook"] == "Edited hook"
+    assert captured["row"]["generated_text"] == "Edited body"
+    assert captured["row"]["call_to_action"] == "Edited CTA"
 
 
 def test_studio_generate_accepts_reel_script(monkeypatch):
@@ -262,6 +282,59 @@ def test_studio_generate_accepts_reel_script(monkeypatch):
     assert payload["success"] is True
     assert payload["format"] == "reel_script"
     assert payload["content"]["hook"] == "Hook"
+
+
+def test_studio_regenerate_accepts_unsaved_editor_content(monkeypatch):
+    app = Flask(__name__)
+    fake_user = FakeUser()
+    captured = {}
+
+    _patch_user(monkeypatch, fake_user)
+    monkeypatch.setattr(
+        studio_routes,
+        "_regenerate_existing_content",
+        lambda row, instruction="", tone=None: captured.update(
+            {"instruction": instruction, "tone": tone, "row": dict(row)}
+        ) or {
+            "format": row["post_type"],
+            "language": "en",
+            "hook": "Unsaved hook",
+            "body": "Unsaved body",
+            "cta": "Unsaved CTA",
+            "hashtags": ["unsaved"],
+        },
+    )
+
+    with app.test_request_context(
+        "/api/studio/regenerate",
+        method="POST",
+        json={
+            "format": "post",
+            "instruction": "tighten the draft",
+            "tone": "professional",
+            "user_id": fake_user.id,
+            "content": {
+                "format": "post",
+                "language": "en",
+                "hook": "Local hook",
+                "body": "Local body",
+                "cta": "Local CTA",
+                "hashtags": ["local"],
+                "image_path": "",
+                "slides": [],
+                "frames": [],
+                "points": [],
+            },
+        },
+    ):
+        response = studio_routes.studio_regenerate()
+
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["content"]["body"] == "Unsaved body"
+    assert captured["row"]["post_type"] == "post"
+    assert captured["row"]["hook"] == "Local hook"
+    assert "id" not in captured["row"] or captured["row"]["id"] in {None, ""}
 
 
 def test_studio_save_draft_inserts_processed_content(monkeypatch):

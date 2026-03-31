@@ -1,4 +1,5 @@
-import { ChangeEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, ChangeEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 
 import { apiCall, BootstrapResponse } from "../lib/api";
 import { BootPayload } from "../lib/boot";
@@ -31,6 +32,7 @@ import {
 } from "../lib/studio";
 import { EmptyState, ErrorState } from "../ui/States";
 import { useToast } from "../ui/ToastProvider";
+import { NeonButton, ShimmerSkeleton } from "../ui/primitives";
 
 type StudioProps = {
   boot: BootPayload;
@@ -45,9 +47,89 @@ type StudioProfile = {
   content_language?: string;
   content_tone?: string;
   niche_preset?: string;
+  template_defaults?: Record<string, unknown>;
 };
 
 type StudioCollections = Record<StudioTab, StudioItem[]>;
+
+type StudioTemplateDesign = {
+  brandName: string;
+  socialHandle: string;
+  backgroundDensity: number;
+  mediaWidth: number;
+  mediaZoom: number;
+  mediaOffsetX: number;
+  mediaOffsetY: number;
+  mediaFit: "contain" | "cover";
+  showSocialStrip: boolean;
+  showBrandBadge: boolean;
+};
+
+const DEFAULT_TEMPLATE: StudioTemplateDesign = {
+  brandName: "",
+  socialHandle: "",
+  backgroundDensity: 48,
+  mediaWidth: 66,
+  mediaZoom: 100,
+  mediaOffsetX: 0,
+  mediaOffsetY: 0,
+  mediaFit: "contain",
+  showSocialStrip: true,
+  showBrandBadge: true,
+};
+
+function normalizeTemplateDefaults(raw: unknown): Partial<StudioTemplateDesign> {
+  const data = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+  const next: Partial<StudioTemplateDesign> = {};
+
+  if ("brandName" in data) next.brandName = String(data.brandName || "").trim();
+  if ("socialHandle" in data) next.socialHandle = String(data.socialHandle || "").trim();
+
+  const backgroundDensity = Number(data.backgroundDensity);
+  if (Number.isFinite(backgroundDensity)) next.backgroundDensity = Math.min(100, Math.max(0, backgroundDensity));
+
+  const mediaWidth = Number(data.mediaWidth);
+  if (Number.isFinite(mediaWidth)) next.mediaWidth = Math.min(100, Math.max(30, mediaWidth));
+
+  const mediaZoom = Number(data.mediaZoom);
+  if (Number.isFinite(mediaZoom)) next.mediaZoom = Math.min(180, Math.max(40, mediaZoom));
+
+  const mediaOffsetX = Number(data.mediaOffsetX);
+  if (Number.isFinite(mediaOffsetX)) next.mediaOffsetX = Math.min(40, Math.max(-40, mediaOffsetX));
+
+  const mediaOffsetY = Number(data.mediaOffsetY);
+  if (Number.isFinite(mediaOffsetY)) next.mediaOffsetY = Math.min(40, Math.max(-40, mediaOffsetY));
+
+  if (data.mediaFit === "contain" || data.mediaFit === "cover") {
+    next.mediaFit = data.mediaFit;
+  }
+  if (typeof data.showSocialStrip === "boolean") next.showSocialStrip = data.showSocialStrip;
+  if (typeof data.showBrandBadge === "boolean") next.showBrandBadge = data.showBrandBadge;
+
+  return next;
+}
+
+function buildTemplateAutomationNote(template: StudioTemplateDesign, translator: Translator): string {
+  const notes = [
+    translator.tr("Keep the publish surface visually calm and creator-ready."),
+    translator.tr("Artwork scale target: {size}% width and {zoom}% zoom.", {
+      size: String(template.mediaWidth),
+      zoom: String(template.mediaZoom),
+    }),
+    translator.tr("Artwork crop: {fit} with focus {x}% / {y}%.", {
+      fit: template.mediaFit,
+      x: String(template.mediaOffsetX),
+      y: String(template.mediaOffsetY),
+    }),
+  ];
+  if (template.showBrandBadge) {
+    notes.push(translator.tr("Reserve space for a brand badge."));
+  }
+  if (template.showSocialStrip) {
+    notes.push(translator.tr("Reserve space for a social handle strip."));
+  }
+  return notes.join(" ");
+}
 
 function readNicheMeta(niches: Array<Record<string, unknown>>, nicheId: string, translator: Translator) {
   const niche = niches.find((item) => String(item.id || "") === nicheId);
@@ -71,6 +153,134 @@ function joinLines(lines: string[]): string {
   return lines.filter((line) => String(line || "").trim()).join("\n");
 }
 
+function previewSeed(input: string): number {
+  return Array.from(input).reduce((total, char) => total + char.charCodeAt(0), 0);
+}
+
+function compactMetric(value: number): string {
+  if (value >= 10000) {
+    return `${Math.round(value / 1000)}K`;
+  }
+  if (value >= 1000) {
+    return `${(value / 1000).toFixed(1).replace(".0", "")}K`;
+  }
+  return String(value);
+}
+
+function SocialIcon({ kind }: { kind: "heart" | "comment" | "send" | "save" | "more" | "play" }) {
+  if (kind === "heart") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 20.5 4.8 13.7A4.8 4.8 0 0 1 11.6 7L12 7.4l.4-.4a4.8 4.8 0 0 1 6.8 6.7Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (kind === "comment") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5 6.5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H10l-5 3v-3H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (kind === "send") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="m20 4-8.8 16-1.9-6.1L3 12.1 20 4Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (kind === "save") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 4.5h10a1.5 1.5 0 0 1 1.5 1.5v13l-6.5-3.7L5.5 19V6A1.5 1.5 0 0 1 7 4.5Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
+
+  if (kind === "play") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M9 7.2v9.6l7.8-4.8L9 7.2Z" fill="currentColor" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="6" cy="12" r="1.6" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" />
+      <circle cx="18" cy="12" r="1.6" fill="currentColor" />
+    </svg>
+  );
+}
+
+function TemplateCanvas({
+  surface,
+  pageName,
+  translator,
+  template,
+  fallbackMediaUrl,
+}: {
+  surface: string;
+  pageName: string;
+  translator: Translator;
+  template: StudioTemplateDesign;
+  fallbackMediaUrl: string;
+}) {
+  const brandName = template.brandName.trim() || pageName;
+  const socialHandle = template.socialHandle.trim() || pageName.replace(/\s+/g, "").toLowerCase();
+  const mediaUrl = fallbackMediaUrl || "";
+  const style = {
+    "--cf-template-media-width": `${template.mediaWidth}%`,
+    "--cf-template-bg-density": `${template.backgroundDensity / 100}`,
+    "--cf-template-media-zoom": `${template.mediaZoom / 100}`,
+    "--cf-template-media-offset-x": `${template.mediaOffsetX}%`,
+    "--cf-template-media-offset-y": `${template.mediaOffsetY}%`,
+    "--cf-template-media-fit": template.mediaFit,
+  } as CSSProperties;
+
+  return (
+    <div className="cf-template-canvas" style={style}>
+      <div className="cf-template-bg" />
+      <div className="cf-template-overlay" />
+      <div className="cf-template-layer cf-template-layer-guides cf-template-safe-guides" aria-hidden="true">
+        <span className="cf-template-safe-guide is-top" />
+        <span className="cf-template-safe-guide is-bottom" />
+        <span className="cf-template-safe-guide is-left" />
+        <span className="cf-template-safe-guide is-right" />
+      </div>
+      {template.showSocialStrip ? (
+        <div className="cf-template-layer cf-template-layer-social cf-template-social-strip">
+          <div className="cf-template-social-icons" aria-hidden="true">
+            <span>f</span>
+            <span>ig</span>
+            <span>x</span>
+          </div>
+          <span>@{socialHandle.replace(/^@+/, "")}</span>
+        </div>
+      ) : null}
+      {template.showBrandBadge ? (
+        <div className="cf-template-layer cf-template-layer-brand cf-template-brand-badge">
+          <span>{surface === "instagram" ? translator.tr("Creator brand") : translator.tr("Page brand")}</span>
+          <strong>{brandName}</strong>
+        </div>
+      ) : null}
+      <div className="cf-template-layer cf-template-layer-media cf-template-media-frame">
+        {mediaUrl ? (
+          <img src={mediaUrl} alt={translator.tr("Template media preview")} />
+        ) : (
+          <div className="cf-template-media-placeholder">
+            <span>{translator.tr("Drop a publication image")}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function createBlankDraft(brief: StudioBrief): StudioItem {
   return {
     id: null,
@@ -82,7 +292,7 @@ function createBlankDraft(brief: StudioBrief): StudioItem {
       language: brief.language,
       hook: "",
       body: "",
-      cta: brief.cta || "",
+      cta: "",
       caption: "",
       hashtags: [],
       image_path: "",
@@ -102,112 +312,259 @@ function buildStudioCollections(studio: Record<string, unknown>, fallbackPlatfor
   };
 }
 
-function PreviewBody({ current, surface, translator, pageName, briefPlatformLabel }: { current: StudioItem; surface: string; translator: Translator; pageName: string; briefPlatformLabel: string }) {
+function PreviewBody({
+  current,
+  surface,
+  translator,
+  pageName,
+  briefPlatformLabel,
+  template,
+}: {
+  current: StudioItem;
+  surface: string;
+  translator: Translator;
+  pageName: string;
+  briefPlatformLabel: string;
+  template: StudioTemplateDesign;
+}) {
   const content = current.content_normalized;
   const format = String(content.format || current.post_type || "post").toLowerCase();
-  const imageSource = current.id && String(content.image_path || "").trim() ? `/api/content/${current.id}/image` : "";
-
-  const header = (
-    <div className="cf-surface-header">
-      <div className="cf-surface-avatar">{initials(pageName)}</div>
-      <div className="cf-surface-lines">
-        <strong>{pageName}</strong>
-        <span>{translator.tr(surface === "instagram" ? "Instagram preview" : "Facebook preview")}</span>
+  const imagePath = String(content.image_path || "").trim();
+  const imageSource = imagePath ? (current.id ? `/api/content/${current.id}/image` : imagePath) : "";
+  const surfaceLabel = translator.tr(surface === "instagram" ? "Instagram" : "Facebook");
+  const isInstagram = surface === "instagram";
+  const primaryText = String(content.hook || "").trim() || translator.tr(format === "reel_script" ? "Reel hook" : "Post hook");
+  const secondaryText = String(content.body || content.caption || content.cta || "").trim();
+  const captionText = [primaryText, secondaryText].filter(Boolean).join("\n\n");
+  const hashtagsText = content.hashtags.join(" ");
+  const seed = previewSeed(`${pageName}:${surface}:${format}:${captionText}:${hashtagsText}`);
+  const likes = 64 + (seed % 540);
+  const comments = 6 + (seed % 44);
+  const shares = 2 + (seed % 18);
+  const saves = 9 + (seed % 37);
+  const views = 1200 + (seed % 8400);
+  const storyFrames = content.frames.length ? content.frames : [{ text: primaryText, visual_suggestion: briefPlatformLabel }];
+  const carouselSlides = content.slides.length
+    ? content.slides
+    : [{ headline: primaryText, body: secondaryText || translator.tr("Slide body"), visual_suggestion: translator.tr("Visual direction") }];
+  const instagramHandle = (template.socialHandle.trim() || pageName.replace(/\s+/g, "").toLowerCase()).replace(/^@+/, "");
+  const facebookMeta = `${translator.tr("Just now")} • ${translator.tr("Public")}`;
+  const instagramMeta = translator.tr("Original audio");
+  const topHeader = isInstagram ? (
+    <div className="cf-social-post-header is-instagram">
+      <div className="cf-social-identity">
+        <div className="cf-surface-avatar">{initials(pageName)}</div>
+        <div className="cf-social-meta is-instagram">
+          <strong>{instagramHandle}</strong>
+          <span>{instagramMeta}</span>
+        </div>
       </div>
-      <span className="cf-platform-chip">{translator.tr(surface === "instagram" ? "Instagram" : "Facebook")}</span>
+      <div className="cf-social-header-actions">
+        <button type="button" className="cf-social-more" aria-label={translator.tr("More")}>
+          <SocialIcon kind="more" />
+        </button>
+      </div>
+    </div>
+  ) : (
+    <div className="cf-social-post-header is-facebook">
+      <div className="cf-social-identity">
+        <div className="cf-surface-avatar">{initials(pageName)}</div>
+        <div className="cf-social-meta is-facebook">
+          <strong>{pageName}</strong>
+          <span>{facebookMeta}</span>
+        </div>
+      </div>
+      <div className="cf-social-header-actions">
+        <button type="button" className="cf-social-more" aria-label={translator.tr("More")}>
+          <SocialIcon kind="more" />
+        </button>
+      </div>
+    </div>
+  );
+
+  const instagramActions = (
+    <div className="cf-social-icon-row" aria-hidden="true">
+      <div className="cf-social-icon-cluster">
+        <span className="cf-social-icon-btn"><SocialIcon kind="heart" /></span>
+        <span className="cf-social-icon-btn"><SocialIcon kind="comment" /></span>
+        <span className="cf-social-icon-btn"><SocialIcon kind="send" /></span>
+      </div>
+      <span className="cf-social-icon-btn"><SocialIcon kind="save" /></span>
+    </div>
+  );
+
+  const facebookReactionBadges = (
+    <div className="cf-social-reaction-badges" aria-hidden="true">
+      <span className="is-like">👍</span>
+      <span className="is-love">❤</span>
+    </div>
+  );
+
+  const facebookActions = (
+    <div className="cf-social-action-row" aria-hidden="true">
+      <button type="button" className="cf-social-action-text">{translator.tr("Like")}</button>
+      <button type="button" className="cf-social-action-text">{translator.tr("Comment")}</button>
+      <button type="button" className="cf-social-action-text">{translator.tr("Share")}</button>
     </div>
   );
 
   if (format === "carousel") {
     return (
-      <article className="cf-social-surface">
-        <div className="cf-preview-card">
-          {header}
-          <div className="cf-surface-caption">{renderLines(String(content.caption || translator.tr("No caption yet.")))}</div>
-          <div className="cf-structured-list">
-            {content.slides.length ? content.slides.map((slide, index) => (
-              <article key={`slide-${index}`} className="cf-preview-slide">
-                <div className="cf-preview-slide-index">{index + 1}</div>
-                <div className="cf-preview-slide-title">{slide.headline || translator.tr("Slide headline")}</div>
-                <div className="cf-preview-body">{renderLines(String(slide.body || translator.tr("Slide body")))}</div>
-                <div className="cf-inline-note">{slide.visual_suggestion || translator.tr("No visual suggestion")}</div>
+      <article className={`cf-social-surface cf-social-feed is-${surface} is-carousel`}>
+        {topHeader}
+        <div className={`cf-social-media cf-social-carousel-shell ${isInstagram ? "is-portrait" : "is-landscape"}`}>
+          <div className="cf-social-carousel-stack">
+            {carouselSlides.slice(0, 3).map((slide, index) => (
+              <article key={`slide-${index}`} className={`cf-social-carousel-card is-card-${index + 1}`}>
+                <div className="cf-social-carousel-count">{index + 1}/{carouselSlides.length}</div>
+                <div className="cf-social-carousel-title">{slide.headline || translator.tr("Slide headline")}</div>
+                <div className="cf-social-carousel-copy">{renderLines(String(slide.body || translator.tr("Slide body")))}</div>
               </article>
-            )) : (
-              <div className="cf-note-block">{translator.tr("This carousel preview is empty. Run the AI preview to generate slides.")}</div>
-            )}
+            ))}
           </div>
-          <div className="cf-preview-footer">{content.hashtags.join(" ")}</div>
+          <div className="cf-social-carousel-dots" aria-hidden="true">
+            {carouselSlides.slice(0, Math.min(carouselSlides.length, 5)).map((_, index) => (
+              <span key={`dot-${index}`} className={`cf-social-carousel-dot ${index === 0 ? "is-active" : ""}`} />
+            ))}
+          </div>
         </div>
+        {isInstagram ? instagramActions : null}
+      <div className="cf-social-engagement">
+        <strong>{compactMetric(isInstagram ? likes : likes + shares)} {translator.tr(isInstagram ? "likes" : "reactions")}</strong>
+        {!isInstagram ? <span>{compactMetric(comments)} {translator.tr("comments")} - {compactMetric(shares)} {translator.tr("shares")}</span> : null}
+        </div>
+        <div className="cf-social-copy">
+          <strong>{pageName}</strong>
+          <span>{renderLines(String(content.caption || translator.tr("No caption yet.")))}</span>
+        </div>
+        {hashtagsText ? <div className="cf-preview-footer">{hashtagsText}</div> : null}
+        {isInstagram ? <div className="cf-social-comment-box">{translator.tr("Add a comment...")}</div> : facebookActions}
       </article>
     );
   }
 
   if (format === "story_sequence") {
     return (
-      <article className="cf-social-surface">
-        <div className="cf-preview-card">
-          {header}
-          <div className="cf-story-preview">
-            {content.frames.length ? content.frames.map((frame, index) => (
-              <article key={`frame-${index}`} className="cf-preview-slide">
-                <div className="cf-preview-slide-index">{index + 1}</div>
-                <div className="cf-preview-body">{renderLines(String(frame.text || translator.tr("Frame text")))}</div>
-                <div className="cf-inline-note">{frame.visual_suggestion || translator.tr("No visual direction")}</div>
-              </article>
-            )) : (
-              <div className="cf-note-block">{translator.tr("This story sequence preview is empty. Run the AI preview to generate frames.")}</div>
-            )}
+      <article className={`cf-social-surface cf-social-story-shell is-${surface}`}>
+        <div className="cf-social-story-progress" aria-hidden="true">
+          {storyFrames.slice(0, Math.min(storyFrames.length, 5)).map((_, index) => (
+            <span key={`story-progress-${index}`} className={`cf-social-story-progress-bar ${index === 0 ? "is-active" : ""}`} />
+          ))}
+        </div>
+        <div className="cf-social-story-top">
+          <div className="cf-social-identity">
+            <div className="cf-surface-avatar">{initials(pageName)}</div>
+            <div className="cf-social-meta">
+              <strong>{pageName}</strong>
+              <span>{surfaceLabel} Stories - {translator.tr("Just now")}</span>
+            </div>
+          </div>
+          <button type="button" className="cf-social-more" aria-label={translator.tr("More")}>
+            <SocialIcon kind="more" />
+          </button>
+        </div>
+        <div className="cf-social-story-frame">
+          <div className="cf-social-story-card">
+            <span className="cf-social-story-chip">{translator.tr("Story {index}", { index: 1 })}</span>
+            <div className="cf-social-story-copy">{renderLines(String(storyFrames[0].text || translator.tr("Frame text")))}</div>
+            <div className="cf-social-story-note">{storyFrames[0].visual_suggestion || translator.tr("Add visual direction for the story sequence.")}</div>
           </div>
         </div>
+        <div className="cf-social-story-reply">{translator.tr("Send message")}</div>
       </article>
     );
   }
 
   if (format === "reel_script") {
     return (
-      <article className="cf-social-surface">
-        <div className="cf-preview-card">
-          {header}
-          <div className="cf-surface-caption">
-            <strong>{content.hook || translator.tr("Reel hook")}</strong>
+      <article className={`cf-social-surface cf-social-reel-shell is-${surface}`}>
+        <div className="cf-social-reel-stage">
+          <div className="cf-social-reel-top">
+            <span className="cf-platform-chip">{translator.tr(isInstagram ? "Reels" : "Video")}</span>
+            <span className="cf-social-reel-audio">{pageName}</span>
           </div>
-          <div className="cf-structured-list">
-            {content.points.length ? content.points.map((point, index) => (
-              <article key={`beat-${index}`} className="cf-structured-item">
-                <div className="cf-label">{translator.tr("Beat {index}", { index: index + 1 })}</div>
-                <div>{point || translator.tr("Talking point")}</div>
-              </article>
-            )) : (
-              <div className="cf-note-block">{translator.tr("This reel script preview is empty. Run the AI preview to generate talking points.")}</div>
-            )}
+          <div className="cf-social-reel-center">
+            <div className="cf-social-reel-play">
+              <SocialIcon kind="play" />
+            </div>
+            <div className="cf-social-reel-hook">{primaryText}</div>
+            <div className="cf-social-reel-points">
+              {(content.points.length ? content.points : [translator.tr("Add talking points for the reel script.")]).slice(0, 4).map((point, index) => (
+                <div key={`reel-point-${index}`} className="cf-social-reel-point">
+                  <span>{index + 1}</span>
+                  <p>{point}</p>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="cf-preview-body">{content.cta || translator.tr("Add a closing CTA to tighten the script.")}</div>
-          <div className="cf-preview-footer">{content.hashtags.join(" ")}</div>
+          <div className="cf-social-reel-bottom">
+            <strong>{pageName}</strong>
+            <span>{content.cta || translator.tr("Add a closing CTA to tighten the script.")}</span>
+            {hashtagsText ? <div className="cf-preview-footer">{hashtagsText}</div> : null}
+          </div>
+        </div>
+        <div className="cf-social-reel-actions" aria-hidden="true">
+          <span className="cf-social-reel-action"><SocialIcon kind="heart" /><small>{compactMetric(likes)}</small></span>
+          <span className="cf-social-reel-action"><SocialIcon kind="comment" /><small>{compactMetric(comments)}</small></span>
+          <span className="cf-social-reel-action"><SocialIcon kind="send" /><small>{compactMetric(shares)}</small></span>
+          <span className="cf-social-reel-action"><SocialIcon kind="more" /></span>
         </div>
       </article>
     );
   }
 
   return (
-    <article className={`cf-social-surface ${surface === "instagram" ? "is-instagram" : "is-facebook"}`}>
-      <div className="cf-preview-card">
-        {header}
-        {imageSource ? (
-          <figure className="cf-surface-image">
-            <img src={imageSource} alt={translator.tr("Draft media preview")} />
-            <figcaption>{content.image_path || translator.tr("Saved media")}</figcaption>
-          </figure>
-        ) : surface === "instagram" ? (
-          <div className="cf-surface-image is-empty">{translator.tr("Instagram preview is selected, but this draft does not have an image path yet.")}</div>
-        ) : null}
-        <div className="cf-surface-caption">
-          <strong>{content.hook || translator.tr("Post hook")}</strong>
-          <div className="cf-preview-body">{renderLines(String(content.body || translator.tr("Body copy")))}</div>
-          {content.cta ? <div className="cf-surface-cta">{content.cta}</div> : null}
+    <article className={`cf-social-surface cf-social-feed is-${surface} is-post`}>
+      {topHeader}
+      {!isInstagram ? (
+        <div className="cf-social-copy is-facebook-copy">
+          <strong>{primaryText}</strong>
+          {secondaryText ? <span>{renderLines(secondaryText)}</span> : null}
+          {hashtagsText ? <div className="cf-social-hashtag-line">{hashtagsText}</div> : null}
         </div>
-        <div className="cf-preview-footer">{content.hashtags.join(" ")}</div>
-        <div className="cf-inline-note">{translator.tr("Prepared for {platform} in {language}.", { platform: briefPlatformLabel, language: content.language.toUpperCase() })}</div>
+      ) : null}
+      <figure className={`cf-social-media ${isInstagram ? "is-portrait" : "is-facebook"} ${imageSource ? "" : "is-placeholder"}`}>
+        <TemplateCanvas
+          surface={surface}
+          pageName={pageName}
+          translator={translator}
+          template={template}
+          fallbackMediaUrl={imageSource}
+        />
+      </figure>
+      {isInstagram ? instagramActions : null}
+      <div className={`cf-social-engagement ${isInstagram ? "is-instagram-summary" : "is-facebook-summary"}`}>
+        <div className="cf-social-engagement-primary">
+          {!isInstagram ? facebookReactionBadges : null}
+          <strong>{compactMetric(isInstagram ? likes : likes + shares)} {translator.tr(isInstagram ? "likes" : "reactions")}</strong>
+        </div>
+        {isInstagram ? (
+          <span>{compactMetric(comments)} {translator.tr("comments")} - {compactMetric(saves)} {translator.tr("saves")}</span>
+        ) : (
+          <span>{compactMetric(comments)} {translator.tr("comments")} - {compactMetric(shares)} {translator.tr("shares")}</span>
+        )}
       </div>
+      {isInstagram ? (
+        <div className="cf-social-copy is-instagram-copy">
+          <strong>{instagramHandle}</strong>
+          <span>{renderLines(captionText)}</span>
+          {hashtagsText ? <div className="cf-social-hashtag-line">{hashtagsText}</div> : null}
+        </div>
+      ) : null}
+      {isInstagram ? (
+        <>
+          <div className="cf-social-inline-note">{translator.tr("View all {count} comments", { count: compactMetric(comments) })}</div>
+          <div className="cf-social-comment-box">{translator.tr("Add a comment...")}</div>
+        </>
+      ) : (
+        <>
+          <div className="cf-social-engagement is-facebook-stats">
+            <span>{compactMetric(views)} {translator.tr("reach")}</span>
+            <span>{translator.tr("Prepared for {platform} in {language}.", { platform: briefPlatformLabel, language: content.language.toUpperCase() })}</span>
+          </div>
+          {facebookActions}
+        </>
+      )}
     </article>
   );
 }
@@ -225,6 +582,7 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
   const [previewSurface, setPreviewSurface] = useState<"facebook" | "instagram">("facebook");
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [composerSection, setComposerSection] = useState<"idea" | "template" | "copy">("idea");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState(translator.tr("Set the brief, run an AI preview, then decide what the agent should save, review, schedule, or publish."));
   const [brief, setBrief] = useState<StudioBrief>({
@@ -248,11 +606,15 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
     regenerateNote: "",
     schedule: nextSlot(),
   });
+  const [template, setTemplate] = useState<StudioTemplateDesign>(DEFAULT_TEMPLATE);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
   const briefRef = useRef(brief);
   const currentIdRef = useRef<string | null>(current?.id ?? null);
 
   const overlayLibrary = windowWidth > 1080;
+  const desktopCanvas = windowWidth >= 1280;
+  const centeredCanvasDesktop = windowWidth >= 1366;
 
   useEffect(() => {
     briefRef.current = brief;
@@ -282,6 +644,13 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
     setStatus((studio.status || {}) as Record<string, unknown>);
     setNiches(Array.isArray((studio.presets as Record<string, unknown> | undefined)?.niches) ? (((studio.presets as Record<string, unknown>).niches) as Array<Record<string, unknown>>) : []);
     setCollections(nextCollections);
+    const templateDefaults = normalizeTemplateDefaults(profileData.template_defaults);
+    if (Object.keys(templateDefaults).length) {
+      setTemplate((currentTemplate) => ({
+        ...currentTemplate,
+        ...templateDefaults,
+      }));
+    }
     setBrief((currentBrief) => ({
       ...currentBrief,
       language: String(currentBrief.language || profileData.content_language || "en").toLowerCase(),
@@ -313,11 +682,8 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
       setCurrent(local);
       setBrief((currentBrief) => ({
         ...currentBrief,
-        format: local.post_type,
-        language: local.content_normalized.language || currentBrief.language,
         platform: platformValueFromRaw(local.platforms || fallbackPlatforms),
-        cta: currentBrief.cta || local.content_normalized.cta || "",
-        schedule: local.scheduled_time ? localDateTime(local.scheduled_time) : currentBrief.schedule,
+        schedule: local.scheduled_time ? localDateTime(local.scheduled_time) : nextSlot(),
       }));
       return;
     }
@@ -337,14 +703,11 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
       setCurrent(normalized);
       setBrief((currentBrief) => ({
         ...currentBrief,
-        format: normalized.post_type,
-        language: normalized.content_normalized.language || currentBrief.language,
         platform: platformValueFromRaw(normalized.platforms || fallbackPlatforms),
-        cta: currentBrief.cta || normalized.content_normalized.cta || "",
-        schedule: normalized.scheduled_time ? localDateTime(normalized.scheduled_time) : currentBrief.schedule,
+        schedule: normalized.scheduled_time ? localDateTime(normalized.scheduled_time) : nextSlot(),
       }));
     } catch (_error) {
-      setCurrent(normalizeStudioItem({
+      const fallbackItem = normalizeStudioItem({
         id: target,
         content_id: target,
         post_type: "post",
@@ -353,7 +716,13 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
         scheduled_time: meta?.scheduled_time,
         published_at: meta?.published_at,
         platforms: meta?.platforms || fallbackPlatforms,
-      }, fallbackPlatforms));
+      }, fallbackPlatforms);
+      setCurrent(fallbackItem);
+      setBrief((currentBrief) => ({
+        ...currentBrief,
+        platform: platformValueFromRaw(fallbackItem.platforms || fallbackPlatforms),
+        schedule: fallbackItem.scheduled_time ? localDateTime(fallbackItem.scheduled_time) : nextSlot(),
+      }));
     }
   }, []);
 
@@ -367,34 +736,6 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
       setPreviewSurface((surfaces[0] || "facebook") as "facebook" | "instagram");
     }
   }, [brief.platform, previewSurface]);
-
-  useEffect(() => {
-    if (current && !current.id && !hasMeaningfulContent(current)) {
-      const nextCta = current.content_normalized.cta || brief.cta || "";
-      const requiresSync =
-        current.post_type !== brief.format
-        || current.platforms !== brief.platform
-        || current.content_normalized.format !== brief.format
-        || current.content_normalized.language !== brief.language
-        || (current.content_normalized.cta || "") !== nextCta;
-
-      if (!requiresSync) {
-        return;
-      }
-
-      setCurrent({
-        ...current,
-        post_type: brief.format,
-        platforms: brief.platform,
-        content_normalized: {
-          ...current.content_normalized,
-          format: brief.format,
-          language: brief.language,
-          cta: nextCta,
-        },
-      });
-    }
-  }, [brief.cta, brief.format, brief.language, brief.platform, current]);
 
   const filteredItems = useMemo(() => {
     const source = collections[tab] || [];
@@ -480,6 +821,41 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
     setCurrentContent({ points });
   }, [setCurrentContent]);
 
+  const setTemplateField = useCallback(<K extends keyof StudioTemplateDesign>(field: K, value: StudioTemplateDesign[K]) => {
+    setTemplate((currentTemplate) => ({ ...currentTemplate, [field]: value }));
+  }, []);
+
+  const saveTemplateDefaults = useCallback(async () => {
+    if (savingTemplate) return;
+    setSavingTemplate(true);
+    try {
+      const payload = {
+        brandName: template.brandName,
+        socialHandle: template.socialHandle,
+        backgroundDensity: template.backgroundDensity,
+        mediaWidth: template.mediaWidth,
+        mediaZoom: template.mediaZoom,
+        mediaOffsetX: template.mediaOffsetX,
+        mediaOffsetY: template.mediaOffsetY,
+        mediaFit: template.mediaFit,
+        showSocialStrip: template.showSocialStrip,
+        showBrandBadge: template.showBrandBadge,
+      };
+      const response = await apiCall<{ success: boolean; template_defaults: Record<string, unknown> }>("/api/studio/template-settings", "POST", payload);
+      const normalized = normalizeTemplateDefaults(response.template_defaults);
+      setTemplate((currentTemplate) => ({
+        ...currentTemplate,
+        ...normalized,
+      }));
+      push(translator.tr("Template defaults saved."));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : translator.tr("Could not save template defaults.");
+      push(translator.maybeTr(message), "error");
+    } finally {
+      setSavingTemplate(false);
+    }
+  }, [push, savingTemplate, template, translator]);
+
   const withBusy = useCallback(async (work: () => Promise<void>) => {
     if (busy) return;
     setBusy(true);
@@ -534,7 +910,7 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
           format: brief.format,
           language: brief.language,
           tone: brief.tone,
-          topic: briefPrompt(brief, nicheMeta.label, nicheMeta.keywords, translator),
+          topic: `${briefPrompt(brief, nicheMeta.label, nicheMeta.keywords, translator)}\n\n${buildTemplateAutomationNote(template, translator)}`,
         },
       );
       setCurrent({
@@ -553,7 +929,7 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
       });
       setFeedback(translator.tr("Preview generated. Inspect the final publish surface, then save, review, schedule, or publish."));
     });
-  }, [brief, nicheMeta.keywords, nicheMeta.label, push, translator, withBusy]);
+  }, [brief, nicheMeta.keywords, nicheMeta.label, push, template, translator, withBusy]);
 
   const handleRegenerate = useCallback(async () => {
     if (!current) {
@@ -562,29 +938,38 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
     }
 
     await withBusy(async () => {
-      if (current.id) {
-        const result = await apiCall<{ success: boolean; content: StudioItem["content_normalized"] }>(
-          `/api/content/${current.id}/regenerate`,
-          "POST",
-          { instruction: regenerationPrompt(brief), tone: brief.tone },
-        );
-        setCurrent({
-          ...current,
-          content_normalized: {
-            ...result.content,
-            format: (result.content.format || current.post_type) as StudioBrief["format"],
-            hashtags: Array.isArray(result.content.hashtags) ? result.content.hashtags : [],
-            slides: Array.isArray(result.content.slides) ? result.content.slides : [],
-            frames: Array.isArray(result.content.frames) ? result.content.frames : [],
-            points: Array.isArray(result.content.points) ? result.content.points : [],
-          },
-        });
-        push(translator.tr("Preview regenerated."));
+      if (!hasMeaningfulContent(current)) {
+        await handleGenerate();
         return;
       }
-      await handleGenerate();
+
+      const currentFormat = String(current.content_normalized.format || current.post_type || brief.format || "post").toLowerCase() as StudioBrief["format"];
+      const result = await apiCall<{ success: boolean; content_id?: string | null; content: StudioItem["content_normalized"] }>(
+        "/api/studio/regenerate",
+        "POST",
+        {
+          content_id: current.id || undefined,
+          format: currentFormat,
+          content: current.content_normalized,
+          instruction: `${regenerationPrompt(brief)}\n\n${buildTemplateAutomationNote(template, translator)}`,
+          tone: brief.tone,
+        },
+      );
+      setCurrent({
+        ...current,
+        post_type: currentFormat,
+        content_normalized: {
+          ...result.content,
+          format: (result.content.format || currentFormat) as StudioBrief["format"],
+          hashtags: Array.isArray(result.content.hashtags) ? result.content.hashtags : [],
+          slides: Array.isArray(result.content.slides) ? result.content.slides : [],
+          frames: Array.isArray(result.content.frames) ? result.content.frames : [],
+          points: Array.isArray(result.content.points) ? result.content.points : [],
+        },
+      });
+      push(translator.tr("Preview regenerated."));
     });
-  }, [brief, current, handleGenerate, push, translator, withBusy]);
+  }, [brief, current, handleGenerate, push, template, translator, withBusy]);
 
   const handlePrimaryAction = useCallback(async () => {
     if (!current) {
@@ -679,6 +1064,7 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
 
   const currentStatus = String(current?.status || "draft_only").toLowerCase();
   const currentFormat = String(current?.post_type || current?.content_normalized.format || "post").toLowerCase();
+  const activePreviewFormat = current ? currentFormat : brief.format;
   const primaryLabel = currentStatus === "scheduled"
     ? translator.tr("Update Schedule")
     : currentStatus === "waiting_approval"
@@ -720,36 +1106,31 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
   ];
 
   const warningItems = [
-    status.can_post === false ? {
-      kind: "warn",
-      title: translator.tr("Publishing blocked"),
-      copy: translator.maybeTr(String(status.post_reason || "The account is not ready to publish right now.")),
-    } : null,
     platformOptions.includes("instagram") && !page?.instagram_account_id ? {
       kind: "warn",
       title: translator.tr("Instagram missing"),
-      copy: translator.tr("Instagram is selected in the brief, but the active page does not have an Instagram account linked."),
+      copy: translator.tr("Instagram is selected for the current route, but the active page does not have an Instagram account linked."),
     } : null,
-    platformOptions.includes("instagram") && brief.format === "post" && !String(current?.content_normalized.image_path || "").trim() ? {
+    platformOptions.includes("instagram") && activePreviewFormat === "post" && !String(current?.content_normalized.image_path || "").trim() ? {
       kind: "warn",
       title: translator.tr("Instagram media gap"),
       copy: translator.tr("Instagram post previews need an image path before the publish result will match the preview."),
     } : null,
-    (brief.format === "story_sequence" || brief.format === "reel_script") ? {
+    (activePreviewFormat === "story_sequence" || activePreviewFormat === "reel_script") ? {
       kind: "warn",
       title: translator.tr("Draft-only format"),
       copy: translator.tr("Story sequences and reel scripts stay export-first in V1. Save them as drafts rather than expecting auto-publish."),
-    } : null,
-    current && !current.id ? {
-      kind: "note",
-      title: translator.tr("Preview only"),
-      copy: translator.tr("This AI result lives in the browser until you save it to the library."),
     } : null,
   ].filter(Boolean) as Array<{ kind: string; title: string; copy: string }>;
 
   const workspaceCopy = !page
     ? translator.tr("Connect a Facebook page in Channels before publishing from Studio.")
     : translator.tr("Shape the brief, preview the output, and route the best draft into review.");
+  const composerSections = [
+    { id: "idea" as const, label: translator.tr("Idea"), copy: translator.tr("Brief and generation") },
+    { id: "template" as const, label: translator.tr("Template"), copy: translator.tr("Brand and layout") },
+    { id: "copy" as const, label: translator.tr("Copy"), copy: translator.tr("Refine the output") },
+  ];
 
   const listEmptyCopy = translator.tr("This library segment is currently empty.");
   const currentContent = current?.content_normalized || null;
@@ -763,36 +1144,102 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
   const reelPointsText = currentContent
     ? joinLines((currentContent.points || []).map((point) => String(point || "")))
     : "";
+  const previewDraft = useMemo(() => {
+    if (current && hasMeaningfulContent(current)) {
+      return current;
+    }
+
+    return null;
+  }, [current]);
+
+  const templateMediaSection = (
+    <section className="cf-studio-template-group">
+      <div className="cf-studio-template-group-head">
+        <div className="cf-studio-mini-kicker">{translator.tr("Media")}</div>
+        <p className="cf-inline-note">{translator.tr("Tune how draft media sits inside the reusable creative frame.")}</p>
+      </div>
+      <div className="cf-studio-template-grid is-media">
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-media-fit">{translator.tr("Crop mode")}</label>
+          <select
+            id="cf-studio-template-media-fit"
+            className="cf-select"
+            value={template.mediaFit}
+            onChange={(event) => setTemplateField("mediaFit", event.target.value as StudioTemplateDesign["mediaFit"])}
+          >
+            <option value="contain">{translator.tr("Contain")}</option>
+            <option value="cover">{translator.tr("Cover")}</option>
+          </select>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-image-width">{translator.tr("Publication image size")}</label>
+          <input
+            id="cf-studio-template-image-width"
+            className="cf-input"
+            type="range"
+            min="40"
+            max="88"
+            step="2"
+            value={template.mediaWidth}
+            onChange={(event) => setTemplateField("mediaWidth", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.mediaWidth}%</div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-media-zoom">{translator.tr("Publication zoom")}</label>
+          <input
+            id="cf-studio-template-media-zoom"
+            className="cf-input"
+            type="range"
+            min="40"
+            max="180"
+            step="5"
+            value={template.mediaZoom}
+            onChange={(event) => setTemplateField("mediaZoom", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.mediaZoom}%</div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-media-offset-x">{translator.tr("Image horizontal position")}</label>
+          <input
+            id="cf-studio-template-media-offset-x"
+            className="cf-input"
+            type="range"
+            min="-40"
+            max="40"
+            step="2"
+            value={template.mediaOffsetX}
+            onChange={(event) => setTemplateField("mediaOffsetX", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.mediaOffsetX}%</div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-media-offset-y">{translator.tr("Image vertical position")}</label>
+          <input
+            id="cf-studio-template-media-offset-y"
+            className="cf-input"
+            type="range"
+            min="-40"
+            max="40"
+            step="2"
+            value={template.mediaOffsetY}
+            onChange={(event) => setTemplateField("mediaOffsetY", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.mediaOffsetY}%</div>
+        </div>
+      </div>
+    </section>
+  );
 
   return (
-    <section className="cf-screen cf-studio-page" data-cf-studio="">
-      <header className="cf-page-intro cf-page-intro-actions cf-studio-page-head">
-        <div>
-          <h1 className="cf-page-title">{translator.tr("Design, test, and route every post")}</h1>
-          <p className="cf-page-copy">{translator.tr("Shape the brief like a creator, run an AI preview, inspect the final publish surface, then decide what the agent should save, review, schedule, or publish.")}</p>
-        </div>
-        <div className="cf-page-intro-meta cf-studio-head-actions">
-          <button type="button" className="cf-btn-ghost cf-studio-head-drawer" id="cf-studio-library-toggle" onClick={() => setLibraryOpen((currentOpen) => !currentOpen)}>
-            <span>{translator.tr("Library")}</span>
-            <span id="cf-studio-library-count" className="cf-studio-head-count">{filteredItems.length}</span>
-          </button>
-          <button
-            type="button"
-            className="cf-btn"
-            id="cf-studio-new-draft"
-            onClick={() => {
-              setCurrent(createBlankDraft(brief));
-              setFeedback(translator.tr("New draft started. Build the brief, run the AI preview, then decide what reaches the queue."));
-              setLibraryOpen(false);
-            }}
-          >
-            {translator.tr("New Draft")}
-          </button>
-        </div>
-      </header>
-
-      <section className="cf-studio-shell" data-library-open={overlayLibrary ? String(libraryOpen) : "true"} aria-label={translator.tr("Studio")}>
-        {overlayLibrary && libraryOpen ? (
+    <section
+      className="cf-screen cf-studio-page"
+      data-cf-studio=""
+      data-cf-studio-owned="split"
+      data-studio-layout={centeredCanvasDesktop ? "centered" : desktopCanvas ? "side-preview" : "stacked"}
+    >
+      <section className="cf-studio-shell" data-library-open={String(libraryOpen)} aria-label={translator.tr("Studio")}>
+        {libraryOpen ? (
           <div className="cf-studio-library-backdrop" id="cf-studio-library-backdrop" onClick={() => setLibraryOpen(false)} />
         ) : null}
 
@@ -847,17 +1294,123 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
           </div>
         </aside>
 
-        <div className="cf-studio-stage">
-          <article className="cf-card cf-panel cf-studio-composer-card">
+        <div className="cf-studio-workarea">
+          <div
+            className={[
+              "cf-studio-stage",
+              desktopCanvas ? "is-desktop-canvas" : "",
+              centeredCanvasDesktop ? "is-centered-canvas" : "",
+              desktopCanvas && !centeredCanvasDesktop ? "is-preview-right-canvas" : "",
+            ].filter(Boolean).join(" ")}
+          >
+            {loading && !payload ? (
+              <div className="cf-studio-dashboard" aria-busy="true">
+                <ShimmerSkeleton lines={8} />
+                <ShimmerSkeleton lines={8} />
+                <ShimmerSkeleton lines={5} />
+              </div>
+            ) : null}
+            <div className="cf-studio-dashboard">
+              <div className="cf-studio-canvas-intro">
+                <div className="cf-studio-mini-kicker">{translator.tr("Studio canvas")}</div>
+                <motion.h1
+                  className="cf-studio-canvas-title"
+                  initial={{ opacity: 0, y: -8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35 }}
+                >
+                  {translator.tr("Design, test, and route every post")}
+                </motion.h1>
+                <p className="cf-inline-note cf-studio-canvas-copy">{workspaceCopy}</p>
+              </div>
+
+              <div className="cf-studio-canvas-middle">
+                <div className="cf-studio-preview-topbar">
+                  <div className="cf-studio-preview-topcopy">
+                    <div className="cf-studio-mini-kicker">{translator.tr("Preview surface")}</div>
+                    <strong>{page?.page_name || translator.tr("No active destination")}</strong>
+                  </div>
+                  <div className="cf-surface-switcher" id="cf-studio-preview-tabs" aria-label={translator.tr("Preview surface")}>
+                    {platformOptions.map((surface) => (
+                      <button
+                        key={surface}
+                        type="button"
+                        className={`cf-surface-switch-btn ${previewSurface === surface ? "is-active" : ""}`}
+                        onClick={() => setPreviewSurface(surface as "facebook" | "instagram")}
+                      >
+                        {translator.tr(surface === "instagram" ? "Instagram" : "Facebook")}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="cf-studio-canvas-controls">
+                <div className="cf-studio-canvas-actions">
+                  <button type="button" className="cf-btn-ghost cf-studio-head-drawer" id="cf-studio-library-toggle" onClick={() => setLibraryOpen((currentOpen) => !currentOpen)}>
+                    <span>{translator.tr("Library")}</span>
+                    <span id="cf-studio-library-count" className="cf-studio-head-count">{filteredItems.length}</span>
+                  </button>
+                  <NeonButton
+                    id="cf-studio-new-draft"
+                    onClick={() => {
+                      setCurrent(createBlankDraft(brief));
+                      setFeedback(translator.tr("New draft started. Build the brief, run the AI preview, then decide what reaches the queue."));
+                      setLibraryOpen(false);
+                    }}
+                  >
+                    {translator.tr("New Draft")}
+                  </NeonButton>
+                </div>
+                <div className="cf-studio-canvas-statusline">
+                  <span className="cf-studio-stat-pill">{translator.tr("{count} drafts", { count: String(collections.drafts.length) })}</span>
+                  <span className="cf-studio-stat-pill">{translator.tr("{count} in review", { count: String(collections.review.length) })}</span>
+                  <span className={`cf-studio-status-chip ${page ? "is-ready" : "is-warn"}`}>{activeStatus}</span>
+                </div>
+              </div>
+
+              <div className="cf-studio-dashboard-column cf-studio-left-column">
+          {!desktopCanvas ? (
+            <div className="cf-studio-section-switcher" role="tablist" aria-label={translator.tr("Studio sections")}>
+              {composerSections.map(({ id: sectionId, label, copy }) => (
+                <button
+                  key={sectionId}
+                  type="button"
+                  className={`cf-studio-section-tab ${composerSection === sectionId ? "is-active" : ""}`}
+                  id={`cf-studio-tab-${sectionId}`}
+                  role="tab"
+                  aria-selected={composerSection === sectionId ? "true" : "false"}
+                  aria-controls={`cf-studio-panel-${sectionId}`}
+                  tabIndex={composerSection === sectionId ? 0 : -1}
+                  onClick={() => setComposerSection(sectionId)}
+                >
+                  <strong>{label}</strong>
+                  <span>{copy}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <article
+            id="cf-studio-panel-idea"
+            role="tabpanel"
+            aria-labelledby="cf-studio-tab-idea"
+            className="cf-card cf-panel cf-studio-composer-card"
+            hidden={!desktopCanvas && composerSection !== "idea"}
+            aria-hidden={!desktopCanvas && composerSection !== "idea"}
+          >
             <div className="cf-studio-panel-head cf-studio-panel-head-simple">
               <div className="cf-studio-panel-copy">
                 <div className="cf-studio-mini-kicker">{translator.tr("Creator brief")}</div>
                 <h2 className="cf-studio-panel-title">{translator.tr("Start with the post idea")}</h2>
-                <p className="cf-inline-note">{translator.tr("Choose the format, set the route, write the core idea, then run the AI preview.")}</p>
+                <p className="cf-inline-note">{translator.tr("Set the generation inputs, then run or iterate the AI preview from this brief.")}</p>
               </div>
               <div className="cf-inline-actions cf-studio-brief-toolbar">
-                <button type="button" className="cf-btn" id="cf-studio-generate" onClick={() => void handleGenerate()} disabled={busy}>{busy ? translator.tr("Working...") : translator.tr("Run AI Preview")}</button>
-                <button type="button" className="cf-btn-ghost" id="cf-studio-regenerate" onClick={() => void handleRegenerate()} disabled={busy}>{busy ? translator.tr("Working...") : translator.tr("Iterate Preview")}</button>
+                <NeonButton id="cf-studio-generate" glow busy={busy} onClick={() => void handleGenerate()} disabled={busy}>
+                  {busy ? translator.tr("Working...") : translator.tr("Run AI Preview")}
+                </NeonButton>
+                <NeonButton variant="ghost" id="cf-studio-regenerate" busy={busy} onClick={() => void handleRegenerate()} disabled={busy}>
+                  {busy ? translator.tr("Working...") : translator.tr("Iterate Preview")}
+                </NeonButton>
               </div>
             </div>
 
@@ -963,206 +1516,326 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
             </div>
           </article>
 
-          <div className="cf-studio-canvas-simple">
-            <section className="cf-studio-preview-column">
-              <article className="cf-card cf-panel cf-studio-preview-shell">
-                <div className="cf-studio-preview-hero">
-                  <div className="cf-studio-preview-hero-copy">
-                    <div className="cf-studio-mini-kicker">{translator.tr("Final preview")}</div>
-                    <div id="cf-studio-workspace-header" className="cf-studio-workspace-head" aria-live="polite">
-                      <div className="cf-studio-work-head">
-                        <div className="cf-studio-work-copy">
-                          <div className="cf-label">{translator.tr("Workspace")}</div>
-                          <h2 className="cf-studio-work-title">{page?.page_name || translator.tr("No active destination")}</h2>
-                          <div className="cf-inline-note">{workspaceCopy}</div>
+          <article
+            id="cf-studio-panel-template"
+            role="tabpanel"
+            aria-labelledby="cf-studio-tab-template"
+            className="cf-card cf-panel cf-studio-template-card"
+            hidden={!desktopCanvas && composerSection !== "template"}
+            aria-hidden={!desktopCanvas && composerSection !== "template"}
+          >
+            <div className="cf-studio-panel-head cf-studio-panel-head-simple">
+              <div className="cf-studio-panel-copy">
+                <div className="cf-studio-mini-kicker">{translator.tr("Template builder")}</div>
+                <h2 className="cf-studio-panel-title">{translator.tr("Shape the creative system")}</h2>
+                <p className="cf-inline-note">{translator.tr("Lock the brand markers, framing, and reusable layout defaults that guide every new draft.")}</p>
+              </div>
+              <NeonButton variant="ghost" busy={savingTemplate} onClick={() => void saveTemplateDefaults()}>
+                {savingTemplate ? translator.tr("Saving...") : translator.tr("Save Template")}
+              </NeonButton>
+            </div>
+
+            <div className="cf-studio-template-groups">
+              <section className="cf-studio-template-group">
+                <div className="cf-studio-template-group-head">
+                  <div className="cf-studio-mini-kicker">{translator.tr("Brand")}</div>
+                  <p className="cf-inline-note">{translator.tr("Set the identity markers that should stay stable across every template.")}</p>
+                </div>
+                <div className="cf-studio-template-grid">
+                  <div className="cf-field">
+                    <label className="cf-field-label" htmlFor="cf-studio-template-brand">{translator.tr("Brand or page name")}</label>
+                    <input
+                      id="cf-studio-template-brand"
+                      className="cf-input"
+                      type="text"
+                      value={template.brandName}
+                      onChange={(event) => setTemplateField("brandName", event.target.value)}
+                    />
+                  </div>
+                  <div className="cf-field">
+                    <label className="cf-field-label" htmlFor="cf-studio-template-handle">{translator.tr("Handle")}</label>
+                    <input
+                      id="cf-studio-template-handle"
+                      className="cf-input"
+                      type="text"
+                      value={template.socialHandle}
+                      onChange={(event) => setTemplateField("socialHandle", event.target.value)}
+                    />
+                  </div>
+                  <label className="cf-choice-card cf-studio-toggle-card">
+                    <input
+                      className="cf-choice-input"
+                      type="checkbox"
+                      checked={template.showSocialStrip}
+                      onChange={(event) => setTemplateField("showSocialStrip", event.target.checked)}
+                    />
+                    <div className="cf-choice-copy">
+                      <strong>{translator.tr("Show social row")}</strong>
+                      <small>{translator.tr("Add social icons and the creator handle across the template.")}</small>
+                    </div>
+                  </label>
+                  <label className="cf-choice-card cf-studio-toggle-card">
+                    <input
+                      className="cf-choice-input"
+                      type="checkbox"
+                      checked={template.showBrandBadge}
+                      onChange={(event) => setTemplateField("showBrandBadge", event.target.checked)}
+                    />
+                    <div className="cf-choice-copy">
+                      <strong>{translator.tr("Show brand badge")}</strong>
+                      <small>{translator.tr("Display the brand or page name inside the template header.")}</small>
+                    </div>
+                  </label>
+                </div>
+              </section>
+
+              <section className="cf-studio-template-group">
+                <div className="cf-studio-template-group-head">
+                  <div className="cf-studio-mini-kicker">{translator.tr("Layout")}</div>
+                  <p className="cf-inline-note">{translator.tr("Control the background density and framing balance around the draft media.")}</p>
+                </div>
+                <div className="cf-studio-template-grid">
+                  <div className="cf-field">
+                    <label className="cf-field-label" htmlFor="cf-studio-template-background-density">{translator.tr("Background density")}</label>
+                    <input
+                      id="cf-studio-template-background-density"
+                      className="cf-input"
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={template.backgroundDensity}
+                      onChange={(event) => setTemplateField("backgroundDensity", Number(event.target.value))}
+                    />
+                    <div className="cf-inline-note">{template.backgroundDensity}%</div>
+                  </div>
+                </div>
+              </section>
+
+              {!desktopCanvas ? templateMediaSection : null}
+            </div>
+          </article>
+
+              </div>
+
+              <div className="cf-studio-dashboard-column cf-studio-center-column">
+                <div className="cf-studio-preview-stack">
+                  {warningItems.length ? (
+                    <div className="cf-studio-warning-rail">
+                      {warningItems.slice(0, 3).map((warning) => (
+                        <div key={`${warning.kind}-${warning.title}`} className={`cf-warning-item ${warning.kind}`}>
+                          <div>
+                            <div className="cf-warning-title">{warning.title}</div>
+                            <div>{warning.copy}</div>
+                          </div>
                         </div>
-                        <div className="cf-studio-work-meta">
-                          <span className="cf-studio-status-chip">{activeStatus}</span>
-                          {!page ? <a className="cf-btn-ghost cf-studio-head-link" href={boot.urls.channels}>{translator.tr("Open Channels")}</a> : null}
+                      ))}
+                    </div>
+                  ) : null}
+                  <article className="cf-card cf-panel cf-studio-preview-shell">
+                    <div id="cf-studio-preview-card" className="cf-phone-mockup-wrap" aria-live="polite">
+                      <div className="cf-phone-frame">
+                        <div className="cf-phone-notch" />
+                        <div className="cf-phone-screen">
+                          <div className="cf-phone-screen-inner">
+                            {previewDraft ? (
+                              <PreviewBody
+                                current={previewDraft}
+                                surface={previewSurface}
+                                translator={translator}
+                                pageName={page?.page_name || translator.tr("Connected page")}
+                                briefPlatformLabel={platformLabel(previewDraft.platforms || brief.platform, translator)}
+                                template={template}
+                              />
+                            ) : (
+                              <EmptyState title={translator.tr("Preview unavailable")} copy={translator.tr("Run the AI preview or open a draft to inspect the final publish surface.")} />
+                            )}
+                          </div>
                         </div>
+                        <div className="cf-phone-home-bar" />
+                      </div>
+                    </div>
+                  </article>
+                </div>
+              </div>
+
+              <div className="cf-studio-dashboard-column cf-studio-right-column">
+                <article
+                  id="cf-studio-panel-copy"
+                  role="tabpanel"
+                  aria-labelledby="cf-studio-tab-copy"
+                  className="cf-card cf-panel cf-studio-editor-card"
+                  hidden={!desktopCanvas && composerSection !== "copy"}
+                  aria-hidden={!desktopCanvas && composerSection !== "copy"}
+                >
+              <div className="cf-studio-panel-head cf-studio-panel-head-simple">
+                <div className="cf-studio-panel-copy">
+                  <div className="cf-studio-mini-kicker">{translator.tr("Live editor")}</div>
+                  <h2 className="cf-studio-panel-title">{translator.tr("Adjust the draft")}</h2>
+                  <p className="cf-inline-note">{translator.tr("Edit the final draft content before it reaches review or publish.")}</p>
+                </div>
+              </div>
+              <div id="cf-studio-editor" className="cf-studio-editor-body" aria-live="polite">
+                {busy ? (
+                  <ShimmerSkeleton lines={6} />
+                ) : current ? (
+                  <div className="cf-studio-workbench">
+                    {(currentFormat === "post" || currentFormat === "reel_script") ? (
+                      <div className="cf-field">
+                        <label className="cf-field-label" htmlFor="cf-studio-editor-hook2">{translator.tr(currentFormat === "reel_script" ? "Reel hook" : "Hook")}</label>
+                        <textarea id="cf-studio-editor-hook2" className="cf-textarea cf-textarea-sm" rows={2} value={currentContent?.hook || ""} onChange={(event) => setCurrentTextField("hook", event.target.value)} />
+                      </div>
+                    ) : null}
+                    {currentFormat === "post" ? (
+                      <div className="cf-field">
+                        <label className="cf-field-label" htmlFor="cf-studio-editor-body2">{translator.tr("Body")}</label>
+                        <textarea id="cf-studio-editor-body2" className="cf-textarea" rows={6} value={currentContent?.body || ""} onChange={(event) => setCurrentTextField("body", event.target.value)} />
+                      </div>
+                    ) : null}
+                    {currentFormat === "carousel" ? (
+                      <>
+                        <div className="cf-field">
+                          <label className="cf-field-label" htmlFor="cf-studio-editor-caption2">{translator.tr("Caption")}</label>
+                          <textarea id="cf-studio-editor-caption2" className="cf-textarea cf-textarea-sm" rows={3} value={currentContent?.caption || ""} onChange={(event) => setCurrentTextField("caption", event.target.value)} />
+                        </div>
+                        <div className="cf-field">
+                          <label className="cf-field-label" htmlFor="cf-studio-editor-slides2">{translator.tr("Carousel")}</label>
+                          <textarea id="cf-studio-editor-slides2" className="cf-textarea" rows={6} placeholder="Headline | Body" value={carouselSlidesText} onChange={(event) => setCurrentSlidesFromText(event.target.value)} />
+                        </div>
+                      </>
+                    ) : null}
+                    {currentFormat === "story_sequence" ? (
+                      <div className="cf-field">
+                        <label className="cf-field-label" htmlFor="cf-studio-editor-frames2">{translator.tr("Story sequence")}</label>
+                        <textarea id="cf-studio-editor-frames2" className="cf-textarea" rows={6} value={storyFramesText} onChange={(event) => setCurrentFramesFromText(event.target.value)} />
+                      </div>
+                    ) : null}
+                    {currentFormat === "reel_script" ? (
+                      <div className="cf-field">
+                        <label className="cf-field-label" htmlFor="cf-studio-editor-points2">{translator.tr("Proof points and key points")}</label>
+                        <textarea id="cf-studio-editor-points2" className="cf-textarea" rows={6} value={reelPointsText} onChange={(event) => setCurrentPointsFromText(event.target.value)} />
+                      </div>
+                    ) : null}
+                    {(currentFormat === "post" || currentFormat === "reel_script") ? (
+                      <div className="cf-field">
+                        <label className="cf-field-label" htmlFor="cf-studio-editor-cta2">{translator.tr("Closing CTA")}</label>
+                        <textarea id="cf-studio-editor-cta2" className="cf-textarea cf-textarea-sm" rows={2} value={currentContent?.cta || ""} onChange={(event) => setCurrentTextField("cta", event.target.value)} />
+                      </div>
+                    ) : null}
+                    <div className="cf-studio-brief-grid">
+                      <div className="cf-field">
+                        <label className="cf-field-label" htmlFor="cf-studio-editor-hashtags2">{translator.tr("Hashtags")}</label>
+                        <input id="cf-studio-editor-hashtags2" className="cf-input" type="text" value={editorHashtags} onChange={(event) => setCurrentHashtags(event.target.value)} />
+                      </div>
+                      {(currentFormat === "post" || currentFormat === "carousel") ? (
+                        <div className="cf-field">
+                          <label className="cf-field-label" htmlFor="cf-studio-editor-image2">{translator.tr("Image path")}</label>
+                          <input id="cf-studio-editor-image2" className="cf-input" type="text" value={currentContent?.image_path || ""} onChange={(event) => setCurrentTextField("image_path", event.target.value)} />
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
+                  <EmptyState title={translator.tr("No draft selected")} copy={translator.tr("Choose an item from the library or create a new draft.")} />
+                )}
+              </div>
+            </article>
+                <div className="cf-studio-canvas-foot">
+            <article className="cf-card cf-panel cf-studio-publish-card">
+              <div className="cf-studio-panel-head cf-studio-panel-head-simple">
+                <div className="cf-studio-panel-copy">
+                  <div className="cf-studio-mini-kicker">{translator.tr("Action rail")}</div>
+                  <h2 className="cf-studio-panel-title">{translator.tr("Route the draft")}</h2>
+                  <p className="cf-inline-note">{translator.tr("Keep one precise publishing decision inside the same workspace.")}</p>
+                </div>
+              </div>
+              <div className="cf-studio-canvas-foot-grid">
+                <div className="cf-studio-foot-primary">
+                  <div id="cf-studio-preview-meta" className="cf-studio-route-card" aria-live="polite">
+                    <div className="cf-studio-route-head">
+                      <div>
+                        <div className="cf-route-kicker">{translator.tr("Publish route")}</div>
+                        <div className="cf-route-title">{translator.tr("{destination} via {platform}", { destination: page?.page_name || translator.tr("No active destination"), platform: platformLabel(brief.platform, translator) })}</div>
+                      </div>
+                      <span className={`cf-studio-status-chip ${current?.id ? "is-ready" : "is-warn"}`}>
+                        {current?.id ? statusLabel(current.status || "draft_only", translator) : translator.tr("Unsaved preview")}
+                      </span>
+                    </div>
+                    <div className="cf-studio-route-grid">
+                      <div>
+                        <span className="cf-label">{translator.tr("Schedule")}</span>
+                        <strong>{brief.schedule || translator.tr("Not scheduled")}</strong>
+                      </div>
+                      <div>
+                        <span className="cf-label">{translator.tr("Timezone")}</span>
+                        <strong id="cf-studio-tz-hint">{Intl.DateTimeFormat().resolvedOptions().timeZone}</strong>
                       </div>
                     </div>
                   </div>
-                  <div id="cf-studio-preview-tabs" className="cf-studio-preview-tabs" aria-live="polite">
-                    {(platformOptions.length ? platformOptions : ["facebook"]).map((surface) => (
-                      <button key={surface} type="button" className={`cf-preview-surface-toggle ${previewSurface === surface ? "is-active" : ""}`} data-preview-surface={surface} onClick={() => setPreviewSurface(surface as "facebook" | "instagram")}>
-                        {translator.tr(surface === "instagram" ? "Instagram preview" : "Facebook preview")}
-                      </button>
+                  <div className="cf-field cf-studio-foot-schedule">
+                    <label className="cf-field-label" htmlFor="cf-studio-schedule">{translator.tr("Scheduled time")}</label>
+                    <input id="cf-studio-schedule" className="cf-input" type="datetime-local" value={brief.schedule} onChange={(event: ChangeEvent<HTMLInputElement>) => setBriefField("schedule", event.target.value)} />
+                  </div>
+                  <div className="cf-action-stack cf-studio-publish-actions">
+                    <NeonButton id="cf-studio-primary-action" glow busy={busy} onClick={() => void handlePrimaryAction()} disabled={busy}>
+                      {busy ? translator.tr("Working...") : primaryLabel}
+                    </NeonButton>
+                    <NeonButton variant="ghost" id="cf-studio-secondary-action" busy={busy} onClick={() => void handleSecondaryAction()} disabled={busy || secondaryDisabled}>
+                      {busy ? translator.tr("Working...") : secondaryLabel}
+                    </NeonButton>
+                    <NeonButton variant="ghost" id="cf-studio-tertiary-action" busy={busy} onClick={() => void handleTertiaryAction()} disabled={busy}>
+                      {busy ? translator.tr("Working...") : tertiaryLabel}
+                    </NeonButton>
+                  </div>
+                </div>
+
+                <div className="cf-studio-foot-secondary">
+                  <div className="cf-studio-panel-copy cf-studio-foot-copy">
+                    <div className="cf-studio-mini-kicker">{translator.tr("Agent plan")}</div>
+                    <h3 className="cf-studio-foot-title">{translator.tr("Quick creative cues")}</h3>
+                    <p className="cf-inline-note">{translator.tr("What the agent understands from your current parameters.")}</p>
+                  </div>
+                  <div id="cf-studio-brief-summary" className="cf-studio-insights-inline" aria-live="polite">
+                    {insightCards.map((card, i) => (
+                      <motion.article
+                        key={card.title}
+                        className="cf-insight-card"
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.06 }}
+                      >
+                        <div className="cf-insight-title">{card.title}</div>
+                        <div className="cf-insight-value">{card.value}</div>
+                        <div className="cf-insight-copy">{card.copy}</div>
+                      </motion.article>
                     ))}
                   </div>
                 </div>
-
-                <div id="cf-studio-banner-stack" className="cf-studio-banner-stack" aria-live="polite">
-                  {!page ? (
-                    <div className="cf-note-block">
-                      {translator.tr("Connect a Facebook page in Channels before publishing from Studio.")}{" "}
-                      <a className="cf-inline-link" href={boot.urls.channels}>{translator.tr("Open Channels")}</a>
-                    </div>
-                  ) : null}
+              </div>
+                  </article>
                 </div>
+              </div>
 
-                <div id="cf-studio-review-meta" className="cf-studio-preview-notes">
-                  {warningItems.length ? (
-                    <div className="cf-warning-stack">
-                      {warningItems.slice(0, 2).map((warning) => (
-                        <article key={`${warning.kind}-${warning.title}`} className={`cf-warning-card ${warning.kind}`}>
-                          <div className="cf-label">{warning.title}</div>
-                          <div>{warning.copy}</div>
-                        </article>
-                      ))}
-                    </div>
-                  ) : (
-                    translator.tr("Run an AI preview to inspect the final caption, slides, and route before the agent touches Facebook or Instagram.")
-                  )}
-                </div>
-
-                <div id="cf-studio-preview-card" className="cf-preview-card" aria-live="polite">
-                  {current && hasMeaningfulContent(current) ? (
-                    <PreviewBody current={current} surface={previewSurface} translator={translator} pageName={page?.page_name || translator.tr("Connected page")} briefPlatformLabel={platformLabel(brief.platform, translator)} />
-                  ) : (
-                    <EmptyState title={translator.tr("Preview unavailable")} copy={translator.tr("Run the AI preview or open a draft to inspect the final publish surface.")} />
-                  )}
-                </div>
-              </article>
-
-              <article className="cf-card cf-panel cf-studio-editor-card">
-                <div className="cf-studio-panel-head cf-studio-panel-head-simple">
-                  <div className="cf-studio-panel-copy">
-                    <div className="cf-studio-mini-kicker">{translator.tr("Editor")}</div>
-                    <h2 className="cf-studio-panel-title">{translator.tr("Adjust the final draft")}</h2>
-                    <p className="cf-inline-note">{translator.tr("Refine the actual output before it goes to review or publish.")}</p>
-                  </div>
-                </div>
-                <div id="cf-studio-editor" aria-live="polite">
-                  {current ? (
-                    <div className="cf-studio-workbench">
-                      {(currentFormat === "post" || currentFormat === "reel_script") ? (
-                        <div className="cf-field">
-                          <label className="cf-field-label" htmlFor="cf-studio-editor-hook">{translator.tr(currentFormat === "reel_script" ? "Reel hook" : "Hook")}</label>
-                          <textarea id="cf-studio-editor-hook" className="cf-textarea cf-textarea-sm" rows={2} value={currentContent?.hook || ""} onChange={(event) => setCurrentTextField("hook", event.target.value)} />
-                        </div>
-                      ) : null}
-
-                      {currentFormat === "post" ? (
-                        <div className="cf-field">
-                          <label className="cf-field-label" htmlFor="cf-studio-editor-body">{translator.tr("Body")}</label>
-                          <textarea id="cf-studio-editor-body" className="cf-textarea" rows={6} value={currentContent?.body || ""} onChange={(event) => setCurrentTextField("body", event.target.value)} />
-                        </div>
-                      ) : null}
-
-                      {currentFormat === "carousel" ? (
-                        <>
-                          <div className="cf-field">
-                            <label className="cf-field-label" htmlFor="cf-studio-editor-caption">{translator.tr("Caption")}</label>
-                            <textarea id="cf-studio-editor-caption" className="cf-textarea cf-textarea-sm" rows={3} value={currentContent?.caption || ""} onChange={(event) => setCurrentTextField("caption", event.target.value)} />
-                          </div>
-                          <div className="cf-field">
-                            <label className="cf-field-label" htmlFor="cf-studio-editor-slides">{translator.tr("Carousel")}</label>
-                            <textarea id="cf-studio-editor-slides" className="cf-textarea" rows={6} placeholder="Headline | Body" value={carouselSlidesText} onChange={(event) => setCurrentSlidesFromText(event.target.value)} />
-                          </div>
-                        </>
-                      ) : null}
-
-                      {currentFormat === "story_sequence" ? (
-                        <div className="cf-field">
-                          <label className="cf-field-label" htmlFor="cf-studio-editor-frames">{translator.tr("Story sequence")}</label>
-                          <textarea id="cf-studio-editor-frames" className="cf-textarea" rows={6} value={storyFramesText} onChange={(event) => setCurrentFramesFromText(event.target.value)} />
-                        </div>
-                      ) : null}
-
-                      {currentFormat === "reel_script" ? (
-                        <div className="cf-field">
-                          <label className="cf-field-label" htmlFor="cf-studio-editor-points">{translator.tr("Proof points and key points")}</label>
-                          <textarea id="cf-studio-editor-points" className="cf-textarea" rows={6} value={reelPointsText} onChange={(event) => setCurrentPointsFromText(event.target.value)} />
-                        </div>
-                      ) : null}
-
-                      {(currentFormat === "post" || currentFormat === "reel_script") ? (
-                        <div className="cf-field">
-                          <label className="cf-field-label" htmlFor="cf-studio-editor-cta">{translator.tr("Closing CTA")}</label>
-                          <textarea id="cf-studio-editor-cta" className="cf-textarea cf-textarea-sm" rows={2} value={currentContent?.cta || ""} onChange={(event) => setCurrentTextField("cta", event.target.value)} />
-                        </div>
-                      ) : null}
-
-                      <div className="cf-studio-brief-grid">
-                        <div className="cf-field">
-                          <label className="cf-field-label" htmlFor="cf-studio-editor-hashtags">{translator.tr("Hashtags")}</label>
-                          <input id="cf-studio-editor-hashtags" className="cf-input" type="text" value={editorHashtags} onChange={(event) => setCurrentHashtags(event.target.value)} />
-                        </div>
-                        {(currentFormat === "post" || currentFormat === "carousel") ? (
-                          <div className="cf-field">
-                            <label className="cf-field-label" htmlFor="cf-studio-editor-image">{translator.tr("Image path")}</label>
-                            <input id="cf-studio-editor-image" className="cf-input" type="text" value={currentContent?.image_path || ""} onChange={(event) => setCurrentTextField("image_path", event.target.value)} />
-                          </div>
-                        ) : null}
+              {desktopCanvas ? (
+                <div className="cf-studio-secondary-strip">
+                  <article className="cf-card cf-panel cf-studio-template-media-card">
+                    <div className="cf-studio-panel-head cf-studio-panel-head-simple">
+                      <div className="cf-studio-panel-copy">
+                        <div className="cf-studio-mini-kicker">{translator.tr("Template media")}</div>
+                        <h2 className="cf-studio-panel-title">{translator.tr("Place the artwork")}</h2>
+                        <p className="cf-inline-note">{translator.tr("Tune the background and publication artwork so the preview stays balanced while you edit the draft.")}</p>
                       </div>
                     </div>
-                  ) : (
-                    <EmptyState title={translator.tr("No draft selected")} copy={translator.tr("Choose an item from the library or create a new draft.")} />
-                  )}
-                </div>
-              </article>
-            </section>
-
-            <aside className="cf-studio-side-rail">
-              <article className="cf-card cf-panel cf-studio-publish-card">
-                <div className="cf-studio-panel-head cf-studio-panel-head-simple">
-                  <div className="cf-studio-panel-copy">
-                    <div className="cf-studio-mini-kicker">{translator.tr("Publish route")}</div>
-                    <h2 className="cf-studio-panel-title">{translator.tr("Choose the next action")}</h2>
-                    <p className="cf-inline-note">{translator.tr("Choose what the agent should save, review, schedule, or publish.")}</p>
-                  </div>
-                </div>
-                <div id="cf-studio-preview-meta" className="cf-studio-route-card" aria-live="polite">
-                  <div className="cf-route-kicker">{translator.tr("Publish route")}</div>
-                  <div className="cf-route-title">{translator.tr("{destination} via {platform}", { destination: page?.page_name || translator.tr("No active destination"), platform: platformLabel(brief.platform, translator) })}</div>
-                  <div className="cf-studio-route-grid">
-                    <div>
-                      <span className="cf-label">{translator.tr("Schedule")}</span>
-                      <strong>{brief.schedule || translator.tr("Not scheduled")}</strong>
+                    <div className="cf-studio-template-groups cf-studio-template-groups-media">
+                      {templateMediaSection}
                     </div>
-                    <div>
-                      <span className="cf-label">{translator.tr("State")}</span>
-                      <strong>{current?.id ? statusLabel(current.status || "draft_only", translator) : translator.tr("Unsaved preview")}</strong>
-                    </div>
-                  </div>
+                  </article>
                 </div>
-                <div className="cf-field">
-                  <label className="cf-field-label" htmlFor="cf-studio-schedule">{translator.tr("Scheduled time")}</label>
-                  <input id="cf-studio-schedule" className="cf-input" type="datetime-local" value={brief.schedule} onChange={(event: ChangeEvent<HTMLInputElement>) => setBriefField("schedule", event.target.value)} />
-                  <div className="cf-tz-hint" id="cf-studio-tz-hint">{Intl.DateTimeFormat().resolvedOptions().timeZone}</div>
-                </div>
-                <div className="cf-action-stack cf-studio-publish-actions">
-                  <button type="button" className="cf-btn" id="cf-studio-primary-action" onClick={() => void handlePrimaryAction()} disabled={busy}>{busy ? translator.tr("Working...") : primaryLabel}</button>
-                  <button type="button" className="cf-btn-ghost" id="cf-studio-secondary-action" onClick={() => void handleSecondaryAction()} disabled={busy || secondaryDisabled}>{busy ? translator.tr("Working...") : secondaryLabel}</button>
-                  <button type="button" className="cf-btn-ghost cf-btn-danger-soft" id="cf-studio-tertiary-action" onClick={() => void handleTertiaryAction()} disabled={busy}>{busy ? translator.tr("Working...") : tertiaryLabel}</button>
-                </div>
-              </article>
-
-              <article className="cf-card cf-panel cf-studio-insights-card">
-                <div className="cf-studio-panel-head cf-studio-panel-head-simple">
-                  <div className="cf-studio-panel-copy">
-                    <div className="cf-studio-mini-kicker">{translator.tr("Agent plan")}</div>
-                    <h2 className="cf-studio-panel-title">{translator.tr("Quick creative cues")}</h2>
-                    <p className="cf-inline-note">{translator.tr("What the agent understands from your current parameters.")}</p>
-                  </div>
-                </div>
-                <div id="cf-studio-brief-summary" className="cf-studio-insights-list" aria-live="polite">
-                  {insightCards.map((card) => (
-                    <article key={card.title} className="cf-studio-summary-card">
-                      <div className="cf-summary-copy">
-                        <div className="cf-label">{card.title}</div>
-                        <div className="cf-summary-value">{card.value}</div>
-                      </div>
-                      <div className="cf-inline-note">{card.copy}</div>
-                    </article>
-                  ))}
-                </div>
-              </article>
-            </aside>
+              ) : null}
+            </div>
           </div>
         </div>
-      </section>
+        </section>
 
       {error && !loading && !payload ? (
         <article className="cf-card cf-panel">

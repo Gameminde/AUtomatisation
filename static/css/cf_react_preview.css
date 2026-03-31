@@ -1,0 +1,442 @@
+/* Studio preview owner.
+   This file owns the phone frame, the social-surface geometry,
+   and the template canvas inside the React Studio preview. */
+
+.cf-studio-page[data-cf-studio-owned="split"] {
+  --cf-preview-device-max-w: 282px;
+  --cf-preview-device-max-h: 568px;
+  --cf-studio-device-h: min(
+    var(--cf-preview-device-max-h),
+    calc((var(--cf-studio-rail-w) - 18px) * 676 / 336),
+    var(--cf-studio-preview-budget-h)
+  );
+  --cf-studio-device-w: min(
+    var(--cf-preview-device-max-w),
+    calc(var(--cf-studio-device-h) * 336 / 676),
+    calc(var(--cf-studio-rail-w) - 18px)
+  );
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-phone-mockup-wrap {
+  width: var(--cf-studio-device-w);
+  height: 100%;
+  max-height: var(--cf-studio-device-h);
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  margin-inline: auto;
+  padding-top: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-shell {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  min-width: 0;
+  padding: 5px 7px 7px;
+  border: 1px solid rgba(24, 22, 17, 0.05);
+  background: linear-gradient(180deg, rgba(255, 253, 249, 0.6) 0%, rgba(248, 244, 236, 0.4) 100%);
+  border-radius: 24px;
+  box-shadow: 0 3px 12px rgba(24, 22, 17, 0.025);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-phone-frame {
+  position: relative;
+  width: var(--cf-studio-device-w);
+  height: var(--cf-studio-device-h);
+  max-height: var(--cf-studio-device-h);
+  max-width: 100%;
+  min-height: 0;
+  aspect-ratio: 336 / 676;
+  transform-origin: top center;
+  border-radius: 36px;
+  border: 7px solid #1d1a16;
+  background: #11100d;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset,
+    0 18px 34px rgba(15, 12, 8, 0.18),
+    0 6px 14px rgba(15, 12, 8, 0.08);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-phone-notch {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 34%;
+  height: 22px;
+  transform: translateX(-50%);
+  border-bottom-left-radius: 16px;
+  border-bottom-right-radius: 16px;
+  background: #0d0c09;
+  z-index: 3;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-phone-screen {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  border-radius: 28px;
+  background: #ffffff;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-phone-screen-inner {
+  height: 100%;
+  overflow-y: auto;
+  padding: 18px 0 18px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior: contain;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-phone-screen-inner::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-phone-home-bar {
+  position: absolute;
+  inset-inline: 50%;
+  bottom: 7px;
+  width: 86px;
+  height: 5px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-surface {
+  background: #ffffff;
+  color: #171510;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-post-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 10px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-identity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-surface-avatar {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: #161512;
+  color: #fffef8;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-meta strong {
+  font-size: 0.78rem;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-meta span {
+  font-size: 0.62rem;
+  color: #7d7769;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-more {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-copy,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-engagement,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-comment-box,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-action-row,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-preview-footer,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-inline-note,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-icon-row {
+  padding-inline: 14px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-copy {
+  display: grid;
+  gap: 5px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-copy strong {
+  font-size: 0.75rem;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-copy span {
+  font-size: 0.69rem;
+  line-height: 1.54;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-copy.is-facebook-copy {
+  padding-top: 0;
+  padding-bottom: 10px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-copy.is-facebook-copy strong {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 0.92rem;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-copy.is-instagram-copy strong {
+  display: inline;
+  margin-inline-end: 6px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-copy.is-instagram-copy span {
+  display: inline;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-hashtag-line {
+  margin-top: 6px;
+  color: #2563eb;
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1.48;
+  word-break: break-word;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-icon-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 10px;
+  padding-bottom: 8px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-engagement {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 0.64rem;
+  color: #6f695d;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-engagement strong {
+  font-size: 0.69rem;
+  color: #171510;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-engagement.is-facebook-stats,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-engagement.is-facebook-summary {
+  border-top: 1px solid rgba(24, 22, 17, 0.06);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-engagement-primary,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-reaction-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-reaction-badges span {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  margin-inline-end: -4px;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(20, 18, 14, 0.12);
+  color: #ffffff;
+  font-size: 0.54rem;
+  line-height: 1;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-reaction-badges .is-like {
+  background: #1877f2;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-reaction-badges .is-love {
+  background: #ef4444;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-inline-note {
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 0.64rem;
+  color: #6f695d;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-comment-box {
+  min-height: 34px;
+  padding-top: 9px;
+  padding-bottom: 10px;
+  border-top: 1px solid rgba(24, 22, 17, 0.08);
+  font-size: 0.66rem;
+  color: #898376;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-action-row {
+  min-height: 38px;
+  border-top: 1px solid rgba(24, 22, 17, 0.08);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-action-text {
+  min-height: 38px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #666055;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-media.is-facebook,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-social-media.is-portrait {
+  aspect-ratio: 4 / 5;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px 14px 22px;
+  overflow: hidden;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-overlay {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, calc(0.03 + (var(--cf-template-bg-density, 0.48) * 0.08))) 0%,
+    rgba(0, 0, 0, calc(0.16 + (var(--cf-template-bg-density, 0.48) * 0.24))) 100%
+  );
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-bg,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-overlay {
+  z-index: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-bg {
+  background-position: center center;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-layer-guides {
+  z-index: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-safe-guides {
+  inset: 16px;
+  border-radius: 18px;
+  opacity: 0.32;
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-safe-guide {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-layer-social,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-layer-brand,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-layer-title {
+  z-index: 2;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-social-strip,
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-brand-badge {
+  font-size: 0.56rem;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-layer-media {
+  z-index: 1;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-frame {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38%;
+  max-width: 82%;
+  margin: 12px auto 64px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-frame img {
+  filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.14));
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-placeholder {
+  min-height: 148px;
+  padding: 18px 14px;
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.64rem;
+  line-height: 1.4;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-title-block {
+  display: grid;
+  gap: 6px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-title-block h3 {
+  max-width: 8.5ch;
+  line-height: 0.92;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-title-block p {
+  max-width: 22ch;
+  font-size: 0.68rem;
+  line-height: 1.45;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-brand-badge {
+  max-width: 48%;
+  padding: 8px 10px;
+  background: rgba(24, 22, 17, 0.66);
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-brand-badge strong {
+  font-size: 0.68rem;
+  line-height: 1.24;
+}
+
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-social-copy,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-social-inline-note,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-social-engagement,
+body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-social-comment-box {
+  text-align: right;
+}
+
+@media (max-width: 1279px) {
+  .cf-studio-page[data-cf-studio-owned="split"] {
+    --cf-studio-device-w: min(var(--cf-preview-device-max-w), calc(100vw - 48px));
+    --cf-studio-device-h: min(
+      var(--cf-preview-device-max-h),
+      calc(var(--cf-studio-device-w) * 676 / 336)
+    );
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-phone-mockup-wrap {
+    width: min(100%, var(--cf-studio-device-w));
+  }
+
+  .cf-studio-page[data-cf-studio-owned="split"] .cf-phone-frame {
+    width: min(100%, var(--cf-studio-device-w));
+  }
+}

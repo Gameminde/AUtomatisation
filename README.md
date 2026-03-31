@@ -46,9 +46,10 @@ The current branch ships these user-facing surfaces:
   - queue and publish health
   - destination readiness
 - Studio
-  - creator brief
-  - AI preview
-  - draft editing
+  - creator brief for generation and iteration inputs
+  - single preview rail
+  - live draft editing
+  - template builder for reusable visual defaults
   - save / review / schedule / publish actions
 - Channels
   - connected page list
@@ -87,6 +88,25 @@ V1 publishing behavior is intentionally split:
   - `reel_script`
 
 That means story sequences and reel scripts can be created and stored in Studio, but they are not treated as normal auto-publish surfaces in the current V1 workflow.
+
+### Studio interaction contract
+
+The current Studio implementation is intentionally split into three non-overlapping responsibilities:
+
+- `Creator Brief`
+  - prompt-only inputs for generation and iteration
+  - format, route, tone, topic, angle, audience, proof, CTA, and iteration note
+  - does not act as a second content editor
+- `Live Editor`
+  - the only editable source of final draft content
+  - hook, body, caption, CTA, hashtags, image path, carousel slides, story frames, and reel points
+  - the preview reads from the current draft state instead of synthesizing copy from the brief
+- `Template Builder`
+  - reusable design defaults only
+  - brand markers, social strip, brand badge, framing, crop, scale, density, and media positioning
+  - no duplicate template title/subtitle content layer
+
+This separation is enforced in the React Studio route and in the Studio API so that generation, editing, and reusable design no longer compete as parallel sources of truth.
 
 ## What is intentionally not in V1
 
@@ -226,8 +246,25 @@ Key pieces:
   - [`web/src/lib/i18n.ts`](web/src/lib/i18n.ts)
 - React-specific style layer:
   - [`static/css/cf_react.css`](static/css/cf_react.css)
+  - [`static/css/cf_react_studio.css`](static/css/cf_react_studio.css)
+  - [`static/css/cf_react_preview.css`](static/css/cf_react_preview.css)
 
 The root monorepo wrapper [`package.json`](package.json) exposes convenience scripts and delegates to [`web/package.json`](web/package.json).
+
+### Studio design ownership
+
+The Studio page now has explicit frontend ownership boundaries:
+
+- [`web/src/routes/StudioPage.tsx`](web/src/routes/StudioPage.tsx)
+  - Studio DOM structure, panel contracts, and page-level orchestration
+- [`static/css/cf_react_studio.css`](static/css/cf_react_studio.css)
+  - Studio grid, spacing, surfaces, panel layout, and desktop/mobile geometry
+- [`static/css/cf_react_preview.css`](static/css/cf_react_preview.css)
+  - phone frame, preview rail internals, and template-canvas rendering rules
+- [`static/css/cf_react.css`](static/css/cf_react.css)
+  - shared React primitives only; it should not be treated as the primary owner of split-Studio layout
+
+If a Studio visual change is needed, start in `StudioPage.tsx`, `cf_react_studio.css`, or `cf_react_preview.css` before touching the broader shared stylesheet.
 
 ### Legacy compatibility frontend
 

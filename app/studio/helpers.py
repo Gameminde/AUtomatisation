@@ -393,6 +393,13 @@ def _regenerate_existing_content(content_row: Dict[str, Any], instruction: str, 
     )
     raw_response = run_ai_generation(prompt, runtime_profile, max_tokens=1536 if content_format == "carousel" else 1024, temperature=0.7)
     regenerated = _normalize_generated_content(content_format=content_format, raw_response=raw_response, language=runtime_profile.content_language)
-    update_payload = _build_record_payload(content_format=content_format, content=regenerated, status="draft_only", article_id=str(content_row.get("article_id") or ""), user_id=user_id)
-    _client().table("processed_content").update(update_payload).eq("id", content_row["id"]).eq("user_id", user_id).execute()
+    if content_row.get("id"):
+        update_payload = _build_record_payload(
+            content_format=content_format,
+            content=regenerated,
+            status="draft_only",
+            article_id=str(content_row.get("article_id") or ""),
+            user_id=user_id,
+        )
+        _client().table("processed_content").update(update_payload).eq("id", content_row["id"]).eq("user_id", user_id).execute()
     return regenerated

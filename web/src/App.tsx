@@ -5,7 +5,9 @@ import { fetchBootstrap, BootstrapResponse } from "./lib/api";
 import { AppPage, BootPayload, Locale, getBoot, normalizeLocale } from "./lib/boot";
 import { applyDocumentLocale, createTranslator } from "./lib/i18n";
 import { AppShell } from "./ui/AppShell";
+import { CinematicBackground } from "./ui/CinematicBackground";
 import { ToastProvider, useToast } from "./ui/ToastProvider";
+import { PageTransition } from "./ui/primitives";
 import { DashboardPage } from "./routes/DashboardPage";
 import { StudioPage } from "./routes/StudioPage";
 import { ChannelsPage } from "./routes/ChannelsPage";
@@ -36,6 +38,7 @@ function ShellApp({ boot }: { boot: BootPayload }) {
   const [error, setError] = useState<string | null>(null);
   const { push } = useToast();
   const page = useCurrentPage(boot);
+  const location = useLocation();
 
   const translator = useMemo(() => createTranslator(boot.i18nCatalog, locale), [boot.i18nCatalog, locale]);
 
@@ -106,30 +109,32 @@ function ShellApp({ boot }: { boot: BootPayload }) {
       shell={(data?.shell as Record<string, unknown>) || null}
       onLocaleChange={handleLocaleChange}
     >
-      <Routes>
-        <Route
-          path={boot.urls.dashboard}
-          element={<DashboardPage boot={boot} translator={translator} loading={loading} error={error} payload={data} refresh={refresh} />}
-        />
-        <Route
-          path={boot.urls.studio}
-          element={<StudioPage boot={boot} translator={translator} loading={loading} error={error} payload={data} refresh={refresh} />}
-        />
-        <Route
-          path={boot.urls.channels}
-          element={<ChannelsPage boot={boot} translator={translator} loading={loading} error={error} payload={data} refresh={refresh} />}
-        />
-        <Route
-          path={boot.urls.settings}
-          element={<SettingsPage boot={boot} translator={translator} loading={loading} error={error} payload={data} refresh={refresh} onLocaleChange={handleLocaleChange} />}
-        />
-        <Route
-          path={boot.urls.diagnostics}
-          element={<DiagnosticsPage boot={boot} translator={translator} loading={loading} error={error} payload={data} refresh={refresh} />}
-        />
-        <Route path="/" element={<Navigate to={boot.urls.dashboard} replace />} />
-        <Route path="*" element={<Navigate to={boot.urls.dashboard} replace />} />
-      </Routes>
+      <PageTransition pageKey={location.pathname}>
+        <Routes>
+          <Route
+            path={boot.urls.dashboard}
+            element={<DashboardPage boot={boot} translator={translator} loading={loading} error={error} payload={data} refresh={refresh} />}
+          />
+          <Route
+            path={boot.urls.studio}
+            element={<StudioPage boot={boot} translator={translator} loading={loading} error={error} payload={data} refresh={refresh} />}
+          />
+          <Route
+            path={boot.urls.channels}
+            element={<ChannelsPage boot={boot} translator={translator} loading={loading} error={error} payload={data} refresh={refresh} />}
+          />
+          <Route
+            path={boot.urls.settings}
+            element={<SettingsPage boot={boot} translator={translator} loading={loading} error={error} payload={data} refresh={refresh} onLocaleChange={handleLocaleChange} />}
+          />
+          <Route
+            path={boot.urls.diagnostics}
+            element={<DiagnosticsPage boot={boot} translator={translator} loading={loading} error={error} payload={data} refresh={refresh} />}
+          />
+          <Route path="/" element={<Navigate to={boot.urls.dashboard} replace />} />
+          <Route path="*" element={<Navigate to={boot.urls.dashboard} replace />} />
+        </Routes>
+      </PageTransition>
     </AppShell>
   );
 }
@@ -140,6 +145,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ToastProvider>
+        <CinematicBackground />
         <ShellApp boot={boot} />
       </ToastProvider>
     </BrowserRouter>

@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Optional
 
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 import config
-from app.utils import api_login_required
+from app.utils import api_login_required, get_user_settings, require_user_settings_update
 from . import content as content_impl
 from . import helpers as helpers_impl
 from . import payloads as payloads_impl
@@ -72,6 +73,50 @@ def _api_error(message: str, status: int = 400, **payload):
     data = {"success": False, "error": message}
     data.update(payload)
     return jsonify(data), status
+
+
+def _normalize_template_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
+    normalized: Dict[str, Any] = {}
+
+    def _bounded_number(key: str, minimum: int, maximum: int) -> None:
+        if key not in data:
+            return
+        try:
+            value = int(float(data.get(key)))
+        except (TypeError, ValueError):
+            return
+        normalized[key] = max(minimum, min(maximum, value))
+
+    for key in ("brandName", "socialHandle"):
+        if key in data:
+            normalized[key] = str(data.get(key) or "").strip()[:160]
+
+    _bounded_number("backgroundDensity", 0, 100)
+    _bounded_number("mediaWidth", 30, 100)
+    _bounded_number("mediaZoom", 40, 180)
+    _bounded_number("mediaOffsetX", -40, 40)
+    _bounded_number("mediaOffsetY", -40, 40)
+
+    media_fit = str(data.get("mediaFit") or "").strip()
+    if media_fit in {"contain", "cover"}:
+        normalized["mediaFit"] = media_fit
+
+    for key in ("showSocialStrip", "showBrandBadge"):
+        if key in data:
+            normalized[key] = bool(data.get(key))
+
+    return normalized
+
+
+def _load_template_defaults_for_user(user_id: str) -> Dict[str, Any]:
+    raw = str((get_user_settings(user_id) or {}).get("studio_template_defaults") or "").strip()
+    if not raw:
+        return {}
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return {}
+    return _normalize_template_defaults(parsed if isinstance(parsed, dict) else {})
 
 
 def _wire_module_dependencies() -> None:
@@ -169,6 +214,23 @@ def studio_regenerate():
 @api_login_required
 def studio_save_draft():
     return workflow_impl.studio_save_draft()
+
+
+@studio_bp.route("/api/studio/template-settings", methods=["GET", "POST"])
+@api_login_required
+def studio_template_settings():
+    if request.method == "GET":
+        return _api_success(template_defaults=_load_template_defaults_for_user(current_user.id))
+
+    normalized = _normalize_template_defaults(_resolve_request_data())
+    try:
+        require_user_settings_update(
+            current_user.id,
+            {"studio_template_defaults": json.dumps(normalized, ensure_ascii=False)},
+        )
+    except RuntimeError as exc:
+        return _api_error(str(exc), 500)
+    return _api_success(template_defaults=normalized)
 
 
 @studio_bp.route("/api/studio/approve", methods=["POST"])

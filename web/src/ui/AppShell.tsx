@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 
 import { AppPage, BootPayload, Locale } from "../lib/boot";
 import { Translator } from "../lib/i18n";
@@ -30,6 +31,14 @@ type ShellPayload = {
 function cn(...parts: Array<string | false | null | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
+
+const navItems: Array<{ page: AppPage; icon: string; label: string; urlKey: keyof BootPayload["urls"] }> = [
+  { page: "dashboard", icon: "fa-house", label: "Dashboard", urlKey: "dashboard" },
+  { page: "studio", icon: "fa-wand-magic-sparkles", label: "Studio", urlKey: "studio" },
+  { page: "channels", icon: "fa-satellite-dish", label: "Channels", urlKey: "channels" },
+  { page: "settings", icon: "fa-gear", label: "Settings", urlKey: "settings" },
+  { page: "diagnostics", icon: "fa-stethoscope", label: "Diagnostics", urlKey: "diagnostics" },
+];
 
 export function AppShell({
   boot,
@@ -64,9 +73,7 @@ export function AppShell({
       }
     };
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setUserMenuOpen(false);
-      }
+      if (event.key === "Escape") setUserMenuOpen(false);
     };
     document.addEventListener("click", handleClick);
     document.addEventListener("keydown", handleEscape);
@@ -80,7 +87,6 @@ export function AppShell({
   const status = shell?.status || {};
   const requiredSteps = (setup.steps || []).filter((step) => !step.optional);
   const completedRequired = requiredSteps.filter((step) => step.completed).length;
-  const nextStep = (setup.steps || []).find((step) => step.id === setup.next_required_step);
   const score = useMemo(() => {
     if (!setup.all_required_complete) {
       return requiredSteps.length ? Math.round((completedRequired / requiredSteps.length) * 100) : 100;
@@ -88,11 +94,9 @@ export function AppShell({
     if (status.can_post) return 100;
     return status.ban_detector?.status === "watch" ? 74 : 62;
   }, [completedRequired, requiredSteps.length, setup.all_required_complete, status.ban_detector?.status, status.can_post]);
-  const kicker = !setup.all_required_complete
-    ? translator.tr("Setup required")
-    : status.can_post
-      ? translator.tr("Publishing ready")
-      : translator.tr("Action needed");
+
+  const setupReady = setup.all_required_complete && status.can_post;
+  const showSetupBar = !sidebarCollapsed && page === "dashboard" && !setupReady;
   const pageTitles: Record<AppPage, string> = {
     dashboard: translator.tr("Dashboard"),
     studio: translator.tr("Studio"),
@@ -103,67 +107,117 @@ export function AppShell({
   const pageTitle = pageTitles[page];
 
   return (
-    <div className="cf-shell">
-      <aside className="cf-sidebar" aria-label="Primary">
+    <div className={cn("cf-shell", sidebarCollapsed && "is-sidebar-collapsed")} data-app-page={page}>
+      <motion.aside
+        className="cf-sidebar"
+        aria-label={translator.tr("Primary navigation")}
+        animate={sidebarCollapsed ? { width: "var(--sidebar-w-collapsed)" } : { width: "var(--sidebar-w)" }}
+        transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+      >
         <div className="cf-sidebar-head">
           <a className="cf-brand" href={boot.urls.dashboard}>
             <span className="cf-brand-mark">CF</span>
-            <span className="cf-brand-copy">
-              <span className="cf-brand-title">Content Factory</span>
-              <span className="cf-brand-sub">{translator.tr("Editorial control for Facebook and Instagram")}</span>
-            </span>
+            <AnimatePresence>
+              {!sidebarCollapsed ? (
+                <motion.span
+                  className="cf-brand-copy"
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: "auto" }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <span className="cf-brand-title">Content Factory</span>
+                </motion.span>
+              ) : null}
+            </AnimatePresence>
           </a>
           <button
             type="button"
             className="cf-sidebar-toggle"
-            id="cf-sidebar-toggle"
             aria-label={translator.tr("Toggle rail")}
-            title={translator.tr("Toggle rail")}
             aria-pressed={sidebarCollapsed ? "true" : "false"}
             onClick={() => setSidebarCollapsed((current) => !current)}
           >
-            <i className={cn("fa-solid", sidebarCollapsed ? "fa-angles-right" : "fa-angles-left")} id="cf-sidebar-toggle-icon" />
+            <i className={cn("fa-solid", sidebarCollapsed ? "fa-angles-right" : "fa-angles-left")} />
           </button>
         </div>
 
-        <section className="cf-sidebar-hero">
-          <div className="cf-sidebar-kicker" id="cf-shell-kicker">{kicker}</div>
-          <div className="cf-sidebar-statement">
-            <div className="cf-sidebar-value" id="cf-shell-score">{score}%</div>
-            <p className="cf-sidebar-copy" id="cf-shell-score-copy">
-              {translator.maybeTr(status.post_reason || "Finish setup to unlock publishing.")}
-            </p>
-          </div>
-        </section>
-      </aside>
+        <nav className="cf-sidebar-nav" aria-label={translator.tr("Primary")}>
+          {navItems.map(({ page: navPage, icon, label, urlKey }) => (
+            <NavLink
+              key={navPage}
+              to={boot.urls[urlKey]}
+              className={({ isActive }) => cn("cf-sidebar-nav-link", (isActive || page === navPage) && "is-active")}
+              title={sidebarCollapsed ? translator.tr(label) : undefined}
+            >
+              <i className={cn("fa-solid", icon, "cf-sidebar-nav-icon")} />
+              <AnimatePresence>
+                {!sidebarCollapsed ? (
+                  <motion.span
+                    className="cf-sidebar-nav-label"
+                    initial={{ opacity: 0, width: 0 }}
+                    animate={{ opacity: 1, width: "auto" }}
+                    exit={{ opacity: 0, width: 0 }}
+                    transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    {translator.tr(label)}
+                  </motion.span>
+                ) : null}
+              </AnimatePresence>
+            </NavLink>
+          ))}
+        </nav>
+
+        <div className="cf-sidebar-foot">
+          <AnimatePresence>
+            {showSetupBar ? (
+              <motion.div
+                className="cf-sidebar-setup-bar"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+              >
+                <div className="cf-sidebar-setup-label">{translator.tr("Setup {score}%", { score })}</div>
+                <div className="cf-sidebar-setup-track">
+                  <motion.div
+                    className="cf-sidebar-setup-fill"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${score}%` }}
+                    transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+                  />
+                </div>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
+
+          <a className={cn("cf-sidebar-cta", sidebarCollapsed && "is-icon-only")} href={boot.urls.studio} title={translator.tr("New Post")}>
+            <i className="fa-solid fa-plus" />
+            <AnimatePresence>
+              {!sidebarCollapsed ? (
+                <motion.span
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: "auto" }}
+                  exit={{ opacity: 0, width: 0 }}
+                  transition={{ duration: 0.18 }}
+                >
+                  {translator.tr("New Post")}
+                </motion.span>
+              ) : null}
+            </AnimatePresence>
+          </a>
+        </div>
+      </motion.aside>
 
       <main className="cf-main">
         <header className="cf-topbar">
           <div className="cf-topbar-left">
-            <nav className="cf-topnav" aria-label="Primary navigation">
-              <NavLink to={boot.urls.dashboard} className={({ isActive }) => cn("cf-topnav-link", isActive && "is-active")}>
-                <span>{translator.tr("Dashboard")}</span>
-              </NavLink>
-              <NavLink to={boot.urls.studio} className={({ isActive }) => cn("cf-topnav-link", isActive && "is-active")}>
-                <span>{translator.tr("Studio")}</span>
-              </NavLink>
-              <NavLink to={boot.urls.channels} className={({ isActive }) => cn("cf-topnav-link", isActive && "is-active")}>
-                <span>{translator.tr("Channels")}</span>
-              </NavLink>
-              <NavLink to={boot.urls.settings} className={({ isActive }) => cn("cf-topnav-link", isActive && "is-active")}>
-                <span>{translator.tr("Settings")}</span>
-              </NavLink>
-              <NavLink to={boot.urls.diagnostics} className={({ isActive }) => cn("cf-topnav-link", isActive && "is-active")}>
-                <span>{translator.tr("Diagnostics")}</span>
-              </NavLink>
-            </nav>
+            <span className="cf-topbar-page-title">{pageTitle}</span>
           </div>
-
           <div className="cf-topbar-right">
             <span className="cf-live">{translator.tr("Live")}</span>
             <select
               className="cf-lang"
-              id="cf-system-language"
               aria-label={translator.tr("System language")}
               value={locale}
               onChange={(event) => onLocaleChange(event.target.value as Locale)}
@@ -176,14 +230,13 @@ export function AppShell({
               <button
                 type="button"
                 className="cf-user-btn"
-                id="cf-user-menu"
                 aria-expanded={userMenuOpen ? "true" : "false"}
                 aria-haspopup="true"
                 onClick={() => setUserMenuOpen((current) => !current)}
               >
                 {boot.user.email || translator.tr("Account")}
               </button>
-              <div className="cf-user-popover" id="cf-user-popover" hidden={!userMenuOpen}>
+              <div className="cf-user-popover" hidden={!userMenuOpen}>
                 <div className="cf-user-popover-label">{translator.tr("Account")}</div>
                 <a href={boot.urls.diagnostics} className="cf-user-popover-link" onClick={() => setUserMenuOpen(false)}>
                   {translator.tr("Diagnostics")}
@@ -199,47 +252,15 @@ export function AppShell({
           </div>
         </header>
 
-        <section className="cf-context-bar">
-          <div className="cf-context-primary">
-            <div className="cf-breadcrumb" id="cf-breadcrumb">
-              <span className="cf-label">{translator.tr("Workspace")}</span>
-              <span className="cf-breadcrumb-sep">/</span>
-              <span className="cf-breadcrumb-current">{pageTitle}</span>
-            </div>
-          </div>
-          <div className="cf-context-secondary">
-            {!setup.all_required_complete && nextStep ? (
-              <button
-                type="button"
-                className="cf-setup-inline"
-                id="cf-setup-inline"
-                onClick={() => window.location.assign(nextStep.action_url || boot.urls.settings)}
-              >
-                <span className="cf-label" id="cf-setup-step">
-                  {translator.tr("Step {current} of {total}", {
-                    current: completedRequired + 1,
-                    total: Math.max(requiredSteps.length, 1),
-                  })}
-                </span>
-                <span id="cf-setup-text">{translator.maybeTr(nextStep.description || nextStep.label)}</span>
-              </button>
-            ) : null}
-          </div>
-        </section>
-
         <section className="cf-content">{children}</section>
       </main>
 
-      <nav className="cf-dock" aria-label="Primary mobile navigation">
-        <NavLink to={boot.urls.dashboard} className={({ isActive }) => cn("cf-dock-link", isActive && "is-active")}>
-          {translator.tr("Dashboard")}
-        </NavLink>
-        <NavLink to={boot.urls.studio} className={({ isActive }) => cn("cf-dock-link", isActive && "is-active")}>
-          {translator.tr("Studio")}
-        </NavLink>
-        <NavLink to={boot.urls.channels} className={({ isActive }) => cn("cf-dock-link", isActive && "is-active")}>{translator.tr("Channels")}</NavLink>
-        <NavLink to={boot.urls.settings} className={({ isActive }) => cn("cf-dock-link", isActive && "is-active")}>{translator.tr("Settings")}</NavLink>
-        <NavLink to={boot.urls.diagnostics} className={({ isActive }) => cn("cf-dock-link", isActive && "is-active")}>{translator.tr("Diagnostics")}</NavLink>
+      <nav className="cf-dock" aria-label={translator.tr("Primary mobile navigation")}>
+        {navItems.map(({ page: navPage, label, urlKey }) => (
+          <NavLink key={navPage} to={boot.urls[urlKey]} className={({ isActive }) => cn("cf-dock-link", (isActive || page === navPage) && "is-active")}>
+            {translator.tr(label)}
+          </NavLink>
+        ))}
       </nav>
     </div>
   );

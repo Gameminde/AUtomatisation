@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { BootPayload } from "../lib/boot";
@@ -25,8 +25,8 @@ const boot: BootPayload = {
 };
 
 describe("StudioPage", () => {
-  it("renders the preview-first studio experience from bootstrap payload", () => {
-    render(
+  it("renders the studio with a brief-only empty preview state and design-only template controls", async () => {
+    const { container } = render(
       <ToastProvider>
         <StudioPage
           boot={boot}
@@ -64,7 +64,17 @@ describe("StudioPage", () => {
     expect(screen.getByRole("heading", { name: "Design, test, and route every post" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Run AI Preview" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Library 0" })).toBeInTheDocument();
-    expect(screen.getByText("Preview unavailable")).toBeInTheDocument();
-    expect(screen.getAllByText("No active destination").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Facebook" })).toBeInTheDocument();
+    expect(screen.getByText("Shape the creative system")).toBeInTheDocument();
+    expect(screen.getByText("Preview surface")).toBeInTheDocument();
+    expect(screen.getAllByText(/No active destination/).length).toBeGreaterThan(0);
+    expect(container.querySelector(".cf-studio-dashboard")).toBeInTheDocument();
+    expect(container.querySelectorAll(".cf-studio-dashboard-column")).toHaveLength(3);
+    expect(container.querySelectorAll(".cf-studio-preview-stack")).toHaveLength(1);
+    expect(screen.queryByLabelText("Template title")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Template subtitle")).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Preview unavailable")).toBeInTheDocument();
+    });
   });
 });

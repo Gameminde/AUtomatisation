@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,6 +11,8 @@ from flask import Flask, render_template, session
 from app import create_app
 import app.api.routes as api_routes
 import app.dashboard.routes as dashboard_routes
+import app.studio.payloads as studio_payloads
+import app.studio.routes as studio_routes
 import app.utils as app_utils
 
 
@@ -375,6 +378,72 @@ def test_channels_route_renders_channels_template(monkeypatch):
 
     assert response["template"] == "channels.html"
     assert response["context"]["active_page"] == "channels"
+
+
+def test_studio_bootstrap_includes_template_defaults(monkeypatch):
+    monkeypatch.setattr("app.utils.get_available_presets", lambda: {"niches": []})
+    monkeypatch.setattr(
+        "user_config.get_user_config",
+        lambda _user_id: SimpleNamespace(
+            timezone="UTC",
+            content_language="en",
+            content_tone="professional",
+            niche_preset="",
+        ),
+    )
+    monkeypatch.setattr(
+        app_utils,
+        "get_user_settings",
+        lambda _user_id: {
+            "studio_template_defaults": json.dumps({
+                "titleText": "Legacy headline",
+                "titleSize": 54,
+                "mediaWidth": 72,
+                "showBrandBadge": True,
+            })
+        },
+    )
+    monkeypatch.setattr(studio_payloads, "_load_active_page_context", lambda _user_id: {})
+    monkeypatch.setattr(studio_payloads, "_load_draft_content_payload", lambda _user_id: {"drafts": []})
+    monkeypatch.setattr(studio_payloads, "_load_pending_content_payload", lambda _user_id: {"pending": []})
+    monkeypatch.setattr(studio_payloads, "_load_scheduled_content_payload", lambda _user_id: {"scheduled": []})
+    monkeypatch.setattr(studio_payloads, "_load_published_content_payload", lambda _user_id: {"published": []})
+
+    payload = studio_payloads._load_studio_bootstrap_payload("user-123")
+
+    assert payload["profile"]["template_defaults"]["mediaWidth"] == 72
+    assert payload["profile"]["template_defaults"]["showBrandBadge"] is True
+    assert "titleSize" not in payload["profile"]["template_defaults"]
+    assert "titleText" not in payload["profile"]["template_defaults"]
+
+
+def test_studio_template_settings_route_persists_defaults(monkeypatch):
+    app = Flask(__name__)
+    fake_user = FakeUser()
+    captured = {}
+    monkeypatch.setattr(studio_routes, "current_user", fake_user, raising=False)
+    monkeypatch.setattr(
+        studio_routes,
+        "require_user_settings_update",
+        lambda user_id, updates: captured.update({"user_id": user_id, "updates": updates}),
+    )
+
+    with app.test_request_context(
+        "/api/studio/template-settings",
+        method="POST",
+        json={"titleText": "Legacy headline", "titleSize": 999, "mediaWidth": 12, "titleAlign": "center", "showBrandBadge": True},
+    ):
+        response = studio_routes.studio_template_settings.__wrapped__()
+
+    payload = response.get_json()
+    saved = json.loads(captured["updates"]["studio_template_defaults"])
+    assert captured["user_id"] == "user-123"
+    assert saved["mediaWidth"] == 30
+    assert saved["showBrandBadge"] is True
+    assert "titleText" not in saved
+    assert "titleSize" not in saved
+    assert "titleAlign" not in saved
+    assert payload["success"] is True
 
 
 def test_sqlite_query_builder_rejects_unknown_column(tmp_path):
