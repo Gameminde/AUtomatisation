@@ -108,6 +108,174 @@ The current Studio implementation is intentionally split into three non-overlapp
 
 This separation is enforced in the React Studio route and in the Studio API so that generation, editing, and reusable design no longer compete as parallel sources of truth.
 
+### Studio design intent
+
+Studio should be treated as a dense desktop SaaS workspace, not as a marketing landing page.
+
+The intended open-state composition is:
+
+- compact top row with:
+  - `Studio canvas` title block on the left
+  - `Preview surface` controls in the center
+  - `Library`, `New Draft`, and status pills on the right
+- working row directly beneath it with:
+  - `Creator Brief` on the left
+  - sticky phone preview rail in the center
+  - `Live Editor` on the right
+- secondary row beneath the fold with:
+  - `Template Builder` on the left
+  - `Action Rail` on the right
+
+The core UX priorities for the Studio page are:
+
+- zero dead vertical space above the main working row
+- full phone visible on first load on a normal laptop viewport
+- one clear source of truth for content, one for design, one for generation
+- consistent card rhythm, spacing, and visual hierarchy
+- the phone preview feels central and stable during scroll
+
+### Studio visual language
+
+The Studio visual language is intentionally:
+
+- warm beige canvas
+- white operational cards
+- deep black top bar and primary CTA accents
+- large editorial display type for major headings
+- compact utility typography for labels, pills, and field metadata
+
+This is meant to feel like a premium creator dashboard with a slightly editorial or neo-brutalist edge, while still behaving like a professional operations tool.
+
+In practical terms:
+
+- the canvas should read as background, never as a broken white slab
+- cards should read as cards, with one border/shadow/radius system
+- the preview rail should feel like one unit, not scattered parts
+- the user should always know which panel owns which decision
+
+### Studio layout architecture
+
+The current React Studio layout should be understood in four layers:
+
+1. Page shell
+   - handled by the authenticated React shell and top navigation
+   - provides the fixed app chrome and route context
+2. Studio dashboard grid
+   - owned by `StudioPage.tsx` and `cf_react_studio.css`
+   - defines the top row, left column, center rail, and right column
+3. Preview rail
+   - owned by `StudioPage.tsx` and `cf_react_preview.css`
+   - defines the preview top controls, warnings, phone frame, and inner screen
+4. Social/template rendering
+   - handled inside the preview body and template canvas
+   - turns the current draft content plus template design defaults into the final visual mockup
+
+The grid is intentionally responsive in three modes:
+
+- `1366px+`
+  - unified 3-column desktop dashboard
+  - centered preview rail
+- `1280px–1365px`
+  - preview-right desktop fallback
+- `<1280px`
+  - stacked/mobile-friendly composition
+
+### Studio CSS ownership rules
+
+When a designer or engineer changes the Studio page, file ownership matters.
+
+- [`web/src/routes/StudioPage.tsx`](web/src/routes/StudioPage.tsx)
+  - panel ordering
+  - DOM structure
+  - logical boundaries between brief, editor, template, preview, and action rail
+- [`static/css/cf_react_studio.css`](static/css/cf_react_studio.css)
+  - page-level layout
+  - card spacing
+  - desktop/mobile grid
+  - stage/canvas/card surface hierarchy
+- [`static/css/cf_react_preview.css`](static/css/cf_react_preview.css)
+  - phone dimensions
+  - preview chrome
+  - template canvas internals
+  - sticky preview behavior
+- [`static/css/cf_react.css`](static/css/cf_react.css)
+  - shared React primitives and shell utilities only
+  - should not be used as the primary place for split-Studio layout work
+
+Rule of thumb:
+
+- if the change is about meaning, panel ownership, or content flow, start in `StudioPage.tsx`
+- if the change is about spacing, grid, or cards, start in `cf_react_studio.css`
+- if the change is about the phone, preview rail, or template media framing, start in `cf_react_preview.css`
+
+### Design system constraints for Studio
+
+Studio should stay within a small controlled measurement system:
+
+- spacing ladder:
+  - `8 / 12 / 16 / 24 / 32`
+- radii:
+  - major panels around `24px`
+  - inset cards around `16px`
+  - field and button controls around `14px–16px`
+- minimum readable utility text:
+  - labels, kickers, and pills should generally stay at or above `0.72rem`
+- the phone preview should be constrained by viewport height first, not by arbitrary fixed width alone
+
+Avoid reintroducing:
+
+- duplicate title or subtitle systems inside the template
+- duplicated device sizing math in multiple CSS files
+- separate “almost white” surface bands that make the stage look broken
+- new `display: contents` layout hacks to force desktop alignment
+
+### How designers and engineers should collaborate on Studio
+
+The fastest safe workflow is:
+
+1. agree on which layer is being changed
+   - content logic
+   - page layout
+   - preview/device rendering
+2. define the acceptance state in screenshots
+   - initial open state
+   - above-the-fold desktop state
+   - one scrolled state
+   - RTL state if alignment is affected
+3. make the DOM and CSS changes in the owning files only
+4. validate at minimum on:
+   - `1366x768`
+   - `1440x900`
+   - `1920x1080`
+5. check that brief, editor, and template still obey their contract
+
+Designers should think in terms of:
+
+- what decision the user is making in each card
+- whether that decision is generation, editing, or reusable design
+- whether the preview is visually downstream of those decisions
+
+Engineers should think in terms of:
+
+- single source of truth
+- layout ownership by file
+- no duplicated CSS responsibility
+- no hidden data sync between brief and final draft
+
+### Studio regression checklist
+
+Any Studio visual or logic refactor should be checked against these questions:
+
+- Does the page open with the phone fully visible on a normal desktop viewport?
+- Is there any empty top band above the working row?
+- Does `Creator Brief` only shape generation and iteration, not final content editing?
+- Does `Live Editor` fully own final visible copy?
+- Does `Template Builder` only control reusable design defaults?
+- Is the preview rail still visually central and sticky?
+- Are left, center, and right columns aligned on the same top baseline?
+- Are there any duplicate content layers inside the template canvas?
+- Does the page still behave correctly in EN and AR/RTL?
+
 ## What is intentionally not in V1
 
 These surfaces are intentionally disabled, hidden, or out of scope in the shipped SaaS V1:
