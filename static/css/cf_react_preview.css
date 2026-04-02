@@ -1307,3 +1307,7 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
     flex-direction: column;
   }
 }
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-title-block p {
+  display: none !important;
+}
