@@ -58,11 +58,16 @@ export function AppShell({
   children: ReactNode;
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => localStorage.getItem("cf_sidebar_collapsed") === "1");
+  const isStudio = page === "studio";
+  const effectiveCollapsed = sidebarCollapsed || isStudio;
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    document.body.classList.toggle("is-sidebar-collapsed", sidebarCollapsed);
+    document.body.classList.toggle("is-sidebar-collapsed", effectiveCollapsed);
+  }, [effectiveCollapsed]);
+
+  useEffect(() => {
     localStorage.setItem("cf_sidebar_collapsed", sidebarCollapsed ? "1" : "0");
   }, [sidebarCollapsed]);
 
@@ -96,7 +101,7 @@ export function AppShell({
   }, [completedRequired, requiredSteps.length, setup.all_required_complete, status.ban_detector?.status, status.can_post]);
 
   const setupReady = setup.all_required_complete && status.can_post;
-  const showSetupBar = !sidebarCollapsed && page === "dashboard" && !setupReady;
+  const showSetupBar = !effectiveCollapsed && page === "dashboard" && !setupReady;
   const pageTitles: Record<AppPage, string> = {
     dashboard: translator.tr("Dashboard"),
     studio: translator.tr("Studio"),
@@ -107,18 +112,18 @@ export function AppShell({
   const pageTitle = pageTitles[page];
 
   return (
-    <div className={cn("cf-shell", sidebarCollapsed && "is-sidebar-collapsed")} data-app-page={page}>
+    <div className={cn("cf-shell", effectiveCollapsed && "is-sidebar-collapsed")} data-app-page={page}>
       <motion.aside
         className="cf-sidebar"
         aria-label={translator.tr("Primary navigation")}
-        animate={sidebarCollapsed ? { width: "var(--sidebar-w-collapsed)" } : { width: "var(--sidebar-w)" }}
+        animate={effectiveCollapsed ? { width: "var(--sidebar-w-collapsed)" } : { width: "var(--sidebar-w)" }}
         transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="cf-sidebar-head">
           <a className="cf-brand" href={boot.urls.dashboard}>
             <span className="cf-brand-mark">CF</span>
             <AnimatePresence>
-              {!sidebarCollapsed ? (
+              {!effectiveCollapsed ? (
                 <motion.span
                   className="cf-brand-copy"
                   initial={{ opacity: 0, width: 0 }}
@@ -148,11 +153,11 @@ export function AppShell({
               key={navPage}
               to={boot.urls[urlKey]}
               className={({ isActive }) => cn("cf-sidebar-nav-link", (isActive || page === navPage) && "is-active")}
-              title={sidebarCollapsed ? translator.tr(label) : undefined}
+              title={effectiveCollapsed ? translator.tr(label) : undefined}
             >
               <i className={cn("fa-solid", icon, "cf-sidebar-nav-icon")} />
               <AnimatePresence>
-                {!sidebarCollapsed ? (
+                {!effectiveCollapsed ? (
                   <motion.span
                     className="cf-sidebar-nav-label"
                     initial={{ opacity: 0, width: 0 }}
@@ -191,10 +196,10 @@ export function AppShell({
             ) : null}
           </AnimatePresence>
 
-          <a className={cn("cf-sidebar-cta", sidebarCollapsed && "is-icon-only")} href={boot.urls.studio} title={translator.tr("New Post")}>
+          <a className={cn("cf-sidebar-cta", effectiveCollapsed && "is-icon-only")} href={boot.urls.studio} title={translator.tr("New Post")}>
             <i className="fa-solid fa-plus" />
             <AnimatePresence>
-              {!sidebarCollapsed ? (
+              {!effectiveCollapsed ? (
                 <motion.span
                   initial={{ opacity: 0, width: 0 }}
                   animate={{ opacity: 1, width: "auto" }}
