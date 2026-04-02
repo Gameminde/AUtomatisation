@@ -310,7 +310,7 @@ function compactMetric(value: number): string {
   return String(value);
 }
 
-function SocialIcon({ kind }: { kind: "heart" | "comment" | "send" | "save" | "more" | "play" }) {
+function SocialIcon({ kind }: { kind: "heart" | "comment" | "send" | "save" | "more" | "play" | "thumbup" | "fbshare" }) {
   if (kind === "heart") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -318,7 +318,13 @@ function SocialIcon({ kind }: { kind: "heart" | "comment" | "send" | "save" | "m
       </svg>
     );
   }
-
+  if (kind === "thumbup") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M7 22V11M2 13v7a2 2 0 0 0 2 2h11.4a2 2 0 0 0 1.98-1.72l1.06-8A2 2 0 0 0 16.46 9H13V5a2 2 0 0 0-2-2 1 1 0 0 0-1 1v.5L7.5 10.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
   if (kind === "comment") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -326,7 +332,6 @@ function SocialIcon({ kind }: { kind: "heart" | "comment" | "send" | "save" | "m
       </svg>
     );
   }
-
   if (kind === "send") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -334,7 +339,13 @@ function SocialIcon({ kind }: { kind: "heart" | "comment" | "send" | "save" | "m
       </svg>
     );
   }
-
+  if (kind === "fbshare") {
+    return (
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 12v5a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-5M12 3v12M8 7l4-4 4 4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  }
   if (kind === "save") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -342,7 +353,6 @@ function SocialIcon({ kind }: { kind: "heart" | "comment" | "send" | "save" | "m
       </svg>
     );
   }
-
   if (kind === "play") {
     return (
       <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -350,13 +360,43 @@ function SocialIcon({ kind }: { kind: "heart" | "comment" | "send" | "save" | "m
       </svg>
     );
   }
-
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="6" cy="12" r="1.6" fill="currentColor" />
       <circle cx="12" cy="12" r="1.6" fill="currentColor" />
       <circle cx="18" cy="12" r="1.6" fill="currentColor" />
     </svg>
+  );
+}
+
+function PhoneStatusBar({ dark }: { dark?: boolean }) {
+  const now = new Date();
+  const h = now.getHours();
+  const m = String(now.getMinutes()).padStart(2, "0");
+  const time = `${h}:${m}`;
+  return (
+    <div className={`cf-phone-status-bar${dark ? " is-dark" : ""}`} aria-hidden="true">
+      <span className="cf-phone-status-time">{time}</span>
+      <div className="cf-phone-status-icons">
+        <svg viewBox="0 0 18 12" className="cf-phone-status-signal" fill="currentColor">
+          <rect x="0" y="8" width="3" height="4" rx="0.5" />
+          <rect x="4.5" y="5" width="3" height="7" rx="0.5" />
+          <rect x="9" y="2" width="3" height="10" rx="0.5" />
+          <rect x="13.5" y="0" width="3" height="12" rx="0.5" opacity="0.3" />
+        </svg>
+        <svg viewBox="0 0 18 14" className="cf-phone-status-wifi" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+          <path d="M1 5C4.8 1.2 13.2 1.2 17 5" />
+          <path d="M3.5 7.5C6.2 4.8 11.8 4.8 14.5 7.5" />
+          <path d="M6.5 10C8 8.5 10 8.5 11.5 10" />
+          <circle cx="9" cy="13" r="1" fill="currentColor" stroke="none" />
+        </svg>
+        <svg viewBox="0 0 26 13" className="cf-phone-status-battery" fill="currentColor">
+          <rect x="0.75" y="0.75" width="21.5" height="11.5" rx="2.75" fill="none" stroke="currentColor" strokeWidth="1.5" />
+          <rect x="2.5" y="2.5" width="16" height="8" rx="1.5" />
+          <path d="M23.5 4.5v4a2 2 0 0 0 0-4Z" />
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -525,10 +565,12 @@ function PreviewBody({
   const topHeader = isInstagram ? (
     <div className="cf-social-post-header is-instagram">
       <div className="cf-social-identity">
-        <div className="cf-surface-avatar">{initials(pageName)}</div>
+        <div className="cf-ig-avatar-ring">
+          <div className="cf-surface-avatar">{initials(pageName)}</div>
+        </div>
         <div className="cf-social-meta is-instagram">
           <strong>{instagramHandle}</strong>
-          <span>{instagramMeta}</span>
+          <span className="cf-ig-follow-link">{translator.tr("Follow")}</span>
         </div>
       </div>
       <div className="cf-social-header-actions">
@@ -547,6 +589,7 @@ function PreviewBody({
         </div>
       </div>
       <div className="cf-social-header-actions">
+        <button type="button" className="cf-fb-follow-btn" aria-label={translator.tr("Follow")}>{translator.tr("Follow")}</button>
         <button type="button" className="cf-social-more" aria-label={translator.tr("More")}>
           <SocialIcon kind="more" />
         </button>
@@ -574,9 +617,15 @@ function PreviewBody({
 
   const facebookActions = (
     <div className="cf-social-action-row" aria-hidden="true">
-      <button type="button" className="cf-social-action-text">{translator.tr("Like")}</button>
-      <button type="button" className="cf-social-action-text">{translator.tr("Comment")}</button>
-      <button type="button" className="cf-social-action-text">{translator.tr("Share")}</button>
+      <button type="button" className="cf-social-action-text">
+        <SocialIcon kind="thumbup" />{translator.tr("Like")}
+      </button>
+      <button type="button" className="cf-social-action-text">
+        <SocialIcon kind="comment" />{translator.tr("Comment")}
+      </button>
+      <button type="button" className="cf-social-action-text">
+        <SocialIcon kind="fbshare" />{translator.tr("Share")}
+      </button>
     </div>
   );
 
@@ -685,13 +734,17 @@ function PreviewBody({
     );
   }
 
+  const fbCopyFull = [facebookPreviewCopy, hashtagsText].filter(Boolean).join(" ");
+  const fbCopyTrunc = fbCopyFull.length > 120;
+  const fbCopyDisplay = fbCopyTrunc ? fbCopyFull.slice(0, 120).trimEnd() + "…" : fbCopyFull;
+
   return (
     <article className={`cf-social-surface cf-social-feed is-${surface} is-post`}>
       {topHeader}
       {!isInstagram ? (
         <div className="cf-social-copy is-facebook-copy">
-          {facebookPreviewCopy ? <span>{renderLines(facebookPreviewCopy)}</span> : null}
-          {hashtagsText ? <div className="cf-social-hashtag-line">{hashtagsText}</div> : null}
+          {fbCopyDisplay ? <span>{renderLines(fbCopyDisplay)}</span> : null}
+          {fbCopyTrunc ? <span className="cf-social-see-more">{translator.tr("See more")}</span> : null}
         </div>
       ) : null}
       <figure className={`cf-social-media ${isInstagram ? "is-portrait" : "is-facebook"} ${mediaUrl ? "" : "is-placeholder"}`}>
@@ -706,21 +759,24 @@ function PreviewBody({
         />
       </figure>
       {isInstagram ? instagramActions : null}
-      <div className={`cf-social-engagement ${isInstagram ? "is-instagram-summary" : "is-facebook-summary"}`}>
-        <div className="cf-social-engagement-primary">
-          {!isInstagram ? facebookReactionBadges : null}
-        <strong>{compactMetric(isInstagram ? likes : likes + shares)} {translator.tr(isInstagram ? "likes" : "reactions")}</strong>
+      {isInstagram ? (
+        <div className="cf-social-engagement is-instagram-summary">
+          <strong>{compactMetric(likes)} {translator.tr("likes")}</strong>
         </div>
-        {isInstagram ? (
-          <span>{compactMetric(comments)} {translator.tr("comments")} - {compactMetric(saves)} {translator.tr("saves")}</span>
-        ) : (
-          <span>{compactMetric(comments)} {translator.tr("comments")} - {compactMetric(shares)} {translator.tr("shares")}</span>
-        )}
-      </div>
+      ) : (
+        <div className="cf-social-engagement is-facebook-summary">
+          <div className="cf-social-engagement-primary">
+            {facebookReactionBadges}
+            <strong>{compactMetric(likes + shares)} {translator.tr("reactions")}</strong>
+          </div>
+          <span>{compactMetric(comments)} {translator.tr("comments")} · {compactMetric(shares)} {translator.tr("shares")}</span>
+        </div>
+      )}
       {isInstagram ? (
         <div className="cf-social-copy is-instagram-copy">
           <strong>{instagramHandle}</strong>
-          <span>{renderLines(captionText)}</span>
+          <span>{renderLines(captionText.length > 100 ? captionText.slice(0, 100).trimEnd() + "… " : captionText)}</span>
+          {captionText.length > 100 ? <span className="cf-social-see-more">{translator.tr("more")}</span> : null}
           {hashtagsText ? <div className="cf-social-hashtag-line">{hashtagsText}</div> : null}
         </div>
       ) : null}
@@ -730,13 +786,7 @@ function PreviewBody({
           <div className="cf-social-comment-box">{translator.tr("Add a comment...")}</div>
         </>
       ) : (
-        <>
-          <div className="cf-social-engagement is-facebook-stats">
-            <span>{compactMetric(views)} {translator.tr("reach")}</span>
-            <span>{translator.tr("Prepared for {platform} in {language}.", { platform: briefPlatformLabel, language: content.language.toUpperCase() })}</span>
-          </div>
-          {facebookActions}
-        </>
+        facebookActions
       )}
     </article>
   );
@@ -2422,6 +2472,7 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
                       <div className="cf-phone-frame">
                         <div className="cf-phone-notch" />
                         <div className="cf-phone-screen">
+                          <PhoneStatusBar dark={previewSurface === "instagram"} />
                           <div className="cf-phone-screen-inner">
                             {previewDraft ? (
                               <PreviewBody
