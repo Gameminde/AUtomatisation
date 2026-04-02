@@ -2177,10 +2177,6 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
 
               <div className="cf-studio-canvas-middle">
                 <div className="cf-studio-preview-topbar">
-                  <div className="cf-studio-preview-topcopy">
-                    <div className="cf-studio-mini-kicker">{translator.tr("Preview surface")}</div>
-                    <strong>{page?.page_name || translator.tr("No active destination")}</strong>
-                  </div>
                   <div className="cf-surface-switcher" id="cf-studio-preview-tabs" aria-label={translator.tr("Preview surface")}>
                     {platformOptions.map((surface) => (
                       <button
