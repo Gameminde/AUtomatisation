@@ -359,7 +359,7 @@
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-upload-row,
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-brief-grid {
   display: grid;
-  gap: var(--cf-studio-space-2);
+  gap: 16px;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-brief-grid {
@@ -958,7 +958,7 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
   display: none;
 }
 
-.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-panel-head .cf-inline-note {
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-card .cf-studio-panel-head .cf-inline-note {
   display: none;
 }
 
@@ -993,7 +993,7 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-editor-body,
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-foot-grid {
-  padding: 14px 20px 20px;
+  padding: 20px 20px 24px;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-foot {
@@ -1125,8 +1125,17 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
   box-shadow: 0 14px 32px rgba(28, 24, 17, 0.06);
 }
 
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-workbench > .cf-studio-mini-kicker {
+  margin-top: 6px;
+  padding-bottom: 2px;
+  color: #5b503f;
+}
+
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-groups-media {
   padding: 0;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(94, 83, 62, 0.08);
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-groups-media .cf-studio-template-group {
@@ -1137,8 +1146,9 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-groups-media .cf-studio-template-group-head {
-  padding-top: 8px;
-  border-top: 1px solid rgba(94, 83, 62, 0.08);
+  padding-top: 14px;
+  padding-bottom: 4px;
+  border-top: 1px solid rgba(94, 83, 62, 0.1);
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-grid.is-media {
