@@ -1278,7 +1278,8 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-zone {
   align-items: center;
-  padding: 7px 0 4px;
+  margin: 9px -21px 9px -21px;
+  padding: 1px 0 4px;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-viewport {

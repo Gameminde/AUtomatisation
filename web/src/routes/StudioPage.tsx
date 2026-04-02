@@ -470,7 +470,7 @@ function TemplateCanvas({
             {template.showBrandBadge ? <span className="cf-template-brand-chip">{brandLabel}</span> : null}
           </div>
         ) : null}
-        <div className="cf-template-media-zone">
+        <div className="cf-template-media-zone mt-[9px] mb-[9px] ml-[-21px] mr-[-21px] pt-[1px]">
           <div className={`cf-template-media-viewport ${mediaUrl ? "" : "is-empty"}`}>
             {mediaUrl ? (
               <img src={mediaUrl} alt={translator.tr("Template media preview")} />
