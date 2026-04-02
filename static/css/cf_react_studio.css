@@ -1216,6 +1216,7 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-expand-btn {
   min-height: 36px;
   padding-inline: 14px;
+  margin-top: -6px;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-input-color {
