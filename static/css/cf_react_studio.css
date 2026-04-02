@@ -1480,3 +1480,77 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 .cf-studio-page[data-cf-studio-owned="split"][data-studio-layout="centered"] .cf-studio-canvas-foot-grid {
   grid-template-columns: 1fr;
 }
+
+/* ── Title control extras: alignment buttons + shadow toggle ── */
+
+.cf-btn-group {
+  display: flex;
+  gap: 4px;
+}
+
+.cf-btn-group-item {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.04);
+  color: #555;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+
+.cf-btn-group-item:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.cf-btn-group-item.is-active {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+}
+
+.cf-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 10px 0 4px;
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #666;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.cf-toggle.is-on {
+  background: #111;
+  border-color: #111;
+  color: #fff;
+}
+
+.cf-toggle-knob {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.16);
+  transition: background 0.15s;
+  flex: 0 0 auto;
+}
+
+.cf-toggle.is-on .cf-toggle-knob {
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.cf-toggle-label {
+  flex: 0 0 auto;
+  user-select: none;
+}

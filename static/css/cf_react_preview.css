@@ -1334,6 +1334,10 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
   line-height: 1.15;
   font-family: var(--cf-template-title-font, var(--font-display));
   color: var(--cf-template-title-color, #fffbf3);
+  text-align: var(--cf-template-title-align, left);
+  font-weight: var(--cf-template-title-weight, 800);
+  letter-spacing: var(--cf-template-title-letter-spacing, 0em);
+  text-shadow: var(--cf-template-title-shadow, none);
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-title-block p {

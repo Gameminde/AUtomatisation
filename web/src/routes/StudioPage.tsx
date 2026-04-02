@@ -85,6 +85,10 @@ type StudioTemplateDesign = {
   titleWidth: number;
   titleFontFamily: "display" | "body" | "mono";
   titleColor: string;
+  titleAlign: "left" | "center" | "right";
+  titleWeight: "400" | "600" | "700" | "800" | "900";
+  titleLetterSpacing: number;
+  titleShadow: boolean;
   showSocialStrip: boolean;
   showBrandBadge: boolean;
   mediaFullBleed: boolean;
@@ -110,6 +114,10 @@ const DEFAULT_TEMPLATE: StudioTemplateDesign = {
   titleWidth: 94,
   titleFontFamily: "display",
   titleColor: "#fff8ef",
+  titleAlign: "left",
+  titleWeight: "800",
+  titleLetterSpacing: 0,
+  titleShadow: false,
   showSocialStrip: true,
   showBrandBadge: false,
   mediaFullBleed: false,
@@ -171,6 +179,20 @@ function normalizeTemplateDefaults(raw: unknown): Partial<StudioTemplateDesign> 
     next.titleColor = titleColor;
   }
 
+  if (data.titleAlign === "left" || data.titleAlign === "center" || data.titleAlign === "right") {
+    next.titleAlign = data.titleAlign;
+  }
+
+  const titleWeightStr = String(data.titleWeight || "");
+  if (["400", "600", "700", "800", "900"].includes(titleWeightStr)) {
+    next.titleWeight = titleWeightStr as StudioTemplateDesign["titleWeight"];
+  }
+
+  const titleLetterSpacing = Number(data.titleLetterSpacing);
+  if (Number.isFinite(titleLetterSpacing)) next.titleLetterSpacing = Math.min(10, Math.max(-5, titleLetterSpacing));
+
+  if (typeof data.titleShadow === "boolean") next.titleShadow = data.titleShadow;
+
   if (data.mediaFit === "contain" || data.mediaFit === "cover") {
     next.mediaFit = data.mediaFit;
   }
@@ -202,6 +224,10 @@ function buildTemplateSettingsPayload(template: StudioTemplateDesign) {
     titleWidth: template.titleWidth,
     titleFontFamily: template.titleFontFamily,
     titleColor: template.titleColor,
+    titleAlign: template.titleAlign,
+    titleWeight: template.titleWeight,
+    titleLetterSpacing: template.titleLetterSpacing,
+    titleShadow: template.titleShadow,
     showSocialStrip: template.showSocialStrip,
     showBrandBadge: template.showBrandBadge,
     mediaFullBleed: template.mediaFullBleed,
@@ -442,6 +468,12 @@ function TemplateCanvas({
     "--cf-template-title-width": `${template.titleWidth}%`,
     "--cf-template-title-color": template.titleColor,
     "--cf-template-title-font": resolveTemplateTitleFont(template.titleFontFamily),
+    "--cf-template-title-align": template.titleAlign,
+    "--cf-template-title-weight": template.titleWeight,
+    "--cf-template-title-letter-spacing": `${template.titleLetterSpacing / 100}em`,
+    "--cf-template-title-shadow": template.titleShadow
+      ? "0 2px 10px rgba(0,0,0,0.82), 0 1px 4px rgba(0,0,0,0.60)"
+      : "none",
   } as CSSProperties;
 
   return (
@@ -1978,6 +2010,64 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
             onChange={(event) => setTemplateField("titleOffsetY", Number(event.target.value))}
           />
           <div className="cf-inline-note">{template.titleOffsetY}px</div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label">{translator.tr("Alignment")}</label>
+          <div className="cf-btn-group">
+            {(["left", "center", "right"] as const).map((align) => (
+              <button
+                key={align}
+                type="button"
+                className={`cf-btn-group-item${template.titleAlign === align ? " is-active" : ""}`}
+                onClick={() => setTemplateField("titleAlign", align)}
+                aria-pressed={template.titleAlign === align}
+              >
+                {align === "left" ? "⟵" : align === "center" ? "≡" : "⟶"}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-title-weight">{translator.tr("Font weight")}</label>
+          <select
+            id="cf-studio-template-title-weight"
+            className="cf-select"
+            value={template.titleWeight}
+            onChange={(event) => setTemplateField("titleWeight", event.target.value as StudioTemplateDesign["titleWeight"])}
+          >
+            <option value="400">{translator.tr("Regular")}</option>
+            <option value="600">{translator.tr("Semibold")}</option>
+            <option value="700">{translator.tr("Bold")}</option>
+            <option value="800">{translator.tr("Extrabold")}</option>
+            <option value="900">{translator.tr("Black")}</option>
+          </select>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-title-letter-spacing">{translator.tr("Letter spacing")}</label>
+          <input
+            id="cf-studio-template-title-letter-spacing"
+            className="cf-input"
+            type="range"
+            min="-5"
+            max="10"
+            step="1"
+            value={template.titleLetterSpacing}
+            onChange={(event) => setTemplateField("titleLetterSpacing", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.titleLetterSpacing > 0 ? `+${template.titleLetterSpacing}` : template.titleLetterSpacing}</div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label">{translator.tr("Text shadow")}</label>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={template.titleShadow}
+            className={`cf-toggle${template.titleShadow ? " is-on" : ""}`}
+            onClick={() => setTemplateField("titleShadow", !template.titleShadow)}
+          >
+            <span className="cf-toggle-knob" />
+            <span className="cf-toggle-label">{template.titleShadow ? translator.tr("On") : translator.tr("Off")}</span>
+          </button>
         </div>
       </div>
     </section>
