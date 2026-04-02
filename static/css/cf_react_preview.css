@@ -433,7 +433,11 @@
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-social-media.is-facebook,
 .cf-studio-page[data-cf-studio-owned="split"] .cf-social-media.is-portrait {
+  display: block;
+  width: 100%;
+  margin: 0;
   aspect-ratio: 4 / 5;
+  overflow: hidden;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas {

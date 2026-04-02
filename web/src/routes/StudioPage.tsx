@@ -1590,10 +1590,11 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
     ? joinLines((currentContent.points || []).map((point) => String(point || "")))
     : "";
   const previewDraft = useMemo(() => {
-    if (current && hasMeaningfulContent(current)) {
+    if (!current) return null;
+    const hasImage = Boolean(String(current.content_normalized.image_path || "").trim());
+    if (hasMeaningfulContent(current) || hasImage) {
       return current;
     }
-
     return null;
   }, [current]);
   const templatePreviewTitle = previewDraft
