@@ -219,12 +219,15 @@ function appendCacheBust(url: string): string {
   return `${trimmed}${glue}v=${Date.now()}`;
 }
 
+const _FS_PATH_RE = /^\/(home|var|tmp|root|usr|opt|srv|runner)\//;
+
 function resolveStudioImagePreviewUrl(imagePath: string, contentId?: string | null, optimisticUrl?: string): string {
   const optimistic = String(optimisticUrl || "").trim();
   if (optimistic) return optimistic;
   const trimmed = String(imagePath || "").trim();
   if (!trimmed) return "";
-  if (/^(https?:)?\/\//.test(trimmed) || trimmed.startsWith("/")) {
+  const isWebUrl = /^(https?:)?\/\//.test(trimmed) || (trimmed.startsWith("/") && !_FS_PATH_RE.test(trimmed));
+  if (isWebUrl) {
     return appendCacheBust(trimmed);
   }
   return contentId ? appendCacheBust(`/api/content/${contentId}/image`) : "";

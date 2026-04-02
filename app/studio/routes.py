@@ -305,10 +305,11 @@ def studio_upload_asset():
             if not owned_content:
                 return _api_error("Content not found", 404)
             saved_path, public_url = _save_uploaded_studio_image(file_storage, "content")
+            relative_path = f"downloaded_images/{saved_path.name}"
             result = (
                 _client()
                 .table("processed_content")
-                .update({"image_path": str(saved_path)})
+                .update({"image_path": relative_path})
                 .eq("id", content_id)
                 .eq("user_id", current_user.id)
                 .execute()
@@ -318,7 +319,7 @@ def studio_upload_asset():
             return _api_success(
                 kind=kind,
                 content_id=content_id,
-                image_path=str(saved_path),
+                image_path=public_url,
                 image_url=f"/api/content/{content_id}/image",
                 public_url=public_url,
             )
