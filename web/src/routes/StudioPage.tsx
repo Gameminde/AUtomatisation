@@ -98,8 +98,8 @@ const DEFAULT_TEMPLATE: StudioTemplateDesign = {
   backgroundZoom: 100,
   backgroundOffsetX: 0,
   backgroundOffsetY: 0,
-  mediaWidth: 66,
-  mediaHeight: 156,
+  mediaWidth: 88,
+  mediaHeight: 178,
   mediaZoom: 100,
   mediaClarity: 100,
   mediaOffsetX: 0,
@@ -407,6 +407,7 @@ function TemplateCanvas({
   template,
   fallbackMediaUrl,
   titleText,
+  supportText,
 }: {
   surface: string;
   pageName: string;
@@ -421,58 +422,71 @@ function TemplateCanvas({
   const brandLabel = template.brandName.trim() || pageName;
   const mediaUrl = fallbackMediaUrl || "";
   const backgroundImagePath = template.backgroundImagePath.trim();
-  const canvasClass = [
-    "cf-tc",
-    surface === "instagram" ? "is-instagram" : "is-facebook",
-    template.mediaFullBleed ? "is-fullbleed" : "",
-  ].filter(Boolean).join(" ");
+  const backgroundTitle = titleText.trim();
+  const backgroundSupport = supportText.trim();
+  const canvasClassName = `cf-template-canvas ${surface === "instagram" ? "is-instagram" : "is-facebook"}${template.mediaFullBleed ? " is-fullbleed" : ""}`;
   const style = {
+    "--cf-template-background-zoom": String(template.backgroundZoom / 100),
+    "--cf-template-background-offset-x": `${template.backgroundOffsetX}%`,
+    "--cf-template-background-offset-y": `${template.backgroundOffsetY}%`,
+    "--cf-template-media-width": `${template.mediaWidth}%`,
+    "--cf-template-media-height": `${template.mediaHeight}px`,
+    "--cf-template-bg-density": `${template.backgroundDensity / 100}`,
     "--cf-template-media-zoom": `${template.mediaZoom / 100}`,
+    "--cf-template-media-clarity": `${template.mediaClarity / 100}`,
     "--cf-template-media-offset-x": `${template.mediaOffsetX}%`,
     "--cf-template-media-offset-y": `${template.mediaOffsetY}%`,
     "--cf-template-media-fit": template.mediaFit,
     "--cf-template-title-scale": String(template.titleScale / 100),
+    "--cf-template-title-offset-y": `${template.titleOffsetY}px`,
     "--cf-template-title-width": `${template.titleWidth}%`,
     "--cf-template-title-color": template.titleColor,
     "--cf-template-title-font": resolveTemplateTitleFont(template.titleFontFamily),
   } as CSSProperties;
 
   return (
-    <div className={canvasClass} style={style}>
-      {backgroundImagePath ? (
-        <div
-          className="cf-tc-bg"
-          style={{ backgroundImage: `url("${backgroundImagePath.replace(/"/g, '\\"')}")` }}
-          aria-hidden="true"
-        />
-      ) : null}
-      <div className="cf-tc-image-wrap">
-        {mediaUrl ? (
-          <img className="cf-tc-img" src={mediaUrl} alt={translator.tr("Template media preview")} />
-        ) : (
-          <div className="cf-tc-placeholder">
-            <span>{translator.tr("Drop a publication image")}</span>
-          </div>
-        )}
-        {template.showSocialStrip ? (
-          <div className="cf-tc-strip">
-            <div className="cf-tc-icons" aria-hidden="true">
-              <span>f</span>
-              <span>ig</span>
-              <span>x</span>
-            </div>
-            <span className="cf-tc-handle">{handleLabel}</span>
-            {template.showBrandBadge ? (
-              <>
-                <span className="cf-tc-divider" aria-hidden="true" />
-                <span className="cf-tc-brand">{brandLabel}</span>
-              </>
-            ) : null}
-          </div>
+    <div className={canvasClassName} style={style}>
+      <div className="cf-template-bg">
+        {backgroundImagePath ? (
+          <div
+            className="cf-template-bg-media"
+            style={{ backgroundImage: `url("${backgroundImagePath.replace(/"/g, '\\"')}")` }}
+            aria-hidden="true"
+          />
         ) : null}
       </div>
-      <div className="cf-tc-footer">
-        <h3 className="cf-tc-title">{titleText.trim() || translator.tr("Your headline here")}</h3>
+      <div className="cf-template-overlay" />
+      <div className="cf-template-stage">
+        {template.showSocialStrip ? (
+          <div className="cf-template-brand-strip">
+            <div className="cf-template-social-group">
+              <div className="cf-template-social-icons" aria-hidden="true">
+                <span>f</span>
+                <span>ig</span>
+                <span>x</span>
+              </div>
+              <span className="cf-template-social-handle">{handleLabel}</span>
+            </div>
+            {template.showBrandBadge ? <span className="cf-template-brand-chip">{brandLabel}</span> : null}
+          </div>
+        ) : null}
+        <div className="cf-template-media-zone">
+          <div className={`cf-template-media-viewport ${mediaUrl ? "" : "is-empty"}`}>
+            {mediaUrl ? (
+              <img src={mediaUrl} alt={translator.tr("Template media preview")} />
+            ) : (
+              <div className="cf-template-media-placeholder">
+                <span>{translator.tr("Drop a publication image")}</span>
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="cf-template-title-zone">
+          <div className="cf-template-title-block">
+            <h3>{backgroundTitle || translator.tr("Your headline here")}</h3>
+            {backgroundSupport ? <p>{backgroundSupport}</p> : null}
+          </div>
+        </div>
       </div>
     </div>
   );
