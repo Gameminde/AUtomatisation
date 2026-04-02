@@ -68,14 +68,13 @@ def api_login_required(f):
 
             host_origin = urlparse(request.host_url)
             trusted_netloc = host_origin.netloc
-            trusted_scheme = host_origin.scheme
 
             def _is_same_origin(candidate: str) -> bool:
                 try:
                     parsed = urlparse(candidate)
                 except Exception:
                     return False
-                return parsed.scheme == trusted_scheme and parsed.netloc == trusted_netloc
+                return parsed.netloc == trusted_netloc
 
             origin = str(request.headers.get("Origin") or "").strip()
             referer = str(request.headers.get("Referer") or "").strip()
