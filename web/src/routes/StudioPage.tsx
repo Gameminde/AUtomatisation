@@ -2375,7 +2375,12 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
             </div>
           </article>
 
-          {!desktopCanvas ? templateBuilderCard : null}
+          {desktopCanvas ? (
+            <>
+              {studioInsightsPanel}
+              {templateBuilderCard}
+            </>
+          ) : templateBuilderCard}
 
                 </div>
 
@@ -2565,12 +2570,6 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
                 </div>
               </div>
 
-              {desktopCanvas ? (
-                <div className="cf-studio-secondary-strip">
-                  {templateBuilderCard}
-                  {studioInsightsPanel}
-                </div>
-              ) : null}
             </div>
           </div>
         </div>
