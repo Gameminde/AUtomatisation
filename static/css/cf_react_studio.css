@@ -438,6 +438,27 @@
   border-radius: var(--cf-studio-card-radius);
 }
 
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-upload-field {
+  position: relative;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-upload-input-native {
+  opacity: 0;
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-upload-meta .cf-inline-note {
+  display: none;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-upload-meta {
+  justify-content: flex-end;
+}
+
 .cf-studio-page[data-cf-studio-owned="split"] .cf-upload-tile {
   position: relative;
   min-height: var(--cf-studio-upload-h);
