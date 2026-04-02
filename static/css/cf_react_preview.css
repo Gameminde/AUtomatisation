@@ -930,8 +930,6 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-brand-strip {
-  position: relative;
-  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -995,40 +993,24 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-zone {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  display: block;
-  padding: 0;
-  overflow: hidden;
-}
-
-.cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-zone::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  background: linear-gradient(
-    180deg,
-    rgba(0, 0, 0, 0.52) 0%,
-    rgba(0, 0, 0, 0.08) 22%,
-    rgba(0, 0, 0, 0) 44%,
-    rgba(0, 0, 0, 0.14) 60%,
-    rgba(0, 0, 0, 0.78) 100%
-  );
+  display: grid;
+  place-items: center;
+  align-self: stretch;
+  min-height: 0;
+  padding: 10px 0 4px;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-viewport {
   position: relative;
-  width: 100%;
-  height: 100%;
-  max-width: none;
-  min-height: 0;
-  aspect-ratio: unset;
+  width: clamp(58%, var(--cf-template-media-width, 68%), 82%);
+  max-width: 82%;
+  min-height: 120px;
+  aspect-ratio: 1.16 / 0.9;
   overflow: hidden;
-  display: block;
-  border-radius: 0;
+  display: grid;
+  place-items: center;
+  align-self: center;
+  border-radius: 14px;
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -1036,14 +1018,13 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-viewport.is-empty {
   background: rgba(255, 255, 255, 0.04);
-  border: none;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
   box-shadow: none;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-placeholder {
   min-height: 0;
-  height: 100%;
-  border-radius: 0;
+  border-radius: 14px;
   border: 1px dashed rgba(255, 255, 255, 0.12);
   background: rgba(255, 255, 255, 0.02);
   color: rgba(255, 248, 235, 0.42);
@@ -1057,19 +1038,18 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
   height: 100%;
   max-width: none;
   max-height: none;
-  object-fit: cover;
+  object-fit: var(--cf-template-media-fit, contain);
   object-position: center center;
   transform:
     translate(calc(var(--cf-template-media-offset-x, 0%) * 0.9), calc(var(--cf-template-media-offset-y, 0%) * 0.9))
     scale(var(--cf-template-media-zoom, 1));
   transform-origin: center;
-  border-radius: 0;
-  filter: none;
+  border-radius: 18px;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.22));
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-title-zone {
   position: relative;
-  z-index: 2;
   align-self: end;
   padding-top: 32px;
 }
@@ -1163,36 +1143,34 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-zone {
-  position: absolute;
-  inset: 0;
-  padding: 0;
-  display: block;
-  align-items: unset;
+  align-items: center;
+  padding: 18px 16px 8px;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-viewport {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  aspect-ratio: unset;
-  border-radius: 0;
-  box-shadow: none;
+  width: clamp(56%, var(--cf-template-media-width, 68%), 80%);
+  min-height: clamp(96px, var(--cf-template-media-height, 140px), 220px);
+  height: clamp(96px, var(--cf-template-media-height, 140px), 220px);
+  aspect-ratio: auto;
+  border-radius: 14px;
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.18),
+    0 12px 28px rgba(0, 0, 0, 0.12);
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-viewport img {
-  object-fit: cover;
-  border-radius: 0;
   transform:
     translate(calc(var(--cf-template-media-offset-x, 0%) * 1.05), calc(var(--cf-template-media-offset-y, 0%) * 1.05))
     scale(var(--cf-template-media-zoom, 1));
   filter:
     contrast(calc(0.92 + (var(--cf-template-media-clarity, 1) * 0.22)))
     saturate(calc(0.94 + (var(--cf-template-media-clarity, 1) * 0.14)))
-    brightness(calc(0.96 + (var(--cf-template-media-clarity, 1) * 0.04)));
+    brightness(calc(0.96 + (var(--cf-template-media-clarity, 1) * 0.04)))
+    drop-shadow(0 10px 18px rgba(0, 0, 0, 0.16));
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-title-zone {
-  min-height: 80px;
+  min-height: 112px;
   padding-top: 52px;
   transform: translateY(var(--cf-template-title-offset-y, 0px));
 }
@@ -1332,4 +1310,81 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-title-block p {
   display: none !important;
+}
+
+/* ── Full-picture mode (.is-fullbleed on the canvas) ─────────────────────── */
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas.is-fullbleed .cf-template-media-zone {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  align-items: unset;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas.is-fullbleed .cf-template-media-zone::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.54) 0%,
+    rgba(0, 0, 0, 0.08) 22%,
+    rgba(0, 0, 0, 0) 44%,
+    rgba(0, 0, 0, 0.14) 60%,
+    rgba(0, 0, 0, 0.80) 100%
+  );
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas.is-fullbleed .cf-template-media-viewport {
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  min-height: 0;
+  aspect-ratio: unset;
+  border-radius: 0;
+  box-shadow: none;
+  display: block;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas.is-fullbleed .cf-template-media-viewport.is-empty {
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas.is-fullbleed .cf-template-media-placeholder {
+  height: 100%;
+  border-radius: 0;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas.is-fullbleed .cf-template-media-viewport img {
+  object-fit: cover;
+  border-radius: 0;
+  filter:
+    contrast(calc(0.92 + (var(--cf-template-media-clarity, 1) * 0.22)))
+    saturate(calc(0.94 + (var(--cf-template-media-clarity, 1) * 0.14)))
+    brightness(calc(0.96 + (var(--cf-template-media-clarity, 1) * 0.04)));
+  transform:
+    translate(calc(var(--cf-template-media-offset-x, 0%) * 1.05), calc(var(--cf-template-media-offset-y, 0%) * 1.05))
+    scale(var(--cf-template-media-zoom, 1));
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas.is-fullbleed .cf-template-brand-strip {
+  position: relative;
+  z-index: 2;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas.is-fullbleed .cf-template-title-zone {
+  position: relative;
+  z-index: 2;
+  min-height: 80px;
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-template-canvas.is-fullbleed .cf-template-title-zone::before {
+  inset: -80px -12px -16px;
+  background: linear-gradient(180deg, rgba(8, 7, 6, 0) 0%, rgba(8, 7, 6, 0.22) 28%, rgba(8, 7, 6, 0.92) 100%);
 }

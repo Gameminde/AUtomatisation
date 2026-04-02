@@ -87,6 +87,7 @@ type StudioTemplateDesign = {
   titleColor: string;
   showSocialStrip: boolean;
   showBrandBadge: boolean;
+  mediaFullBleed: boolean;
 };
 
 const DEFAULT_TEMPLATE: StudioTemplateDesign = {
@@ -111,6 +112,7 @@ const DEFAULT_TEMPLATE: StudioTemplateDesign = {
   titleColor: "#fff8ef",
   showSocialStrip: true,
   showBrandBadge: false,
+  mediaFullBleed: false,
 };
 
 function normalizeTemplateDefaults(raw: unknown): Partial<StudioTemplateDesign> {
@@ -174,6 +176,7 @@ function normalizeTemplateDefaults(raw: unknown): Partial<StudioTemplateDesign> 
   }
   if (typeof data.showSocialStrip === "boolean") next.showSocialStrip = data.showSocialStrip;
   if (typeof data.showBrandBadge === "boolean") next.showBrandBadge = data.showBrandBadge;
+  if (typeof data.mediaFullBleed === "boolean") next.mediaFullBleed = data.mediaFullBleed;
 
   return next;
 }
@@ -201,6 +204,7 @@ function buildTemplateSettingsPayload(template: StudioTemplateDesign) {
     titleColor: template.titleColor,
     showSocialStrip: template.showSocialStrip,
     showBrandBadge: template.showBrandBadge,
+    mediaFullBleed: template.mediaFullBleed,
   };
 }
 
@@ -380,7 +384,7 @@ function TemplateCanvas({
   const backgroundImagePath = template.backgroundImagePath.trim();
   const backgroundTitle = titleText.trim();
   const backgroundSupport = supportText.trim();
-  const canvasClassName = `cf-template-canvas ${surface === "instagram" ? "is-instagram" : "is-facebook"}`;
+  const canvasClassName = `cf-template-canvas ${surface === "instagram" ? "is-instagram" : "is-facebook"}${template.mediaFullBleed ? " is-fullbleed" : ""}`;
   const style = {
     "--cf-template-background-zoom": String(template.backgroundZoom / 100),
     "--cf-template-background-offset-x": `${template.backgroundOffsetX}%`,
@@ -2006,6 +2010,18 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
                 <div className="cf-choice-copy">
                   <strong>{translator.tr("Show brand chip")}</strong>
                   <small>{translator.tr("Display the small badge on the right side of the brand row.")}</small>
+                </div>
+              </label>
+              <label className="cf-choice-card cf-studio-toggle-card">
+                <input
+                  className="cf-choice-input"
+                  type="checkbox"
+                  checked={template.mediaFullBleed}
+                  onChange={(event) => setTemplateField("mediaFullBleed", event.target.checked)}
+                />
+                <div className="cf-choice-copy">
+                  <strong>{translator.tr("Full-picture mode")}</strong>
+                  <small>{translator.tr("Main image fills the entire template edge to edge, with text overlaid on top.")}</small>
                 </div>
               </label>
             </div>
