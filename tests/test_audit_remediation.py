@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from flask import Flask, render_template, session
+from werkzeug.exceptions import HTTPException
 
 from app import create_app
 import app.api.routes as api_routes
@@ -346,21 +347,15 @@ def test_migrated_routes_serve_react_shell_when_frontend_ready(monkeypatch, path
     assert "http://127.0.0.1:5173/@vite/client" in html
 
 
-def test_studio_route_falls_back_to_legacy_template_when_react_frontend_is_unavailable(monkeypatch):
+def test_studio_route_requires_react_frontend_when_react_frontend_is_unavailable(monkeypatch):
     app = Flask(__name__)
-    captured = {}
     monkeypatch.setattr(dashboard_routes, "_react_frontend_ready", lambda: False)
-    monkeypatch.setattr(
-        dashboard_routes,
-        "render_template",
-        lambda template, **context: captured.update({"template": template, "context": context}) or captured,
-    )
 
-    with app.test_request_context("/studio"):
-        response = dashboard_routes.page_studio.__wrapped__()
+    with app.test_request_context("/studio"), pytest.raises(HTTPException) as caught:
+        dashboard_routes.page_studio.__wrapped__()
 
-    assert response["template"] == "studio.html"
-    assert response["context"]["active_page"] == "studio"
+    assert caught.value.code == 503
+    assert caught.value.description == "The React frontend is required for studio."
 
 
 def test_channels_route_renders_channels_template(monkeypatch):
@@ -399,6 +394,11 @@ def test_studio_bootstrap_includes_template_defaults(monkeypatch):
                 "titleText": "Legacy headline",
                 "titleSize": 54,
                 "mediaWidth": 72,
+                "backgroundImagePath": "https://example.com/background.png",
+                "backgroundZoom": 122,
+                "titleScale": 118,
+                "titleFontFamily": "display",
+                "titleColor": "#fff8ef",
                 "showBrandBadge": True,
             })
         },
@@ -412,7 +412,12 @@ def test_studio_bootstrap_includes_template_defaults(monkeypatch):
     payload = studio_payloads._load_studio_bootstrap_payload("user-123")
 
     assert payload["profile"]["template_defaults"]["mediaWidth"] == 72
+    assert payload["profile"]["template_defaults"]["backgroundImagePath"] == "https://example.com/background.png"
+    assert payload["profile"]["template_defaults"]["backgroundZoom"] == 122
     assert payload["profile"]["template_defaults"]["showBrandBadge"] is True
+    assert payload["profile"]["template_defaults"]["titleScale"] == 118
+    assert payload["profile"]["template_defaults"]["titleFontFamily"] == "display"
+    assert payload["profile"]["template_defaults"]["titleColor"] == "#fff8ef"
     assert "titleSize" not in payload["profile"]["template_defaults"]
     assert "titleText" not in payload["profile"]["template_defaults"]
 
@@ -431,7 +436,26 @@ def test_studio_template_settings_route_persists_defaults(monkeypatch):
     with app.test_request_context(
         "/api/studio/template-settings",
         method="POST",
-        json={"titleText": "Legacy headline", "titleSize": 999, "mediaWidth": 12, "titleAlign": "center", "showBrandBadge": True},
+        json={
+            "titleText": "Legacy headline",
+            "titleSize": 999,
+            "mediaWidth": 12,
+            "mediaHeight": 999,
+            "mediaClarity": 200,
+            "mediaOffsetX": 52,
+            "mediaOffsetY": -78,
+            "titleAlign": "center",
+            "titleScale": 150,
+            "titleOffsetY": -55,
+            "titleWidth": 140,
+            "titleFontFamily": "mono",
+            "titleColor": "#ABCDEF",
+            "showBrandBadge": True,
+            "backgroundImagePath": "https://example.com/background.png",
+            "backgroundZoom": 220,
+            "backgroundOffsetX": -55,
+            "backgroundOffsetY": 18,
+        },
     ):
         response = studio_routes.studio_template_settings.__wrapped__()
 
@@ -439,6 +463,19 @@ def test_studio_template_settings_route_persists_defaults(monkeypatch):
     saved = json.loads(captured["updates"]["studio_template_defaults"])
     assert captured["user_id"] == "user-123"
     assert saved["mediaWidth"] == 30
+    assert saved["mediaHeight"] == 260
+    assert saved["mediaClarity"] == 140
+    assert saved["mediaOffsetX"] == 52
+    assert saved["mediaOffsetY"] == -60
+    assert saved["backgroundImagePath"] == "https://example.com/background.png"
+    assert saved["backgroundZoom"] == 180
+    assert saved["backgroundOffsetX"] == -40
+    assert saved["backgroundOffsetY"] == 18
+    assert saved["titleScale"] == 140
+    assert saved["titleOffsetY"] == -24
+    assert saved["titleWidth"] == 100
+    assert saved["titleFontFamily"] == "mono"
+    assert saved["titleColor"] == "#abcdef"
     assert saved["showBrandBadge"] is True
     assert "titleText" not in saved
     assert "titleSize" not in saved

@@ -4,7 +4,6 @@ import { initDashboard } from "./cf/pages/dashboard.js";
 import { initDiagnostics } from "./cf/pages/diagnostics.js";
 import { initChannels } from "./cf/pages/channels.js";
 import { initSettings } from "./cf/pages/settings.js";
-import { initStudio } from "./cf/studio/actions.js";
 
 const page = document.body?.dataset.page || "";
 const ctx = createRuntime(page);
@@ -15,7 +14,6 @@ function dispatchPage() {
   if (page === "channels") return initChannels(ctx);
   if (page === "settings") return initSettings(ctx, shell);
   if (page === "diagnostics") return initDiagnostics(ctx);
-  if (page === "studio") return initStudio(ctx);
   return null;
 }
 

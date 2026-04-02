@@ -21,6 +21,7 @@ _normalize_ui_language = studio_helpers._normalize_ui_language
 _resolve_request_data = lambda: {}
 _resolve_studio_user_id = lambda data: ""
 _save_draft_record = studio_helpers._save_draft_record
+_canonical_post_type = studio_helpers._canonical_post_type
 _create_schedule_record = studio_helpers._create_schedule_record
 _generate_studio_content = studio_helpers._generate_studio_content
 _regenerate_existing_content = studio_helpers._regenerate_existing_content
@@ -185,7 +186,7 @@ def studio_regenerate():
                 return _api_error("Content not found", 404)
 
         if row and content:
-            content_format = str(row.get("post_type") or requested_format or "post").strip().lower()
+            content_format = _canonical_post_type(row.get("post_type") or requested_format or "post")
             hydrated = _build_record_payload(
                 content_format=content_format,
                 content=content,

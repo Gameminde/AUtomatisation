@@ -43,7 +43,7 @@ def _react_frontend_ready() -> bool:
     return bool(_react_dev_server()) or _react_build_entry().exists()
 
 
-def _render_migrated_page(*, react_page: str, react_title_key: str, legacy_template: str):
+def _render_migrated_page(*, react_page: str, react_title_key: str, legacy_template: str | None = None):
     if _react_frontend_ready():
         return render_template(
             "react_shell.html",
@@ -52,7 +52,9 @@ def _render_migrated_page(*, react_page: str, react_title_key: str, legacy_templ
             react_dev_server=_react_dev_server(),
             active_page=react_page,
         )
-    return render_template(legacy_template, active_page=react_page)
+    if legacy_template:
+        return render_template(legacy_template, active_page=react_page)
+    abort(503, description=f"The React frontend is required for {react_page}.")
 
 
 # ── Dashboard pages ────────────────────────────────────────────────────────
@@ -81,7 +83,6 @@ def page_studio():
     return _render_migrated_page(
         react_page="studio",
         react_title_key="Studio",
-        legacy_template="studio.html",
     )
 
 

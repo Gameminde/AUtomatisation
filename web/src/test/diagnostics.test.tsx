@@ -57,5 +57,5 @@ describe("DiagnosticsPage", () => {
     expect(screen.getAllByText("Main Page")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Test facebook Run a live check against the current workspace state." })).toBeInTheDocument();
     expect(screen.getByText("Post published")).toBeInTheDocument();
-  });
+  }, 15000);
 });

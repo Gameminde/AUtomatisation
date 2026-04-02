@@ -189,9 +189,22 @@ def _parse_structured_generated_text(raw_value: Any) -> Dict[str, Any]:
         return {}
 
 
+def _canonical_post_type(raw_value: Any) -> str:
+    candidate = str(raw_value or "post").strip().lower()
+    if candidate in {"text", "photo"}:
+        return "post"
+    return candidate or "post"
+
+
+def _database_post_type(raw_value: Any) -> str:
+    canonical = _canonical_post_type(raw_value)
+    return "text" if canonical == "post" else canonical
+
+
 def _normalize_draft_row(row: Dict[str, Any]) -> Dict[str, Any]:
     normalized = dict(row)
-    post_type = str(row.get("post_type") or "post").strip().lower()
+    post_type = _canonical_post_type(row.get("post_type"))
+    normalized["post_type"] = post_type
     language = _extract_language_from_content(row)
     hashtags = row.get("hashtags") or []
     hook = row.get("hook")
@@ -244,7 +257,7 @@ def _build_record_payload(
     article_id: str = "",
     user_id: str = "",
 ) -> Dict[str, Any]:
-    normalized_format = str(content_format or "post").strip().lower()
+    normalized_format = _canonical_post_type(content_format)
     language = _normalize_ui_language(content.get("language"), fallback="en").upper()
     record = {
         "article_id": article_id or None,
@@ -295,6 +308,7 @@ def _save_draft_record(
     status: str = "draft_only",
 ) -> Dict[str, Any]:
     record = _build_record_payload(content_format=content_format, content=content, status=status, article_id=article_id, user_id=user_id)
+    record["post_type"] = _database_post_type(record.get("post_type"))
     result = _client().table("processed_content").insert(record).execute()
     return (result.data or [record])[0]
 
@@ -381,7 +395,7 @@ def _regenerate_existing_content(content_row: Dict[str, Any], instruction: str, 
     from ai_provider import generate as run_ai_generation
 
     user_id = str(content_row.get("user_id") or _current_user_id())
-    content_format = str(content_row.get("post_type") or "post").strip().lower()
+    content_format = _canonical_post_type(content_row.get("post_type"))
     language = _extract_language_from_content(content_row)
     runtime_profile = _load_runtime_profile(user_id=user_id, language=language, tone=tone)
     prompt = build_regeneration_prompt(
@@ -401,5 +415,6 @@ def _regenerate_existing_content(content_row: Dict[str, Any], instruction: str, 
             article_id=str(content_row.get("article_id") or ""),
             user_id=user_id,
         )
+        update_payload["post_type"] = _database_post_type(update_payload.get("post_type"))
         _client().table("processed_content").update(update_payload).eq("id", content_row["id"]).eq("user_id", user_id).execute()
     return regenerated

@@ -1,5 +1,7 @@
 """Unit tests for Studio routes backed by real backend logic."""
 
+import io
+from pathlib import Path
 from types import SimpleNamespace
 
 from flask import Flask
@@ -184,6 +186,72 @@ def test_studio_generate_returns_structured_content(monkeypatch):
     assert payload["format"] == "post"
     assert payload["content"]["language"] == "en"
     assert captured["tone"] == "casual"
+
+
+def test_studio_asset_upload_updates_content_image(monkeypatch, tmp_path):
+    app = Flask(__name__)
+    fake_user = FakeUser()
+    store = {
+        "processed_content": [
+            {
+                "id": "pc-1",
+                "user_id": fake_user.id,
+                "post_type": "post",
+                "status": "draft_only",
+                "image_path": "",
+            }
+        ]
+    }
+
+    _patch_user(monkeypatch, fake_user)
+    monkeypatch.setattr(studio_routes, "_client", lambda: FakeClient(store))
+    monkeypatch.setattr(studio_routes, "_load_owned_content_row", lambda content_id, *_args, **_kwargs: {"id": content_id, "user_id": fake_user.id} if content_id == "pc-1" else None)
+    monkeypatch.setattr(studio_routes, "_STUDIO_UPLOAD_DIR", tmp_path.resolve())
+
+    with app.test_request_context(
+        "/api/studio/assets/upload",
+        method="POST",
+        data={
+            "kind": "main-image",
+            "content_id": "pc-1",
+            "file": (io.BytesIO(b"fake-image-bytes"), "cover.png"),
+        },
+        content_type="multipart/form-data",
+    ):
+        response = studio_routes.studio_upload_asset()
+
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["content_id"] == "pc-1"
+    assert payload["image_url"] == "/api/content/pc-1/image"
+    assert store["processed_content"][0]["image_path"].endswith(".png")
+    assert tmp_path.joinpath(Path(store["processed_content"][0]["image_path"]).name).exists()
+
+
+def test_studio_asset_upload_returns_public_background_url(monkeypatch, tmp_path):
+    app = Flask(__name__)
+    fake_user = FakeUser()
+
+    _patch_user(monkeypatch, fake_user)
+    monkeypatch.setattr(studio_routes, "_STUDIO_UPLOAD_DIR", tmp_path.resolve())
+
+    with app.test_request_context(
+        "/api/studio/assets/upload",
+        method="POST",
+        data={
+            "kind": "background",
+            "file": (io.BytesIO(b"fake-background-bytes"), "background.webp"),
+        },
+        content_type="multipart/form-data",
+    ):
+        response = studio_routes.studio_upload_asset()
+
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["backgroundImagePath"].startswith("/media/public/studio-background-")
+    saved_files = list(tmp_path.iterdir())
+    assert len(saved_files) == 1
+    assert saved_files[0].suffix == ".webp"
 
 
 def test_studio_regenerate_updates_specific_item(monkeypatch):
@@ -375,6 +443,70 @@ def test_studio_save_draft_inserts_processed_content(monkeypatch):
     assert payload["status"] == "draft_only"
     assert store["processed_content"][0]["post_type"] == "carousel"
     assert store["processed_content"][0]["status"] == "draft_only"
+
+
+def test_studio_save_draft_persists_post_as_legacy_text(monkeypatch):
+    app = Flask(__name__)
+    fake_user = FakeUser()
+    store = {"processed_content": []}
+
+    _patch_user(monkeypatch, fake_user)
+    monkeypatch.setattr(studio_routes, "_client", lambda: FakeClient(store))
+
+    with app.test_request_context(
+        "/api/studio/save-draft",
+        method="POST",
+        json={
+            "format": "post",
+            "language": "en",
+            "user_id": fake_user.id,
+            "content": {
+                "format": "post",
+                "language": "en",
+                "hook": "Hook",
+                "body": "Body",
+                "cta": "CTA",
+                "hashtags": ["tag1"],
+                "image_path": "",
+            },
+        },
+    ):
+        response = studio_routes.studio_save_draft()
+
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert store["processed_content"][0]["post_type"] == "text"
+
+
+def test_get_draft_content_normalizes_legacy_text_post_type(monkeypatch):
+    app = Flask(__name__)
+    fake_user = FakeUser()
+    store = {
+        "processed_content": [
+            {
+                "id": "d1",
+                "post_type": "text",
+                "status": "draft_only",
+                "user_id": fake_user.id,
+                "generated_text": "Legacy body",
+                "hook": "Legacy hook",
+                "hashtags": ["tag1"],
+                "image_path": "",
+                "target_audience": "EN",
+            }
+        ]
+    }
+
+    _patch_user(monkeypatch, fake_user)
+    monkeypatch.setattr(studio_routes, "_client", lambda: FakeClient(store))
+
+    with app.test_request_context("/api/content/drafts", method="GET"):
+        response = studio_routes.get_draft_content()
+
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["drafts"][0]["post_type"] == "post"
+    assert payload["drafts"][0]["content_normalized"]["format"] == "post"
 
 
 def test_studio_approve_moves_draft_to_scheduled(monkeypatch):

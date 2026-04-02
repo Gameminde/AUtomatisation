@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any, Dict, Optional
+from uuid import uuid4
 
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
+from werkzeug.utils import secure_filename
 
 import config
 from app.utils import api_login_required, get_user_settings, require_user_settings_update
@@ -22,6 +25,15 @@ studio_bp = Blueprint("studio", __name__)
 
 AUTO_PUBLISHABLE_FORMATS = helpers_impl.AUTO_PUBLISHABLE_FORMATS
 DRAFT_ONLY_FORMATS = helpers_impl.DRAFT_ONLY_FORMATS
+_STUDIO_UPLOAD_DIR = (config.BASE_DIR / "downloaded_images").resolve()
+_STUDIO_UPLOAD_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+_STUDIO_UPLOAD_FALLBACK_EXTENSIONS = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+    "image/gif": ".gif",
+}
+_STUDIO_UPLOAD_MAX_BYTES = 12 * 1024 * 1024
 
 _client = helpers_impl._client
 _normalize_platforms = helpers_impl._normalize_platforms
@@ -87,19 +99,39 @@ def _normalize_template_defaults(data: Dict[str, Any]) -> Dict[str, Any]:
             return
         normalized[key] = max(minimum, min(maximum, value))
 
-    for key in ("brandName", "socialHandle"):
+    for key in ("brandName", "socialHandle", "backgroundImagePath"):
         if key in data:
-            normalized[key] = str(data.get(key) or "").strip()[:160]
+            normalized[key] = str(data.get(key) or "").strip()[:512]
 
     _bounded_number("backgroundDensity", 0, 100)
+    _bounded_number("backgroundZoom", 40, 180)
+    _bounded_number("backgroundOffsetX", -40, 40)
+    _bounded_number("backgroundOffsetY", -40, 40)
     _bounded_number("mediaWidth", 30, 100)
-    _bounded_number("mediaZoom", 40, 180)
-    _bounded_number("mediaOffsetX", -40, 40)
-    _bounded_number("mediaOffsetY", -40, 40)
+    _bounded_number("mediaHeight", 110, 260)
+    _bounded_number("mediaZoom", 40, 220)
+    _bounded_number("mediaClarity", 80, 140)
+    _bounded_number("mediaOffsetX", -60, 60)
+    _bounded_number("mediaOffsetY", -60, 60)
+    _bounded_number("titleScale", 80, 140)
+    _bounded_number("titleOffsetY", -24, 24)
+    _bounded_number("titleWidth", 68, 100)
 
     media_fit = str(data.get("mediaFit") or "").strip()
     if media_fit in {"contain", "cover"}:
         normalized["mediaFit"] = media_fit
+
+    title_font_family = str(data.get("titleFontFamily") or "").strip()
+    if title_font_family in {"display", "body", "mono"}:
+        normalized["titleFontFamily"] = title_font_family
+
+    title_color = str(data.get("titleColor") or "").strip()
+    if len(title_color) == 7 and title_color.startswith("#"):
+        try:
+            int(title_color[1:], 16)
+            normalized["titleColor"] = title_color.lower()
+        except ValueError:
+            pass
 
     for key in ("showSocialStrip", "showBrandBadge"):
         if key in data:
@@ -117,6 +149,29 @@ def _load_template_defaults_for_user(user_id: str) -> Dict[str, Any]:
     except Exception:
         return {}
     return _normalize_template_defaults(parsed if isinstance(parsed, dict) else {})
+
+
+def _save_uploaded_studio_image(file_storage, prefix: str) -> tuple[Path, str]:
+    filename = secure_filename(str(getattr(file_storage, "filename", "") or ""))
+    extension = Path(filename).suffix.lower()
+    if extension not in _STUDIO_UPLOAD_EXTENSIONS:
+        extension = _STUDIO_UPLOAD_FALLBACK_EXTENSIONS.get(str(getattr(file_storage, "mimetype", "") or "").lower(), "")
+    if extension not in _STUDIO_UPLOAD_EXTENSIONS:
+        raise ValueError("Upload a JPG, PNG, WEBP, or GIF image.")
+
+    payload = file_storage.read()
+    if not payload:
+        raise ValueError("Upload an image file first.")
+    if len(payload) > _STUDIO_UPLOAD_MAX_BYTES:
+        raise ValueError("Image upload is too large. Max size is 12 MB.")
+
+    _STUDIO_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    saved_name = f"studio-{prefix}-{uuid4().hex}{extension}"
+    saved_path = (_STUDIO_UPLOAD_DIR / saved_name).resolve()
+    if saved_path.parent != _STUDIO_UPLOAD_DIR:
+        raise ValueError("Invalid upload destination.")
+    saved_path.write_bytes(payload)
+    return saved_path, f"/media/public/{saved_name}"
 
 
 def _wire_module_dependencies() -> None:
@@ -231,6 +286,57 @@ def studio_template_settings():
     except RuntimeError as exc:
         return _api_error(str(exc), 500)
     return _api_success(template_defaults=normalized)
+
+
+@studio_bp.route("/api/studio/assets/upload", methods=["POST"])
+@api_login_required
+def studio_upload_asset():
+    try:
+        kind = str(request.form.get("kind") or "").strip().lower()
+        file_storage = request.files.get("file")
+        if not file_storage:
+            return _api_error("Upload an image file first.", 400)
+
+        if kind == "main-image":
+            content_id = str(request.form.get("content_id") or "").strip()
+            if not content_id:
+                return _api_error("content_id required for main image uploads", 400)
+            owned_content = _load_owned_content_row(content_id, "id")
+            if not owned_content:
+                return _api_error("Content not found", 404)
+            saved_path, public_url = _save_uploaded_studio_image(file_storage, "content")
+            result = (
+                _client()
+                .table("processed_content")
+                .update({"image_path": str(saved_path)})
+                .eq("id", content_id)
+                .eq("user_id", current_user.id)
+                .execute()
+            )
+            if not result.data:
+                return _api_error("Content not found", 404)
+            return _api_success(
+                kind=kind,
+                content_id=content_id,
+                image_path=str(saved_path),
+                image_url=f"/api/content/{content_id}/image",
+                public_url=public_url,
+            )
+
+        if kind == "background":
+            _saved_path, public_url = _save_uploaded_studio_image(file_storage, "background")
+            return _api_success(
+                kind=kind,
+                backgroundImagePath=public_url,
+                public_url=public_url,
+            )
+
+        return _api_error("Unsupported upload target", 400)
+    except ValueError as exc:
+        return _api_error(str(exc), 400)
+    except Exception as exc:
+        logger.error("Error uploading studio asset: %s", exc)
+        return _api_error(str(exc), 500)
 
 
 @studio_bp.route("/api/studio/approve", methods=["POST"])

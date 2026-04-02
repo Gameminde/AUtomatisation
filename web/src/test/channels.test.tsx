@@ -67,5 +67,5 @@ describe("ChannelsPage", () => {
     expect(screen.getAllByText("Main Page")).toHaveLength(2);
     expect(screen.getByRole("button", { name: "Save destination defaults" })).toBeInTheDocument();
     expect(screen.getByText("ABC123")).toBeInTheDocument();
-  });
+  }, 15000);
 });

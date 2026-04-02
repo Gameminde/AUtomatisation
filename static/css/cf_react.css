@@ -4355,10 +4355,10 @@ article[hidden] {
   --shadow-depth-2: 0 16px 40px rgba(24, 22, 17, 0.11), 0 4px 12px rgba(24, 22, 17, 0.05);
   --shadow-depth-3: 0 24px 58px rgba(24, 22, 17, 0.14), 0 8px 18px rgba(24, 22, 17, 0.06);
 
-  --topbar-h: 44px;
-  --sidebar-w: 196px;
-  --sidebar-w-collapsed: 54px;
-  --content-w: 1320px;
+  --topbar-h: 42px;
+  --sidebar-w: 186px;
+  --sidebar-w-collapsed: 51px;
+  --content-w: 1256px;
 }
 
 body {
@@ -4424,7 +4424,9 @@ body {
 }
 
 .cf-content {
-  width: min(var(--content-w), calc(100vw - 40px));
+  width: 100%;
+  max-width: min(100%, var(--content-w));
+  margin: 0 auto;
   padding: 18px 22px 28px;
 }
 
@@ -4552,6 +4554,147 @@ body.is-sidebar-collapsed .cf-sidebar {
 .cf-dashboard-page .cf-page-title {
   font-size: clamp(1.86rem, 2.5vw, 2.34rem);
   letter-spacing: -0.05em;
+}
+
+.cf-shell[data-app-page="studio"] {
+  grid-template-columns: 55px minmax(0, 1fr);
+}
+
+body.is-sidebar-collapsed .cf-shell[data-app-page="studio"] {
+  grid-template-columns: 55px minmax(0, 1fr);
+}
+
+.cf-shell[data-app-page="studio"] .cf-sidebar {
+  padding: 10px 6px 12px;
+  background: linear-gradient(180deg, rgba(18, 16, 13, 0.985) 0%, rgba(13, 12, 10, 0.985) 100%);
+}
+
+.cf-shell[data-app-page="studio"] .cf-sidebar-head {
+  min-height: 42px;
+  margin-bottom: 16px;
+  padding-inline-end: 0;
+  justify-content: center;
+}
+
+.cf-shell[data-app-page="studio"] .cf-sidebar-toggle,
+.cf-shell[data-app-page="studio"] .cf-brand-copy,
+.cf-shell[data-app-page="studio"] .cf-sidebar-foot,
+.cf-shell[data-app-page="studio"] .cf-sidebar-setup-bar {
+  display: none;
+}
+
+.cf-shell[data-app-page="studio"] .cf-brand {
+  grid-template-columns: auto;
+  justify-items: center;
+}
+
+.cf-shell[data-app-page="studio"] .cf-brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  box-shadow: 0 8px 18px rgba(12, 11, 9, 0.22);
+}
+
+.cf-shell[data-app-page="studio"] .cf-sidebar-nav {
+  align-content: start;
+  justify-items: center;
+  gap: 10px;
+}
+
+.cf-shell[data-app-page="studio"] .cf-sidebar-nav-link {
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 14px;
+  background: transparent;
+}
+
+.cf-shell[data-app-page="studio"] .cf-sidebar-nav-label {
+  display: none;
+}
+
+.cf-shell[data-app-page="studio"] .cf-sidebar-nav-icon {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.cf-shell[data-app-page="studio"] .cf-sidebar-nav-link.is-active {
+  background: rgba(228, 200, 98, 0.18);
+  color: #f7e6a3;
+  box-shadow: 0 12px 20px rgba(18, 16, 12, 0.2);
+}
+
+.cf-shell[data-app-page="studio"] .cf-topbar {
+  min-height: 53px;
+  padding: 8px 16px 8px 10px;
+  background: linear-gradient(180deg, rgba(19, 17, 14, 0.985) 0%, rgba(15, 14, 12, 0.985) 100%);
+}
+
+.cf-shell[data-app-page="studio"] .cf-topbar-left,
+.cf-shell[data-app-page="studio"] .cf-topbar-right {
+  gap: 10px;
+}
+
+.cf-shell[data-app-page="studio"] .cf-topbar-page-title {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(249, 244, 230, 0.88);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.cf-shell[data-app-page="studio"] .cf-live,
+.cf-shell[data-app-page="studio"] .cf-lang,
+.cf-shell[data-app-page="studio"] .cf-user-btn {
+  min-height: 36px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(248, 243, 231, 0.84);
+}
+
+.cf-shell[data-app-page="studio"] .cf-live {
+  padding-inline: 14px;
+}
+
+.cf-shell[data-app-page="studio"] .cf-user-btn {
+  max-width: 248px;
+}
+
+.cf-shell[data-app-page="studio"] .cf-content {
+  padding: 8px 18px 26px;
+}
+
+@media (max-width: 1480px) {
+  .cf-shell[data-app-page="studio"] .cf-content {
+    padding: 6px 14px 22px;
+  }
+
+  .cf-shell[data-app-page="studio"] .cf-user-btn {
+    max-width: 208px;
+  }
+}
+
+@media (max-width: 1280px) {
+  .cf-shell[data-app-page="studio"] .cf-topbar {
+    padding-inline: 8px 12px;
+  }
+
+  .cf-shell[data-app-page="studio"] .cf-content {
+    padding: 6px 10px 18px;
+  }
+
+  .cf-shell[data-app-page="studio"] .cf-user-btn {
+    max-width: 180px;
+  }
 }
 
 .cf-dashboard-page .cf-page-copy {
@@ -5053,7 +5196,9 @@ body[data-system-dir="rtl"] .cf-studio-template-group-head {
 
 @media (max-width: 1180px) {
   .cf-content {
-    width: min(var(--content-w), calc(100vw - 28px));
+    width: 100%;
+    max-width: min(100%, var(--content-w));
+    margin: 0 auto;
     padding: 16px 14px 24px;
   }
 

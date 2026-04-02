@@ -1,9 +1,10 @@
-import { CSSProperties, ChangeEvent, Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CSSProperties, ChangeEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-import { apiCall, BootstrapResponse } from "../lib/api";
+import { apiCall, apiFetch, BootstrapResponse } from "../lib/api";
 import { BootPayload } from "../lib/boot";
 import { Translator } from "../lib/i18n";
+import { resolveStudioLayoutMode, StudioLayoutMode } from "../lib/studioLayout";
 import {
   StudioBrief,
   StudioItem,
@@ -51,16 +52,39 @@ type StudioProfile = {
 };
 
 type StudioCollections = Record<StudioTab, StudioItem[]>;
+type StudioAdvancedPanel = "brand" | "layout" | "media";
+type StudioAssetUploadKind = "main-image" | "background";
+
+type StudioAssetUploadResponse = {
+  success: boolean;
+  kind: StudioAssetUploadKind;
+  content_id?: string;
+  image_path?: string;
+  image_url?: string;
+  public_url?: string;
+  backgroundImagePath?: string;
+};
 
 type StudioTemplateDesign = {
   brandName: string;
   socialHandle: string;
+  backgroundImagePath: string;
   backgroundDensity: number;
+  backgroundZoom: number;
+  backgroundOffsetX: number;
+  backgroundOffsetY: number;
   mediaWidth: number;
+  mediaHeight: number;
   mediaZoom: number;
+  mediaClarity: number;
   mediaOffsetX: number;
   mediaOffsetY: number;
   mediaFit: "contain" | "cover";
+  titleScale: number;
+  titleOffsetY: number;
+  titleWidth: number;
+  titleFontFamily: "display" | "body" | "mono";
+  titleColor: string;
   showSocialStrip: boolean;
   showBrandBadge: boolean;
 };
@@ -68,14 +92,25 @@ type StudioTemplateDesign = {
 const DEFAULT_TEMPLATE: StudioTemplateDesign = {
   brandName: "",
   socialHandle: "",
+  backgroundImagePath: "",
   backgroundDensity: 48,
+  backgroundZoom: 100,
+  backgroundOffsetX: 0,
+  backgroundOffsetY: 0,
   mediaWidth: 66,
+  mediaHeight: 156,
   mediaZoom: 100,
+  mediaClarity: 100,
   mediaOffsetX: 0,
   mediaOffsetY: 0,
   mediaFit: "contain",
+  titleScale: 100,
+  titleOffsetY: 0,
+  titleWidth: 94,
+  titleFontFamily: "display",
+  titleColor: "#fff8ef",
   showSocialStrip: true,
-  showBrandBadge: true,
+  showBrandBadge: false,
 };
 
 function normalizeTemplateDefaults(raw: unknown): Partial<StudioTemplateDesign> {
@@ -84,21 +119,55 @@ function normalizeTemplateDefaults(raw: unknown): Partial<StudioTemplateDesign> 
 
   if ("brandName" in data) next.brandName = String(data.brandName || "").trim();
   if ("socialHandle" in data) next.socialHandle = String(data.socialHandle || "").trim();
+  if ("backgroundImagePath" in data) next.backgroundImagePath = String(data.backgroundImagePath || "").trim();
 
   const backgroundDensity = Number(data.backgroundDensity);
   if (Number.isFinite(backgroundDensity)) next.backgroundDensity = Math.min(100, Math.max(0, backgroundDensity));
 
+  const backgroundZoom = Number(data.backgroundZoom);
+  if (Number.isFinite(backgroundZoom)) next.backgroundZoom = Math.min(180, Math.max(40, backgroundZoom));
+
+  const backgroundOffsetX = Number(data.backgroundOffsetX);
+  if (Number.isFinite(backgroundOffsetX)) next.backgroundOffsetX = Math.min(40, Math.max(-40, backgroundOffsetX));
+
+  const backgroundOffsetY = Number(data.backgroundOffsetY);
+  if (Number.isFinite(backgroundOffsetY)) next.backgroundOffsetY = Math.min(40, Math.max(-40, backgroundOffsetY));
+
   const mediaWidth = Number(data.mediaWidth);
   if (Number.isFinite(mediaWidth)) next.mediaWidth = Math.min(100, Math.max(30, mediaWidth));
 
+  const mediaHeight = Number(data.mediaHeight);
+  if (Number.isFinite(mediaHeight)) next.mediaHeight = Math.min(260, Math.max(110, mediaHeight));
+
   const mediaZoom = Number(data.mediaZoom);
-  if (Number.isFinite(mediaZoom)) next.mediaZoom = Math.min(180, Math.max(40, mediaZoom));
+  if (Number.isFinite(mediaZoom)) next.mediaZoom = Math.min(220, Math.max(40, mediaZoom));
+
+  const mediaClarity = Number(data.mediaClarity);
+  if (Number.isFinite(mediaClarity)) next.mediaClarity = Math.min(140, Math.max(80, mediaClarity));
 
   const mediaOffsetX = Number(data.mediaOffsetX);
-  if (Number.isFinite(mediaOffsetX)) next.mediaOffsetX = Math.min(40, Math.max(-40, mediaOffsetX));
+  if (Number.isFinite(mediaOffsetX)) next.mediaOffsetX = Math.min(60, Math.max(-60, mediaOffsetX));
 
   const mediaOffsetY = Number(data.mediaOffsetY);
-  if (Number.isFinite(mediaOffsetY)) next.mediaOffsetY = Math.min(40, Math.max(-40, mediaOffsetY));
+  if (Number.isFinite(mediaOffsetY)) next.mediaOffsetY = Math.min(60, Math.max(-60, mediaOffsetY));
+
+  const titleScale = Number(data.titleScale);
+  if (Number.isFinite(titleScale)) next.titleScale = Math.min(140, Math.max(80, titleScale));
+
+  const titleOffsetY = Number(data.titleOffsetY);
+  if (Number.isFinite(titleOffsetY)) next.titleOffsetY = Math.min(24, Math.max(-24, titleOffsetY));
+
+  const titleWidth = Number(data.titleWidth);
+  if (Number.isFinite(titleWidth)) next.titleWidth = Math.min(100, Math.max(68, titleWidth));
+
+  if (data.titleFontFamily === "display" || data.titleFontFamily === "body" || data.titleFontFamily === "mono") {
+    next.titleFontFamily = data.titleFontFamily;
+  }
+
+  const titleColor = String(data.titleColor || "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(titleColor)) {
+    next.titleColor = titleColor;
+  }
 
   if (data.mediaFit === "contain" || data.mediaFit === "cover") {
     next.mediaFit = data.mediaFit;
@@ -109,9 +178,74 @@ function normalizeTemplateDefaults(raw: unknown): Partial<StudioTemplateDesign> 
   return next;
 }
 
+function buildTemplateSettingsPayload(template: StudioTemplateDesign) {
+  return {
+    brandName: template.brandName,
+    socialHandle: template.socialHandle,
+    backgroundImagePath: template.backgroundImagePath,
+    backgroundDensity: template.backgroundDensity,
+    backgroundZoom: template.backgroundZoom,
+    backgroundOffsetX: template.backgroundOffsetX,
+    backgroundOffsetY: template.backgroundOffsetY,
+    mediaWidth: template.mediaWidth,
+    mediaHeight: template.mediaHeight,
+    mediaZoom: template.mediaZoom,
+    mediaClarity: template.mediaClarity,
+    mediaOffsetX: template.mediaOffsetX,
+    mediaOffsetY: template.mediaOffsetY,
+    mediaFit: template.mediaFit,
+    titleScale: template.titleScale,
+    titleOffsetY: template.titleOffsetY,
+    titleWidth: template.titleWidth,
+    titleFontFamily: template.titleFontFamily,
+    titleColor: template.titleColor,
+    showSocialStrip: template.showSocialStrip,
+    showBrandBadge: template.showBrandBadge,
+  };
+}
+
+function assetLabel(value: string): string {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+  const [withoutQuery] = trimmed.split("?");
+  const parts = withoutQuery.split(/[\\/]/).filter(Boolean);
+  return parts[parts.length - 1] || trimmed;
+}
+
+function appendCacheBust(url: string): string {
+  const trimmed = String(url || "").trim();
+  if (!trimmed) return "";
+  const glue = trimmed.includes("?") ? "&" : "?";
+  return `${trimmed}${glue}v=${Date.now()}`;
+}
+
+function resolveStudioImagePreviewUrl(imagePath: string, contentId?: string | null, optimisticUrl?: string): string {
+  const optimistic = String(optimisticUrl || "").trim();
+  if (optimistic) return optimistic;
+  const trimmed = String(imagePath || "").trim();
+  if (!trimmed) return "";
+  if (/^(https?:)?\/\//.test(trimmed) || trimmed.startsWith("/")) {
+    return appendCacheBust(trimmed);
+  }
+  return contentId ? appendCacheBust(`/api/content/${contentId}/image`) : "";
+}
+
+function resolveTemplateTitleFont(fontFamily: StudioTemplateDesign["titleFontFamily"]): string {
+  if (fontFamily === "body") return "var(--font-body)";
+  if (fontFamily === "mono") return "var(--font-mono)";
+  return "var(--font-display)";
+}
+
 function buildTemplateAutomationNote(template: StudioTemplateDesign, translator: Translator): string {
   const notes = [
     translator.tr("Keep the publish surface visually calm and creator-ready."),
+    template.backgroundImagePath.trim()
+      ? translator.tr("Background image framing: {zoom}% zoom with focus {x}% / {y}%.", {
+        zoom: String(template.backgroundZoom),
+        x: String(template.backgroundOffsetX),
+        y: String(template.backgroundOffsetY),
+      })
+      : translator.tr("Use a clean background layer behind the main publication image."),
     translator.tr("Artwork scale target: {size}% width and {zoom}% zoom.", {
       size: String(template.mediaWidth),
       zoom: String(template.mediaZoom),
@@ -121,10 +255,12 @@ function buildTemplateAutomationNote(template: StudioTemplateDesign, translator:
       x: String(template.mediaOffsetX),
       y: String(template.mediaOffsetY),
     }),
+    translator.tr("Title emphasis: {scale}% scale with {width}% width and {offset}% vertical offset.", {
+      scale: String(template.titleScale),
+      width: String(template.titleWidth),
+      offset: String(template.titleOffsetY),
+    }),
   ];
-  if (template.showBrandBadge) {
-    notes.push(translator.tr("Reserve space for a brand badge."));
-  }
   if (template.showSocialStrip) {
     notes.push(translator.tr("Reserve space for a social handle strip."));
   }
@@ -223,59 +359,87 @@ function TemplateCanvas({
   translator,
   template,
   fallbackMediaUrl,
+  titleText,
+  supportText,
 }: {
   surface: string;
   pageName: string;
   translator: Translator;
   template: StudioTemplateDesign;
   fallbackMediaUrl: string;
+  titleText: string;
+  supportText: string;
 }) {
-  const brandName = template.brandName.trim() || pageName;
   const socialHandle = template.socialHandle.trim() || pageName.replace(/\s+/g, "").toLowerCase();
+  const handleLabel = `@${socialHandle.replace(/^@+/, "")}`;
+  const brandLabel = template.brandName.trim() || pageName;
   const mediaUrl = fallbackMediaUrl || "";
+  const backgroundImagePath = template.backgroundImagePath.trim();
+  const backgroundTitle = titleText.trim();
+  const backgroundSupport = supportText.trim();
+  const canvasClassName = `cf-template-canvas ${surface === "instagram" ? "is-instagram" : "is-facebook"}`;
   const style = {
+    "--cf-template-background-zoom": String(template.backgroundZoom / 100),
+    "--cf-template-background-offset-x": `${template.backgroundOffsetX}%`,
+    "--cf-template-background-offset-y": `${template.backgroundOffsetY}%`,
     "--cf-template-media-width": `${template.mediaWidth}%`,
+    "--cf-template-media-height": `${template.mediaHeight}px`,
     "--cf-template-bg-density": `${template.backgroundDensity / 100}`,
     "--cf-template-media-zoom": `${template.mediaZoom / 100}`,
+    "--cf-template-media-clarity": `${template.mediaClarity / 100}`,
     "--cf-template-media-offset-x": `${template.mediaOffsetX}%`,
     "--cf-template-media-offset-y": `${template.mediaOffsetY}%`,
     "--cf-template-media-fit": template.mediaFit,
+    "--cf-template-title-scale": String(template.titleScale / 100),
+    "--cf-template-title-offset-y": `${template.titleOffsetY}px`,
+    "--cf-template-title-width": `${template.titleWidth}%`,
+    "--cf-template-title-color": template.titleColor,
+    "--cf-template-title-font": resolveTemplateTitleFont(template.titleFontFamily),
   } as CSSProperties;
 
   return (
-    <div className="cf-template-canvas" style={style}>
-      <div className="cf-template-bg" />
-      <div className="cf-template-overlay" />
-      <div className="cf-template-layer cf-template-layer-guides cf-template-safe-guides" aria-hidden="true">
-        <span className="cf-template-safe-guide is-top" />
-        <span className="cf-template-safe-guide is-bottom" />
-        <span className="cf-template-safe-guide is-left" />
-        <span className="cf-template-safe-guide is-right" />
+    <div className={canvasClassName} style={style}>
+      <div className="cf-template-bg">
+        {backgroundImagePath ? (
+          <div
+            className="cf-template-bg-media"
+            style={{ backgroundImage: `url("${backgroundImagePath.replace(/"/g, '\\"')}")` }}
+            aria-hidden="true"
+          />
+        ) : null}
       </div>
-      {template.showSocialStrip ? (
-        <div className="cf-template-layer cf-template-layer-social cf-template-social-strip">
-          <div className="cf-template-social-icons" aria-hidden="true">
-            <span>f</span>
-            <span>ig</span>
-            <span>x</span>
+      <div className="cf-template-overlay" />
+      <div className="cf-template-stage">
+        {template.showSocialStrip ? (
+          <div className="cf-template-brand-strip">
+            <div className="cf-template-social-group">
+              <div className="cf-template-social-icons" aria-hidden="true">
+                <span>f</span>
+                <span>ig</span>
+                <span>x</span>
+              </div>
+              <span className="cf-template-social-handle">{handleLabel}</span>
+            </div>
+            {template.showBrandBadge ? <span className="cf-template-brand-chip">{brandLabel}</span> : null}
           </div>
-          <span>@{socialHandle.replace(/^@+/, "")}</span>
-        </div>
-      ) : null}
-      {template.showBrandBadge ? (
-        <div className="cf-template-layer cf-template-layer-brand cf-template-brand-badge">
-          <span>{surface === "instagram" ? translator.tr("Creator brand") : translator.tr("Page brand")}</span>
-          <strong>{brandName}</strong>
-        </div>
-      ) : null}
-      <div className="cf-template-layer cf-template-layer-media cf-template-media-frame">
-        {mediaUrl ? (
-          <img src={mediaUrl} alt={translator.tr("Template media preview")} />
-        ) : (
-          <div className="cf-template-media-placeholder">
-            <span>{translator.tr("Drop a publication image")}</span>
+        ) : null}
+        <div className="cf-template-media-zone">
+          <div className={`cf-template-media-viewport ${mediaUrl ? "" : "is-empty"}`}>
+            {mediaUrl ? (
+              <img src={mediaUrl} alt={translator.tr("Template media preview")} />
+            ) : (
+              <div className="cf-template-media-placeholder">
+                <span>{translator.tr("Drop a publication image")}</span>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+        <div className="cf-template-title-zone">
+          <div className="cf-template-title-block">
+            <h3>{backgroundTitle || translator.tr("Your headline here")}</h3>
+            {backgroundSupport ? <p>{backgroundSupport}</p> : null}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -319,6 +483,7 @@ function PreviewBody({
   pageName,
   briefPlatformLabel,
   template,
+  mediaUrl,
 }: {
   current: StudioItem;
   surface: string;
@@ -326,11 +491,10 @@ function PreviewBody({
   pageName: string;
   briefPlatformLabel: string;
   template: StudioTemplateDesign;
+  mediaUrl: string;
 }) {
   const content = current.content_normalized;
   const format = String(content.format || current.post_type || "post").toLowerCase();
-  const imagePath = String(content.image_path || "").trim();
-  const imageSource = imagePath ? (current.id ? `/api/content/${current.id}/image` : imagePath) : "";
   const surfaceLabel = translator.tr(surface === "instagram" ? "Instagram" : "Facebook");
   const isInstagram = surface === "instagram";
   const primaryText = String(content.hook || "").trim() || translator.tr(format === "reel_script" ? "Reel hook" : "Post hook");
@@ -350,6 +514,7 @@ function PreviewBody({
   const instagramHandle = (template.socialHandle.trim() || pageName.replace(/\s+/g, "").toLowerCase()).replace(/^@+/, "");
   const facebookMeta = `${translator.tr("Just now")} • ${translator.tr("Public")}`;
   const instagramMeta = translator.tr("Original audio");
+  const facebookPreviewCopy = secondaryText || (!mediaUrl && !template.backgroundImagePath ? primaryText : "");
   const topHeader = isInstagram ? (
     <div className="cf-social-post-header is-instagram">
       <div className="cf-social-identity">
@@ -518,25 +683,26 @@ function PreviewBody({
       {topHeader}
       {!isInstagram ? (
         <div className="cf-social-copy is-facebook-copy">
-          <strong>{primaryText}</strong>
-          {secondaryText ? <span>{renderLines(secondaryText)}</span> : null}
+          {facebookPreviewCopy ? <span>{renderLines(facebookPreviewCopy)}</span> : null}
           {hashtagsText ? <div className="cf-social-hashtag-line">{hashtagsText}</div> : null}
         </div>
       ) : null}
-      <figure className={`cf-social-media ${isInstagram ? "is-portrait" : "is-facebook"} ${imageSource ? "" : "is-placeholder"}`}>
+      <figure className={`cf-social-media ${isInstagram ? "is-portrait" : "is-facebook"} ${mediaUrl ? "" : "is-placeholder"}`}>
         <TemplateCanvas
           surface={surface}
           pageName={pageName}
           translator={translator}
           template={template}
-          fallbackMediaUrl={imageSource}
+          fallbackMediaUrl={mediaUrl}
+          titleText={primaryText}
+          supportText={secondaryText}
         />
       </figure>
       {isInstagram ? instagramActions : null}
       <div className={`cf-social-engagement ${isInstagram ? "is-instagram-summary" : "is-facebook-summary"}`}>
         <div className="cf-social-engagement-primary">
           {!isInstagram ? facebookReactionBadges : null}
-          <strong>{compactMetric(isInstagram ? likes : likes + shares)} {translator.tr(isInstagram ? "likes" : "reactions")}</strong>
+        <strong>{compactMetric(isInstagram ? likes : likes + shares)} {translator.tr(isInstagram ? "likes" : "reactions")}</strong>
         </div>
         {isInstagram ? (
           <span>{compactMetric(comments)} {translator.tr("comments")} - {compactMetric(saves)} {translator.tr("saves")}</span>
@@ -580,8 +746,14 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
   const [search, setSearch] = useState("");
   const [current, setCurrent] = useState<StudioItem | null>(null);
   const [previewSurface, setPreviewSurface] = useState<"facebook" | "instagram">("facebook");
+  const [templatePreviewOpen, setTemplatePreviewOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [advancedPanels, setAdvancedPanels] = useState<Record<StudioAdvancedPanel, boolean>>({
+    brand: true,
+    layout: false,
+    media: false,
+  });
   const [composerSection, setComposerSection] = useState<"idea" | "template" | "copy">("idea");
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState(translator.tr("Set the brief, run an AI preview, then decide what the agent should save, review, schedule, or publish."));
@@ -608,13 +780,18 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
   });
   const [template, setTemplate] = useState<StudioTemplateDesign>(DEFAULT_TEMPLATE);
   const [savingTemplate, setSavingTemplate] = useState(false);
-  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
+  const [studioLayout, setStudioLayout] = useState<StudioLayoutMode>("stacked");
   const briefRef = useRef(brief);
   const currentIdRef = useRef<string | null>(current?.id ?? null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const mainImageInputRef = useRef<HTMLInputElement | null>(null);
+  const backgroundImageInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingMainImage, setUploadingMainImage] = useState(false);
+  const [uploadingBackgroundImage, setUploadingBackgroundImage] = useState(false);
+  const [mainImagePreviewOverride, setMainImagePreviewOverride] = useState("");
 
-  const overlayLibrary = windowWidth > 1080;
-  const desktopCanvas = windowWidth >= 1280;
-  const centeredCanvasDesktop = windowWidth >= 1366;
+  const desktopCanvas = studioLayout !== "stacked";
+  const centeredCanvasDesktop = studioLayout === "centered";
 
   useEffect(() => {
     briefRef.current = brief;
@@ -625,7 +802,58 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
   }, [current?.id]);
 
   useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
+    setMainImagePreviewOverride("");
+  }, [current?.id]);
+
+  useEffect(() => {
+    if (!templatePreviewOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setTemplatePreviewOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [templatePreviewOpen]);
+
+  const toggleAdvancedPanel = useCallback((panel: StudioAdvancedPanel) => {
+    setAdvancedPanels((currentPanels) => ({
+      ...currentPanels,
+      [panel]: !currentPanels[panel],
+    }));
+  }, []);
+
+  useLayoutEffect(() => {
+    const stageNode = stageRef.current;
+    if (!stageNode) {
+      return;
+    }
+
+    const syncLayoutMode = (nextWidth: number) => {
+      const nextMode = resolveStudioLayoutMode(nextWidth);
+      setStudioLayout((currentMode) => (currentMode === nextMode ? currentMode : nextMode));
+    };
+
+    const readStageWidth = () => {
+      const measuredWidth = stageNode.clientWidth || stageNode.getBoundingClientRect().width || 0;
+      syncLayoutMode(measuredWidth);
+    };
+
+    readStageWidth();
+
+    if (typeof ResizeObserver === "function") {
+      const observer = new ResizeObserver((entries) => {
+        const observedEntry = entries.find((entry) => entry.target === stageNode) || entries[0];
+        syncLayoutMode(observedEntry?.contentRect.width || stageNode.clientWidth || 0);
+      });
+
+      observer.observe(stageNode);
+      return () => observer.disconnect();
+    }
+
+    const handleResize = () => readStageWidth();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
@@ -825,22 +1053,32 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
     setTemplate((currentTemplate) => ({ ...currentTemplate, [field]: value }));
   }, []);
 
+  const focusEditorField = useCallback((ref: { current: HTMLInputElement | null }) => {
+    ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+    if (ref.current?.type === "file") {
+      ref.current.click();
+      return;
+    }
+    ref.current?.focus();
+  }, []);
+
+  const uploadStudioAsset = useCallback(async (formData: FormData): Promise<StudioAssetUploadResponse> => {
+    const response = await apiFetch("/api/studio/assets/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const payload = await response.json().catch(() => null) as Partial<StudioAssetUploadResponse> & { error?: string } | null;
+    if (!response.ok || !payload?.success) {
+      throw new Error(String(payload?.error || translator.tr("Could not upload the image.")));
+    }
+    return payload as StudioAssetUploadResponse;
+  }, [translator]);
+
   const saveTemplateDefaults = useCallback(async () => {
     if (savingTemplate) return;
     setSavingTemplate(true);
     try {
-      const payload = {
-        brandName: template.brandName,
-        socialHandle: template.socialHandle,
-        backgroundDensity: template.backgroundDensity,
-        mediaWidth: template.mediaWidth,
-        mediaZoom: template.mediaZoom,
-        mediaOffsetX: template.mediaOffsetX,
-        mediaOffsetY: template.mediaOffsetY,
-        mediaFit: template.mediaFit,
-        showSocialStrip: template.showSocialStrip,
-        showBrandBadge: template.showBrandBadge,
-      };
+      const payload = buildTemplateSettingsPayload(template);
       const response = await apiCall<{ success: boolean; template_defaults: Record<string, unknown> }>("/api/studio/template-settings", "POST", payload);
       const normalized = normalizeTemplateDefaults(response.template_defaults);
       setTemplate((currentTemplate) => ({
@@ -897,6 +1135,150 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
     return saved.content_id;
   }, [brief.language, current, push, reloadStudio, translator]);
 
+  const handleMainImageUpload = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!current) {
+      push(translator.tr("Create or open a draft before uploading a main image."), "error");
+      return;
+    }
+
+    setUploadingMainImage(true);
+    try {
+      const contentId = current.id || await saveDraft();
+      if (!contentId) {
+        throw new Error(translator.tr("Could not prepare the draft for image upload."));
+      }
+      const formData = new FormData();
+      formData.append("kind", "main-image");
+      formData.append("content_id", contentId);
+      formData.append("file", file);
+      const uploaded = await uploadStudioAsset(formData);
+      const nextPreviewUrl = resolveStudioImagePreviewUrl(
+        String(uploaded.image_path || uploaded.image_url || uploaded.public_url || ""),
+        contentId,
+        String(uploaded.public_url || uploaded.image_url || ""),
+      );
+      setMainImagePreviewOverride(nextPreviewUrl);
+      setCurrent((currentItem) => {
+        if (!currentItem) return currentItem;
+        return {
+          ...currentItem,
+          content_normalized: {
+            ...currentItem.content_normalized,
+            image_path: String(uploaded.image_path || uploaded.image_url || currentItem.content_normalized.image_path || ""),
+          },
+        };
+      });
+      await reloadStudio(contentId);
+      push(translator.tr("Main image uploaded."));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : translator.tr("Could not upload the main image.");
+      push(translator.maybeTr(message), "error");
+    } finally {
+      setUploadingMainImage(false);
+    }
+  }, [current, push, reloadStudio, saveDraft, translator, uploadStudioAsset]);
+
+  const handleMainImageRemove = useCallback(async () => {
+    if (!current) return;
+
+    setUploadingMainImage(true);
+    try {
+      if (current.id) {
+        await apiCall(`/api/content/${current.id}`, "PUT", {
+          image_path: "",
+        });
+      }
+      setMainImagePreviewOverride("");
+      setCurrent((currentItem) => {
+        if (!currentItem) return currentItem;
+        return {
+          ...currentItem,
+          content_normalized: {
+            ...currentItem.content_normalized,
+            image_path: "",
+          },
+        };
+      });
+      if (current.id) {
+        await reloadStudio(current.id);
+      }
+      push(translator.tr("Main image removed."));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : translator.tr("Could not remove the main image.");
+      push(translator.maybeTr(message), "error");
+    } finally {
+      setUploadingMainImage(false);
+    }
+  }, [current, push, reloadStudio, translator]);
+
+  const handleBackgroundImageUpload = useCallback(async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setUploadingBackgroundImage(true);
+    try {
+      const formData = new FormData();
+      formData.append("kind", "background");
+      formData.append("file", file);
+      const uploaded = await uploadStudioAsset(formData);
+      const nextTemplate = {
+        ...template,
+        backgroundImagePath: String(uploaded.backgroundImagePath || ""),
+      };
+      setTemplate(nextTemplate);
+      const response = await apiCall<{ success: boolean; template_defaults: Record<string, unknown> }>(
+        "/api/studio/template-settings",
+        "POST",
+        buildTemplateSettingsPayload(nextTemplate),
+      );
+      const normalized = normalizeTemplateDefaults(response.template_defaults);
+      setTemplate((currentTemplate) => ({
+        ...currentTemplate,
+        ...normalized,
+      }));
+      push(translator.tr("Background uploaded and saved."));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : translator.tr("Could not upload the background image.");
+      push(translator.maybeTr(message), "error");
+    } finally {
+      setUploadingBackgroundImage(false);
+    }
+  }, [push, template, translator, uploadStudioAsset]);
+
+  const handleBackgroundImageRemove = useCallback(async () => {
+    const previousTemplate = template;
+    const nextTemplate = {
+      ...template,
+      backgroundImagePath: "",
+    };
+
+    setUploadingBackgroundImage(true);
+    setTemplate(nextTemplate);
+    try {
+      const response = await apiCall<{ success: boolean; template_defaults: Record<string, unknown> }>(
+        "/api/studio/template-settings",
+        "POST",
+        buildTemplateSettingsPayload(nextTemplate),
+      );
+      const normalized = normalizeTemplateDefaults(response.template_defaults);
+      setTemplate((currentTemplate) => ({
+        ...currentTemplate,
+        ...normalized,
+      }));
+      push(translator.tr("Background removed."));
+    } catch (error) {
+      setTemplate(previousTemplate);
+      const message = error instanceof Error ? error.message : translator.tr("Could not remove the background image.");
+      push(translator.maybeTr(message), "error");
+    } finally {
+      setUploadingBackgroundImage(false);
+    }
+  }, [push, template, translator]);
+
   const handleGenerate = useCallback(async () => {
     if (!brief.topic.trim()) {
       push(translator.tr("Add a core topic before running the AI preview."), "error");
@@ -946,7 +1328,7 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
       const currentFormat = String(current.content_normalized.format || current.post_type || brief.format || "post").toLowerCase() as StudioBrief["format"];
       const result = await apiCall<{ success: boolean; content_id?: string | null; content: StudioItem["content_normalized"] }>(
         "/api/studio/regenerate",
-        "POST",
+          "POST",
         {
           content_id: current.id || undefined,
           format: currentFormat,
@@ -954,22 +1336,28 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
           instruction: `${regenerationPrompt(brief)}\n\n${buildTemplateAutomationNote(template, translator)}`,
           tone: brief.tone,
         },
-      );
-      setCurrent({
-        ...current,
+        );
+        setCurrent({
+          ...current,
         post_type: currentFormat,
-        content_normalized: {
-          ...result.content,
+          content_normalized: {
+            ...result.content,
           format: (result.content.format || currentFormat) as StudioBrief["format"],
-          hashtags: Array.isArray(result.content.hashtags) ? result.content.hashtags : [],
-          slides: Array.isArray(result.content.slides) ? result.content.slides : [],
-          frames: Array.isArray(result.content.frames) ? result.content.frames : [],
-          points: Array.isArray(result.content.points) ? result.content.points : [],
-        },
-      });
-      push(translator.tr("Preview regenerated."));
+            hashtags: Array.isArray(result.content.hashtags) ? result.content.hashtags : [],
+            slides: Array.isArray(result.content.slides) ? result.content.slides : [],
+            frames: Array.isArray(result.content.frames) ? result.content.frames : [],
+            points: Array.isArray(result.content.points) ? result.content.points : [],
+          },
+        });
+        push(translator.tr("Preview regenerated."));
     });
   }, [brief, current, handleGenerate, push, template, translator, withBusy]);
+
+  const currentImagePath = String(current?.content_normalized.image_path || "").trim();
+  const currentImagePreviewUrl = resolveStudioImagePreviewUrl(currentImagePath, current?.id, mainImagePreviewOverride);
+  const backgroundImagePreviewUrl = template.backgroundImagePath.trim();
+  const currentImageName = assetLabel(currentImagePath);
+  const backgroundImageName = assetLabel(backgroundImagePreviewUrl);
 
   const handlePrimaryAction = useCallback(async () => {
     if (!current) {
@@ -1151,12 +1539,214 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
 
     return null;
   }, [current]);
+  const templatePreviewTitle = previewDraft
+    ? (String(previewDraft.content_normalized.hook || "").trim() || translator.tr("Post hook"))
+    : translator.tr("Your headline here");
+  const templatePreviewSupport = previewDraft
+    ? String(
+      previewDraft.content_normalized.body
+      || previewDraft.content_normalized.caption
+      || previewDraft.content_normalized.cta
+      || "",
+    ).trim()
+    : "";
+  const previewMetrics = useMemo(() => {
+    if (!currentContent) {
+      return { reactions: "0", comments: "0", shares: "0" };
+    }
+
+    const metricSeed = previewSeed(
+      `${page?.page_name || "Connected page"}:${previewSurface}:${currentFormat}:${String(currentContent.hook || "")}:${String(currentContent.body || currentContent.caption || currentContent.cta || "")}:${(currentContent.hashtags || []).join(" ")}`,
+    );
+
+    const reactions = 64 + (metricSeed % 540);
+    const comments = 6 + (metricSeed % 44);
+    const shares = 2 + (metricSeed % 18);
+
+    return {
+      reactions: compactMetric(reactions + shares),
+      comments: compactMetric(comments),
+      shares: compactMetric(shares),
+    };
+  }, [currentContent, currentFormat, page?.page_name, previewSurface]);
+
+  const templateBackgroundSection = (
+    <section className="cf-studio-template-group">
+      <div className="cf-studio-template-group-head">
+        <div className="cf-studio-mini-kicker">{translator.tr("Background image")}</div>
+        <p className="cf-inline-note">{translator.tr("Use a background image as the first template layer behind the main image and title.")}</p>
+      </div>
+      <div className="cf-studio-template-grid is-media">
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-background-density">{translator.tr("Background intensity")}</label>
+          <input
+            id="cf-studio-template-background-density"
+            className="cf-input"
+            type="range"
+            min="0"
+            max="100"
+            step="5"
+            value={template.backgroundDensity}
+            onChange={(event) => setTemplateField("backgroundDensity", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.backgroundDensity}%</div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-background-zoom">{translator.tr("Background zoom")}</label>
+          <input
+            id="cf-studio-template-background-zoom"
+            className="cf-input"
+            type="range"
+            min="40"
+            max="180"
+            step="5"
+            value={template.backgroundZoom}
+            onChange={(event) => setTemplateField("backgroundZoom", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.backgroundZoom}%</div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-background-offset-x">{translator.tr("Background horizontal align")}</label>
+          <input
+            id="cf-studio-template-background-offset-x"
+            className="cf-input"
+            type="range"
+            min="-40"
+            max="40"
+            step="2"
+            value={template.backgroundOffsetX}
+            onChange={(event) => setTemplateField("backgroundOffsetX", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.backgroundOffsetX}%</div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-background-offset-y">{translator.tr("Background vertical align")}</label>
+          <input
+            id="cf-studio-template-background-offset-y"
+            className="cf-input"
+            type="range"
+            min="-40"
+            max="40"
+            step="2"
+            value={template.backgroundOffsetY}
+            onChange={(event) => setTemplateField("backgroundOffsetY", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.backgroundOffsetY}%</div>
+        </div>
+      </div>
+    </section>
+  );
+
+  const templateAssetSection = (
+    <section className="cf-studio-template-group cf-studio-template-group-assets">
+      <div className="cf-studio-template-group-head">
+        <div className="cf-studio-mini-kicker">{translator.tr("Media assets")}</div>
+        <p className="cf-inline-note">{translator.tr("Upload both visuals directly from your computer, then fine-tune their framing below.")}</p>
+      </div>
+      <div className="cf-studio-template-asset-actions">
+        <NeonButton type="button" variant="ghost" className="cf-studio-inline-action" onClick={() => focusEditorField(mainImageInputRef)}>
+          {translator.tr("Add main image")}
+        </NeonButton>
+        <NeonButton type="button" variant="ghost" className="cf-studio-inline-action" onClick={() => focusEditorField(backgroundImageInputRef)}>
+          {translator.tr("Add background")}
+        </NeonButton>
+      </div>
+      <div className="cf-studio-template-upload-row">
+        <div className="cf-field cf-studio-upload-field">
+          <label className="cf-field-label" htmlFor="cf-studio-editor-image2">{translator.tr("Main image")}</label>
+          <input
+            ref={mainImageInputRef}
+            id="cf-studio-editor-image2"
+            className="cf-upload-input-native"
+            type="file"
+            accept="image/*"
+            onChange={handleMainImageUpload}
+          />
+          <label className={`cf-upload-tile ${currentImagePreviewUrl ? "is-filled" : ""}`} htmlFor="cf-studio-editor-image2" aria-busy={uploadingMainImage}>
+            <span className="cf-upload-tile-badge">
+              {uploadingMainImage ? translator.tr("Uploading...") : currentImagePreviewUrl ? translator.tr("Uploaded") : translator.tr("From computer")}
+            </span>
+            <div className="cf-upload-tile-body">
+              {currentImagePreviewUrl ? (
+                <>
+                  <img className="cf-upload-tile-preview" src={currentImagePreviewUrl} alt={translator.tr("Main image preview")} />
+                  <div className="cf-upload-tile-overlay">
+                    <strong>{translator.tr("Replace main image")}</strong>
+                    <span>{translator.tr("Choose another file from your computer.")}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="cf-upload-tile-empty">
+                  <strong>{translator.tr("Upload main image")}</strong>
+                  <span>{translator.tr("Choose the foreground publication image directly from your computer.")}</span>
+                </div>
+              )}
+            </div>
+          </label>
+          <div className="cf-upload-meta">
+            <span className="cf-inline-note">{currentImageName || translator.tr("No main image uploaded yet.")}</span>
+            <div className="cf-upload-meta-actions">
+              <label className="cf-upload-link" htmlFor="cf-studio-editor-image2">{translator.tr("Choose file")}</label>
+              {currentImagePreviewUrl ? (
+                <button type="button" className="cf-upload-clear" onClick={handleMainImageRemove} disabled={uploadingMainImage}>
+                  {translator.tr("Remove")}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <div className="cf-field cf-studio-upload-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-background-image">{translator.tr("Background image")}</label>
+          <input
+            ref={backgroundImageInputRef}
+            id="cf-studio-template-background-image"
+            className="cf-upload-input-native"
+            type="file"
+            accept="image/*"
+            onChange={handleBackgroundImageUpload}
+          />
+          <label className={`cf-upload-tile ${backgroundImagePreviewUrl ? "is-filled" : ""}`} htmlFor="cf-studio-template-background-image" aria-busy={uploadingBackgroundImage}>
+            <span className="cf-upload-tile-badge">
+              {uploadingBackgroundImage ? translator.tr("Uploading...") : backgroundImagePreviewUrl ? translator.tr("Saved") : translator.tr("From computer")}
+            </span>
+            <div className="cf-upload-tile-body">
+              {backgroundImagePreviewUrl ? (
+                <>
+                  <img className="cf-upload-tile-preview" src={backgroundImagePreviewUrl} alt={translator.tr("Background image preview")} />
+                  <div className="cf-upload-tile-overlay">
+                    <strong>{translator.tr("Replace background")}</strong>
+                    <span>{translator.tr("Choose another background file from your computer.")}</span>
+                  </div>
+                </>
+              ) : (
+                <div className="cf-upload-tile-empty">
+                  <strong>{translator.tr("Upload background")}</strong>
+                  <span>{translator.tr("Choose the base background layer for the template.")}</span>
+                </div>
+              )}
+            </div>
+          </label>
+          <div className="cf-upload-meta">
+            <span className="cf-inline-note">{backgroundImageName || translator.tr("No background uploaded yet.")}</span>
+            <div className="cf-upload-meta-actions">
+              <label className="cf-upload-link" htmlFor="cf-studio-template-background-image">{translator.tr("Choose file")}</label>
+              {backgroundImagePreviewUrl ? (
+                <button type="button" className="cf-upload-clear" onClick={handleBackgroundImageRemove} disabled={uploadingBackgroundImage}>
+                  {translator.tr("Remove")}
+                </button>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 
   const templateMediaSection = (
     <section className="cf-studio-template-group">
       <div className="cf-studio-template-group-head">
-        <div className="cf-studio-mini-kicker">{translator.tr("Media")}</div>
-        <p className="cf-inline-note">{translator.tr("Tune how draft media sits inside the reusable creative frame.")}</p>
+        <div className="cf-studio-mini-kicker">{translator.tr("Foreground image")}</div>
+        <p className="cf-inline-note">{translator.tr("Control the main image framing, scale, clarity, and placement inside the template.")}</p>
       </div>
       <div className="cf-studio-template-grid is-media">
         <div className="cf-field">
@@ -1172,13 +1762,13 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
           </select>
         </div>
         <div className="cf-field">
-          <label className="cf-field-label" htmlFor="cf-studio-template-image-width">{translator.tr("Publication image size")}</label>
+          <label className="cf-field-label" htmlFor="cf-studio-template-image-width">{translator.tr("Image width")}</label>
           <input
             id="cf-studio-template-image-width"
             className="cf-input"
             type="range"
             min="40"
-            max="88"
+            max="100"
             step="2"
             value={template.mediaWidth}
             onChange={(event) => setTemplateField("mediaWidth", Number(event.target.value))}
@@ -1186,27 +1776,41 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
           <div className="cf-inline-note">{template.mediaWidth}%</div>
         </div>
         <div className="cf-field">
-          <label className="cf-field-label" htmlFor="cf-studio-template-media-zoom">{translator.tr("Publication zoom")}</label>
+          <label className="cf-field-label" htmlFor="cf-studio-template-image-height">{translator.tr("Image height")}</label>
           <input
-            id="cf-studio-template-media-zoom"
+            id="cf-studio-template-image-height"
             className="cf-input"
             type="range"
-            min="40"
-            max="180"
+            min="110"
+            max="260"
             step="5"
-            value={template.mediaZoom}
-            onChange={(event) => setTemplateField("mediaZoom", Number(event.target.value))}
+            value={template.mediaHeight}
+            onChange={(event) => setTemplateField("mediaHeight", Number(event.target.value))}
           />
-          <div className="cf-inline-note">{template.mediaZoom}%</div>
+          <div className="cf-inline-note">{template.mediaHeight}px</div>
         </div>
         <div className="cf-field">
-          <label className="cf-field-label" htmlFor="cf-studio-template-media-offset-x">{translator.tr("Image horizontal position")}</label>
+          <label className="cf-field-label" htmlFor="cf-studio-template-media-clarity">{translator.tr("Image clarity")}</label>
+          <input
+            id="cf-studio-template-media-clarity"
+            className="cf-input"
+            type="range"
+            min="80"
+            max="140"
+            step="5"
+            value={template.mediaClarity}
+            onChange={(event) => setTemplateField("mediaClarity", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.mediaClarity}%</div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-media-offset-x">{translator.tr("Horizontal align")}</label>
           <input
             id="cf-studio-template-media-offset-x"
             className="cf-input"
             type="range"
-            min="-40"
-            max="40"
+            min="-60"
+            max="60"
             step="2"
             value={template.mediaOffsetX}
             onChange={(event) => setTemplateField("mediaOffsetX", Number(event.target.value))}
@@ -1214,21 +1818,267 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
           <div className="cf-inline-note">{template.mediaOffsetX}%</div>
         </div>
         <div className="cf-field">
-          <label className="cf-field-label" htmlFor="cf-studio-template-media-offset-y">{translator.tr("Image vertical position")}</label>
+          <label className="cf-field-label" htmlFor="cf-studio-template-media-offset-y">{translator.tr("Vertical align")}</label>
           <input
             id="cf-studio-template-media-offset-y"
             className="cf-input"
             type="range"
-            min="-40"
-            max="40"
+            min="-60"
+            max="60"
             step="2"
             value={template.mediaOffsetY}
             onChange={(event) => setTemplateField("mediaOffsetY", Number(event.target.value))}
           />
           <div className="cf-inline-note">{template.mediaOffsetY}%</div>
         </div>
+        <div className="cf-field cf-field-span">
+          <label className="cf-field-label" htmlFor="cf-studio-template-media-zoom">{translator.tr("Zoom")}</label>
+          <input
+            id="cf-studio-template-media-zoom"
+            className="cf-input"
+            type="range"
+            min="40"
+            max="220"
+            step="5"
+            value={template.mediaZoom}
+            onChange={(event) => setTemplateField("mediaZoom", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.mediaZoom}%</div>
+        </div>
       </div>
     </section>
+  );
+
+  const templateTitleSection = (
+    <section className="cf-studio-template-group">
+      <div className="cf-studio-template-group-head">
+        <div className="cf-studio-mini-kicker">{translator.tr("Title treatment")}</div>
+        <p className="cf-inline-note">{translator.tr("Make the title easier to read inside the creative before sending the draft to the agent.")}</p>
+      </div>
+      <div className="cf-studio-template-grid is-media">
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-title-scale">{translator.tr("Title size")}</label>
+          <input
+            id="cf-studio-template-title-scale"
+            className="cf-input"
+            type="range"
+            min="80"
+            max="140"
+            step="5"
+            value={template.titleScale}
+            onChange={(event) => setTemplateField("titleScale", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.titleScale}%</div>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-title-font">{translator.tr("Title font")}</label>
+          <select
+            id="cf-studio-template-title-font"
+            className="cf-select"
+            value={template.titleFontFamily}
+            onChange={(event) => setTemplateField("titleFontFamily", event.target.value as StudioTemplateDesign["titleFontFamily"])}
+          >
+            <option value="display">{translator.tr("Display")}</option>
+            <option value="body">{translator.tr("Body")}</option>
+            <option value="mono">{translator.tr("Mono")}</option>
+          </select>
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-title-color">{translator.tr("Title color")}</label>
+          <input
+            id="cf-studio-template-title-color"
+            className="cf-input cf-input-color"
+            type="color"
+            value={template.titleColor}
+            onChange={(event) => setTemplateField("titleColor", event.target.value)}
+          />
+        </div>
+        <div className="cf-field">
+          <label className="cf-field-label" htmlFor="cf-studio-template-title-width">{translator.tr("Title width")}</label>
+          <input
+            id="cf-studio-template-title-width"
+            className="cf-input"
+            type="range"
+            min="68"
+            max="100"
+            step="2"
+            value={template.titleWidth}
+            onChange={(event) => setTemplateField("titleWidth", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.titleWidth}%</div>
+        </div>
+        <div className="cf-field cf-field-span">
+          <label className="cf-field-label" htmlFor="cf-studio-template-title-offset-y">{translator.tr("Title vertical align")}</label>
+          <input
+            id="cf-studio-template-title-offset-y"
+            className="cf-input"
+            type="range"
+            min="-24"
+            max="24"
+            step="2"
+            value={template.titleOffsetY}
+            onChange={(event) => setTemplateField("titleOffsetY", Number(event.target.value))}
+          />
+          <div className="cf-inline-note">{template.titleOffsetY}px</div>
+        </div>
+      </div>
+    </section>
+  );
+
+  const templateBuilderCard = (
+    <article
+      id="cf-studio-panel-template"
+      role="tabpanel"
+      aria-labelledby="cf-studio-tab-template"
+      className="cf-card cf-panel cf-studio-template-card"
+      hidden={!desktopCanvas && composerSection !== "template"}
+      aria-hidden={!desktopCanvas && composerSection !== "template"}
+    >
+      <div className="cf-studio-panel-head cf-studio-panel-head-simple">
+        <div className="cf-studio-panel-copy">
+          <div className="cf-studio-mini-kicker">{translator.tr("Template builder")}</div>
+          <h2 className="cf-studio-panel-title">{translator.tr("Shape the creative system")}</h2>
+          <p className="cf-inline-note">{translator.tr("Lock the brand markers, framing, and reusable layout defaults that guide every new draft.")}</p>
+        </div>
+        <NeonButton variant="ghost" busy={savingTemplate} onClick={() => void saveTemplateDefaults()}>
+          {savingTemplate ? translator.tr("Saving...") : translator.tr("Save Template")}
+        </NeonButton>
+      </div>
+
+      <div className="cf-studio-template-groups">
+        <button
+          type="button"
+          className={`cf-brief-toggle ${advancedPanels.brand ? "is-open" : ""}`}
+          onClick={() => toggleAdvancedPanel("brand")}
+        >
+          <span className="cf-brief-toggle-text">{translator.tr("Brand settings")}</span>
+          <span className="cf-brief-toggle-icon">{advancedPanels.brand ? "-" : "+"}</span>
+        </button>
+        <div className={`cf-brief-advanced ${advancedPanels.brand ? "is-open" : ""}`}>
+          <section className="cf-studio-template-group">
+            <div className="cf-studio-template-group-head">
+              <div className="cf-studio-mini-kicker">{translator.tr("Brand")}</div>
+              <p className="cf-inline-note">{translator.tr("Set the identity markers that should stay stable across every template.")}</p>
+            </div>
+            <div className="cf-studio-template-grid">
+              <div className="cf-field">
+                <label className="cf-field-label" htmlFor="cf-studio-template-brand">{translator.tr("Brand or page name")}</label>
+                <input
+                  id="cf-studio-template-brand"
+                  className="cf-input"
+                  type="text"
+                  value={template.brandName}
+                  onChange={(event) => setTemplateField("brandName", event.target.value)}
+                />
+              </div>
+              <div className="cf-field">
+                <label className="cf-field-label" htmlFor="cf-studio-template-handle">{translator.tr("Handle")}</label>
+                <input
+                  id="cf-studio-template-handle"
+                  className="cf-input"
+                  type="text"
+                  value={template.socialHandle}
+                  onChange={(event) => setTemplateField("socialHandle", event.target.value)}
+                />
+              </div>
+              <label className="cf-choice-card cf-studio-toggle-card">
+                <input
+                  className="cf-choice-input"
+                  type="checkbox"
+                  checked={template.showSocialStrip}
+                  onChange={(event) => setTemplateField("showSocialStrip", event.target.checked)}
+                />
+                <div className="cf-choice-copy">
+                  <strong>{translator.tr("Show social row")}</strong>
+                  <small>{translator.tr("Add social icons and the creator handle across the template.")}</small>
+                </div>
+              </label>
+              <label className="cf-choice-card cf-studio-toggle-card">
+                <input
+                  className="cf-choice-input"
+                  type="checkbox"
+                  checked={template.showBrandBadge}
+                  onChange={(event) => setTemplateField("showBrandBadge", event.target.checked)}
+                />
+                <div className="cf-choice-copy">
+                  <strong>{translator.tr("Show brand chip")}</strong>
+                  <small>{translator.tr("Display the small badge on the right side of the brand row.")}</small>
+                </div>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <button
+          type="button"
+          className={`cf-brief-toggle ${advancedPanels.layout ? "is-open" : ""}`}
+          onClick={() => toggleAdvancedPanel("layout")}
+        >
+          <span className="cf-brief-toggle-text">{translator.tr("Layout controls")}</span>
+          <span className="cf-brief-toggle-icon">{advancedPanels.layout ? "-" : "+"}</span>
+        </button>
+        <div className={`cf-brief-advanced ${advancedPanels.layout ? "is-open" : ""}`}>
+          <section className="cf-studio-template-group">
+            <div className="cf-studio-template-group-head">
+              <div className="cf-studio-mini-kicker">{translator.tr("Layout")}</div>
+              <p className="cf-inline-note">{translator.tr("Keep the template background soft so the image and title remain readable.")}</p>
+            </div>
+            <div className="cf-studio-template-grid">
+              <div className="cf-field cf-field-span">
+                <div className="cf-inline-note">{translator.tr("Image paths are managed in the Studio draft editor. Use the controls here only for framing and alignment.")}</div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {!desktopCanvas ? (
+          <>
+            <button
+              type="button"
+              className={`cf-brief-toggle ${advancedPanels.media ? "is-open" : ""}`}
+              onClick={() => toggleAdvancedPanel("media")}
+            >
+              <span className="cf-brief-toggle-text">{translator.tr("Media advanced controls")}</span>
+              <span className="cf-brief-toggle-icon">{advancedPanels.media ? "-" : "+"}</span>
+            </button>
+            <div className={`cf-brief-advanced ${advancedPanels.media ? "is-open" : ""}`}>
+              {templateBackgroundSection}
+              {templateMediaSection}
+              {templateTitleSection}
+            </div>
+          </>
+        ) : null}
+      </div>
+    </article>
+  );
+
+  const studioInsightsPanel = (
+    <article className="cf-card cf-panel cf-studio-template-media-card">
+      <div className="cf-studio-panel-head cf-studio-panel-head-simple">
+        <div className="cf-studio-panel-copy">
+          <div className="cf-studio-mini-kicker">{translator.tr("Agent plan")}</div>
+          <h3 className="cf-studio-panel-title">{translator.tr("Quick creative cues")}</h3>
+          <p className="cf-inline-note">{translator.tr("What the agent understands from your current parameters.")}</p>
+        </div>
+      </div>
+      <div className="cf-studio-template-groups">
+        <div id="cf-studio-brief-summary" className="cf-studio-insights-inline" aria-live="polite">
+          {insightCards.map((card, i) => (
+            <motion.article
+              key={card.title}
+              className="cf-insight-card"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.06 }}
+            >
+              <div className="cf-insight-title">{card.title}</div>
+              <div className="cf-insight-value">{card.value}</div>
+              <div className="cf-insight-copy">{card.copy}</div>
+            </motion.article>
+          ))}
+        </div>
+      </div>
+    </article>
   );
 
   return (
@@ -1236,7 +2086,7 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
       className="cf-screen cf-studio-page"
       data-cf-studio=""
       data-cf-studio-owned="split"
-      data-studio-layout={centeredCanvasDesktop ? "centered" : desktopCanvas ? "side-preview" : "stacked"}
+      data-studio-layout={studioLayout}
     >
       <section className="cf-studio-shell" data-library-open={String(libraryOpen)} aria-label={translator.tr("Studio")}>
         {libraryOpen ? (
@@ -1296,6 +2146,7 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
 
         <div className="cf-studio-workarea">
           <div
+            ref={stageRef}
             className={[
               "cf-studio-stage",
               desktopCanvas ? "is-desktop-canvas" : "",
@@ -1303,26 +2154,26 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
               desktopCanvas && !centeredCanvasDesktop ? "is-preview-right-canvas" : "",
             ].filter(Boolean).join(" ")}
           >
-            {loading && !payload ? (
+          {loading && !payload ? (
               <div className="cf-studio-dashboard" aria-busy="true">
-                <ShimmerSkeleton lines={8} />
-                <ShimmerSkeleton lines={8} />
-                <ShimmerSkeleton lines={5} />
-              </div>
-            ) : null}
+              <ShimmerSkeleton lines={8} />
+              <ShimmerSkeleton lines={8} />
+              <ShimmerSkeleton lines={5} />
+            </div>
+          ) : null}
             <div className="cf-studio-dashboard">
-              <div className="cf-studio-canvas-intro">
-                <div className="cf-studio-mini-kicker">{translator.tr("Studio canvas")}</div>
-                <motion.h1
-                  className="cf-studio-canvas-title"
-                  initial={{ opacity: 0, y: -8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.35 }}
-                >
-                  {translator.tr("Design, test, and route every post")}
-                </motion.h1>
+              <div className={`cf-studio-canvas-intro ${desktopCanvas ? "cf-studio-sr-only" : ""}`}>
+              <div className="cf-studio-mini-kicker">{translator.tr("Studio canvas")}</div>
+              <motion.h1
+                className="cf-studio-canvas-title"
+                initial={{ opacity: 0, y: -8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.35 }}
+              >
+                {translator.tr("Design, test, and route every post")}
+              </motion.h1>
                 <p className="cf-inline-note cf-studio-canvas-copy">{workspaceCopy}</p>
-              </div>
+            </div>
 
               <div className="cf-studio-canvas-middle">
                 <div className="cf-studio-preview-topbar">
@@ -1336,59 +2187,71 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
                         key={surface}
                         type="button"
                         className={`cf-surface-switch-btn ${previewSurface === surface ? "is-active" : ""}`}
+                        aria-label={translator.tr(surface === "instagram" ? "Instagram preview" : "Facebook preview")}
+                        title={translator.tr(surface === "instagram" ? "Instagram preview" : "Facebook preview")}
                         onClick={() => setPreviewSurface(surface as "facebook" | "instagram")}
                       >
-                        {translator.tr(surface === "instagram" ? "Instagram" : "Facebook")}
+                        <i className={surface === "instagram" ? "fa-brands fa-instagram" : "fa-brands fa-facebook-f"} aria-hidden="true" />
+                        <span className="cf-surface-switch-text">{translator.tr(surface === "instagram" ? "Instagram" : "Facebook")}</span>
                       </button>
                     ))}
                   </div>
+                  <NeonButton
+                    type="button"
+                    variant="ghost"
+                    className="cf-studio-template-expand-btn"
+                    onClick={() => setTemplatePreviewOpen(true)}
+                    disabled={!previewDraft}
+                  >
+                    {translator.tr("Expand template")}
+                  </NeonButton>
                 </div>
               </div>
 
-              <div className="cf-studio-canvas-controls">
-                <div className="cf-studio-canvas-actions">
-                  <button type="button" className="cf-btn-ghost cf-studio-head-drawer" id="cf-studio-library-toggle" onClick={() => setLibraryOpen((currentOpen) => !currentOpen)}>
-                    <span>{translator.tr("Library")}</span>
-                    <span id="cf-studio-library-count" className="cf-studio-head-count">{filteredItems.length}</span>
-                  </button>
-                  <NeonButton
-                    id="cf-studio-new-draft"
-                    onClick={() => {
-                      setCurrent(createBlankDraft(brief));
-                      setFeedback(translator.tr("New draft started. Build the brief, run the AI preview, then decide what reaches the queue."));
-                      setLibraryOpen(false);
-                    }}
-                  >
-                    {translator.tr("New Draft")}
-                  </NeonButton>
-                </div>
-                <div className="cf-studio-canvas-statusline">
-                  <span className="cf-studio-stat-pill">{translator.tr("{count} drafts", { count: String(collections.drafts.length) })}</span>
-                  <span className="cf-studio-stat-pill">{translator.tr("{count} in review", { count: String(collections.review.length) })}</span>
-                  <span className={`cf-studio-status-chip ${page ? "is-ready" : "is-warn"}`}>{activeStatus}</span>
-                </div>
+            <div className="cf-studio-canvas-controls">
+              <div className="cf-studio-canvas-actions">
+                <button type="button" className="cf-btn-ghost cf-studio-head-drawer" id="cf-studio-library-toggle" onClick={() => setLibraryOpen((currentOpen) => !currentOpen)}>
+                  <span>{translator.tr("Library")}</span>
+                  <span id="cf-studio-library-count" className="cf-studio-head-count">{filteredItems.length}</span>
+                </button>
+                <NeonButton
+                  id="cf-studio-new-draft"
+                  onClick={() => {
+                    setCurrent(createBlankDraft(brief));
+                    setFeedback(translator.tr("New draft started. Build the brief, run the AI preview, then decide what reaches the queue."));
+                    setLibraryOpen(false);
+                  }}
+                >
+                  {translator.tr("New Draft")}
+                </NeonButton>
               </div>
+              <div className="cf-studio-canvas-statusline">
+                <span className="cf-studio-stat-pill">{translator.tr("{count} drafts", { count: String(collections.drafts.length) })}</span>
+                <span className="cf-studio-stat-pill">{translator.tr("{count} in review", { count: String(collections.review.length) })}</span>
+                <span className={`cf-studio-status-chip ${page ? "is-ready" : "is-warn"}`}>{activeStatus}</span>
+              </div>
+            </div>
 
               <div className="cf-studio-dashboard-column cf-studio-left-column">
           {!desktopCanvas ? (
-            <div className="cf-studio-section-switcher" role="tablist" aria-label={translator.tr("Studio sections")}>
-              {composerSections.map(({ id: sectionId, label, copy }) => (
-                <button
-                  key={sectionId}
-                  type="button"
-                  className={`cf-studio-section-tab ${composerSection === sectionId ? "is-active" : ""}`}
-                  id={`cf-studio-tab-${sectionId}`}
-                  role="tab"
-                  aria-selected={composerSection === sectionId ? "true" : "false"}
-                  aria-controls={`cf-studio-panel-${sectionId}`}
-                  tabIndex={composerSection === sectionId ? 0 : -1}
-                  onClick={() => setComposerSection(sectionId)}
-                >
-                  <strong>{label}</strong>
-                  <span>{copy}</span>
-                </button>
-              ))}
-            </div>
+          <div className="cf-studio-section-switcher" role="tablist" aria-label={translator.tr("Studio sections")}>
+            {composerSections.map(({ id: sectionId, label, copy }) => (
+              <button
+                key={sectionId}
+                type="button"
+                className={`cf-studio-section-tab ${composerSection === sectionId ? "is-active" : ""}`}
+                id={`cf-studio-tab-${sectionId}`}
+                role="tab"
+                aria-selected={composerSection === sectionId ? "true" : "false"}
+                aria-controls={`cf-studio-panel-${sectionId}`}
+                tabIndex={composerSection === sectionId ? 0 : -1}
+                onClick={() => setComposerSection(sectionId)}
+              >
+                <strong>{label}</strong>
+                <span>{copy}</span>
+              </button>
+            ))}
+          </div>
           ) : null}
           <article
             id="cf-studio-panel-idea"
@@ -1400,9 +2263,9 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
           >
             <div className="cf-studio-panel-head cf-studio-panel-head-simple">
               <div className="cf-studio-panel-copy">
-                <div className="cf-studio-mini-kicker">{translator.tr("Creator brief")}</div>
-                <h2 className="cf-studio-panel-title">{translator.tr("Start with the post idea")}</h2>
-                <p className="cf-inline-note">{translator.tr("Set the generation inputs, then run or iterate the AI preview from this brief.")}</p>
+                <div className="cf-studio-mini-kicker">{translator.tr("1. Creator brief")}</div>
+                <h2 className="cf-studio-panel-title">{translator.tr("Refine your content generation inputs")}</h2>
+                <p className="cf-inline-note">{translator.tr("Keep the prompt inputs focused here before generating or iterating the draft.")}</p>
               </div>
               <div className="cf-inline-actions cf-studio-brief-toolbar">
                 <NeonButton id="cf-studio-generate" glow busy={busy} onClick={() => void handleGenerate()} disabled={busy}>
@@ -1516,107 +2379,9 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
             </div>
           </article>
 
-          <article
-            id="cf-studio-panel-template"
-            role="tabpanel"
-            aria-labelledby="cf-studio-tab-template"
-            className="cf-card cf-panel cf-studio-template-card"
-            hidden={!desktopCanvas && composerSection !== "template"}
-            aria-hidden={!desktopCanvas && composerSection !== "template"}
-          >
-            <div className="cf-studio-panel-head cf-studio-panel-head-simple">
-              <div className="cf-studio-panel-copy">
-                <div className="cf-studio-mini-kicker">{translator.tr("Template builder")}</div>
-                <h2 className="cf-studio-panel-title">{translator.tr("Shape the creative system")}</h2>
-                <p className="cf-inline-note">{translator.tr("Lock the brand markers, framing, and reusable layout defaults that guide every new draft.")}</p>
-              </div>
-              <NeonButton variant="ghost" busy={savingTemplate} onClick={() => void saveTemplateDefaults()}>
-                {savingTemplate ? translator.tr("Saving...") : translator.tr("Save Template")}
-              </NeonButton>
-            </div>
+          {!desktopCanvas ? templateBuilderCard : null}
 
-            <div className="cf-studio-template-groups">
-              <section className="cf-studio-template-group">
-                <div className="cf-studio-template-group-head">
-                  <div className="cf-studio-mini-kicker">{translator.tr("Brand")}</div>
-                  <p className="cf-inline-note">{translator.tr("Set the identity markers that should stay stable across every template.")}</p>
                 </div>
-                <div className="cf-studio-template-grid">
-                  <div className="cf-field">
-                    <label className="cf-field-label" htmlFor="cf-studio-template-brand">{translator.tr("Brand or page name")}</label>
-                    <input
-                      id="cf-studio-template-brand"
-                      className="cf-input"
-                      type="text"
-                      value={template.brandName}
-                      onChange={(event) => setTemplateField("brandName", event.target.value)}
-                    />
-                  </div>
-                  <div className="cf-field">
-                    <label className="cf-field-label" htmlFor="cf-studio-template-handle">{translator.tr("Handle")}</label>
-                    <input
-                      id="cf-studio-template-handle"
-                      className="cf-input"
-                      type="text"
-                      value={template.socialHandle}
-                      onChange={(event) => setTemplateField("socialHandle", event.target.value)}
-                    />
-                  </div>
-                  <label className="cf-choice-card cf-studio-toggle-card">
-                    <input
-                      className="cf-choice-input"
-                      type="checkbox"
-                      checked={template.showSocialStrip}
-                      onChange={(event) => setTemplateField("showSocialStrip", event.target.checked)}
-                    />
-                    <div className="cf-choice-copy">
-                      <strong>{translator.tr("Show social row")}</strong>
-                      <small>{translator.tr("Add social icons and the creator handle across the template.")}</small>
-                    </div>
-                  </label>
-                  <label className="cf-choice-card cf-studio-toggle-card">
-                    <input
-                      className="cf-choice-input"
-                      type="checkbox"
-                      checked={template.showBrandBadge}
-                      onChange={(event) => setTemplateField("showBrandBadge", event.target.checked)}
-                    />
-                    <div className="cf-choice-copy">
-                      <strong>{translator.tr("Show brand badge")}</strong>
-                      <small>{translator.tr("Display the brand or page name inside the template header.")}</small>
-                    </div>
-                  </label>
-                </div>
-              </section>
-
-              <section className="cf-studio-template-group">
-                <div className="cf-studio-template-group-head">
-                  <div className="cf-studio-mini-kicker">{translator.tr("Layout")}</div>
-                  <p className="cf-inline-note">{translator.tr("Control the background density and framing balance around the draft media.")}</p>
-                </div>
-                <div className="cf-studio-template-grid">
-                  <div className="cf-field">
-                    <label className="cf-field-label" htmlFor="cf-studio-template-background-density">{translator.tr("Background density")}</label>
-                    <input
-                      id="cf-studio-template-background-density"
-                      className="cf-input"
-                      type="range"
-                      min="0"
-                      max="100"
-                      step="5"
-                      value={template.backgroundDensity}
-                      onChange={(event) => setTemplateField("backgroundDensity", Number(event.target.value))}
-                    />
-                    <div className="cf-inline-note">{template.backgroundDensity}%</div>
-                  </div>
-                </div>
-              </section>
-
-              {!desktopCanvas ? templateMediaSection : null}
-            </div>
-          </article>
-
-              </div>
 
               <div className="cf-studio-dashboard-column cf-studio-center-column">
                 <div className="cf-studio-preview-stack">
@@ -1627,10 +2392,10 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
                           <div>
                             <div className="cf-warning-title">{warning.title}</div>
                             <div>{warning.copy}</div>
-                          </div>
-                        </div>
+                </div>
+                  </div>
                       ))}
-                    </div>
+                  </div>
                   ) : null}
                   <article className="cf-card cf-panel cf-studio-preview-shell">
                     <div id="cf-studio-preview-card" className="cf-phone-mockup-wrap" aria-live="polite">
@@ -1646,33 +2411,34 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
                                 pageName={page?.page_name || translator.tr("Connected page")}
                                 briefPlatformLabel={platformLabel(previewDraft.platforms || brief.platform, translator)}
                                 template={template}
+                                mediaUrl={currentImagePreviewUrl}
                               />
                             ) : (
                               <EmptyState title={translator.tr("Preview unavailable")} copy={translator.tr("Run the AI preview or open a draft to inspect the final publish surface.")} />
                             )}
-                          </div>
-                        </div>
+                </div>
+                  </div>
                         <div className="cf-phone-home-bar" />
-                      </div>
-                    </div>
-                  </article>
+                  </div>
+            </div>
+          </article>
                 </div>
               </div>
 
               <div className="cf-studio-dashboard-column cf-studio-right-column">
-                <article
-                  id="cf-studio-panel-copy"
-                  role="tabpanel"
-                  aria-labelledby="cf-studio-tab-copy"
-                  className="cf-card cf-panel cf-studio-editor-card"
+            <article
+              id="cf-studio-panel-copy"
+              role="tabpanel"
+              aria-labelledby="cf-studio-tab-copy"
+              className="cf-card cf-panel cf-studio-editor-card"
                   hidden={!desktopCanvas && composerSection !== "copy"}
                   aria-hidden={!desktopCanvas && composerSection !== "copy"}
-                >
+            >
               <div className="cf-studio-panel-head cf-studio-panel-head-simple">
                 <div className="cf-studio-panel-copy">
-                  <div className="cf-studio-mini-kicker">{translator.tr("Live editor")}</div>
-                  <h2 className="cf-studio-panel-title">{translator.tr("Adjust the draft")}</h2>
-                  <p className="cf-inline-note">{translator.tr("Edit the final draft content before it reaches review or publish.")}</p>
+                  <div className="cf-studio-mini-kicker">{translator.tr("2. Studio draft editor")}</div>
+                  <h2 className="cf-studio-panel-title">{translator.tr("Adjust the content")}</h2>
+                  <p className="cf-inline-note">{translator.tr("Edit the final text content and the preview media controls inside one panel.")}</p>
                 </div>
               </div>
               <div id="cf-studio-editor" className="cf-studio-editor-body" aria-live="polite">
@@ -1680,6 +2446,8 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
                   <ShimmerSkeleton lines={6} />
                 ) : current ? (
                   <div className="cf-studio-workbench">
+                    {(currentFormat === "post" || currentFormat === "carousel") ? templateAssetSection : null}
+                    <div className="cf-studio-mini-kicker">{translator.tr("Text content")}</div>
                     {(currentFormat === "post" || currentFormat === "reel_script") ? (
                       <div className="cf-field">
                         <label className="cf-field-label" htmlFor="cf-studio-editor-hook2">{translator.tr(currentFormat === "reel_script" ? "Reel hook" : "Hook")}</label>
@@ -1722,120 +2490,143 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
                         <textarea id="cf-studio-editor-cta2" className="cf-textarea cf-textarea-sm" rows={2} value={currentContent?.cta || ""} onChange={(event) => setCurrentTextField("cta", event.target.value)} />
                       </div>
                     ) : null}
-                    <div className="cf-studio-brief-grid">
-                      <div className="cf-field">
-                        <label className="cf-field-label" htmlFor="cf-studio-editor-hashtags2">{translator.tr("Hashtags")}</label>
-                        <input id="cf-studio-editor-hashtags2" className="cf-input" type="text" value={editorHashtags} onChange={(event) => setCurrentHashtags(event.target.value)} />
-                      </div>
-                      {(currentFormat === "post" || currentFormat === "carousel") ? (
-                        <div className="cf-field">
-                          <label className="cf-field-label" htmlFor="cf-studio-editor-image2">{translator.tr("Image path")}</label>
-                          <input id="cf-studio-editor-image2" className="cf-input" type="text" value={currentContent?.image_path || ""} onChange={(event) => setCurrentTextField("image_path", event.target.value)} />
+                    {desktopCanvas ? (
+                      <div className="cf-studio-template-groups cf-studio-template-groups-media">
+                        {currentFormat !== "post" && currentFormat !== "carousel" ? templateAssetSection : null}
+                        {templateBackgroundSection}
+                        {templateMediaSection}
+                        {templateTitleSection}
                         </div>
                       ) : null}
-                    </div>
                   </div>
                 ) : (
                   <EmptyState title={translator.tr("No draft selected")} copy={translator.tr("Choose an item from the library or create a new draft.")} />
                 )}
               </div>
             </article>
-                <div className="cf-studio-canvas-foot">
+            </div>
+
+              <div className="cf-studio-dashboard-column cf-studio-finalize-column">
+          <div className="cf-studio-canvas-foot">
             <article className="cf-card cf-panel cf-studio-publish-card">
               <div className="cf-studio-panel-head cf-studio-panel-head-simple">
                 <div className="cf-studio-panel-copy">
-                  <div className="cf-studio-mini-kicker">{translator.tr("Action rail")}</div>
-                  <h2 className="cf-studio-panel-title">{translator.tr("Route the draft")}</h2>
-                  <p className="cf-inline-note">{translator.tr("Keep one precise publishing decision inside the same workspace.")}</p>
+                  <div className="cf-studio-mini-kicker">{translator.tr("3. Scheduling & finalizing")}</div>
+                  <h2 className="cf-studio-panel-title">{translator.tr("Schedule & publish")}</h2>
+                  <p className="cf-inline-note">{translator.tr("Finalize hashtags, routing, and timing before the draft leaves Studio.")}</p>
                 </div>
               </div>
               <div className="cf-studio-canvas-foot-grid">
                 <div className="cf-studio-foot-primary">
-                  <div id="cf-studio-preview-meta" className="cf-studio-route-card" aria-live="polite">
-                    <div className="cf-studio-route-head">
-                      <div>
-                        <div className="cf-route-kicker">{translator.tr("Publish route")}</div>
-                        <div className="cf-route-title">{translator.tr("{destination} via {platform}", { destination: page?.page_name || translator.tr("No active destination"), platform: platformLabel(brief.platform, translator) })}</div>
+                  <div className="cf-field">
+                    <label className="cf-field-label" htmlFor="cf-studio-editor-hashtags2">{translator.tr("Hashtags")}</label>
+                    <input id="cf-studio-editor-hashtags2" className="cf-input" type="text" value={editorHashtags} onChange={(event) => setCurrentHashtags(event.target.value)} />
                       </div>
-                      <span className={`cf-studio-status-chip ${current?.id ? "is-ready" : "is-warn"}`}>
-                        {current?.id ? statusLabel(current.status || "draft_only", translator) : translator.tr("Unsaved preview")}
-                      </span>
+                  <div className="cf-field">
+                    <label className="cf-field-label" htmlFor="cf-studio-platform-finalize">{translator.tr("Publish route")}</label>
+                    <select id="cf-studio-platform-finalize" className="cf-select" value={brief.platform} onChange={(event) => setBriefField("platform", event.target.value)}>
+                      <option value="facebook">{translator.tr("Facebook only")}</option>
+                      <option value="facebook,instagram">{translator.tr("Facebook + Instagram")}</option>
+                      <option value="instagram">{translator.tr("Instagram only")}</option>
+                    </select>
                     </div>
-                    <div className="cf-studio-route-grid">
-                      <div>
-                        <span className="cf-label">{translator.tr("Schedule")}</span>
-                        <strong>{brief.schedule || translator.tr("Not scheduled")}</strong>
-                      </div>
-                      <div>
-                        <span className="cf-label">{translator.tr("Timezone")}</span>
-                        <strong id="cf-studio-tz-hint">{Intl.DateTimeFormat().resolvedOptions().timeZone}</strong>
-                      </div>
-                    </div>
-                  </div>
                   <div className="cf-field cf-studio-foot-schedule">
                     <label className="cf-field-label" htmlFor="cf-studio-schedule">{translator.tr("Scheduled time")}</label>
                     <input id="cf-studio-schedule" className="cf-input" type="datetime-local" value={brief.schedule} onChange={(event: ChangeEvent<HTMLInputElement>) => setBriefField("schedule", event.target.value)} />
+                      </div>
+                  <div className="cf-field">
+                    <label className="cf-field-label" htmlFor="cf-studio-timezone">{translator.tr("Timezone")}</label>
+                    <input id="cf-studio-timezone" className="cf-input" type="text" readOnly value={Intl.DateTimeFormat().resolvedOptions().timeZone} />
+                      </div>
+                  <div className="cf-studio-publish-summary">
+                    <div className="cf-studio-publish-reactions">
+                      <div className="cf-social-reaction-badges" aria-hidden="true">
+                        <span className="is-like">👍</span>
+                        <span className="is-love">❤</span>
+                    </div>
+                      <div className="cf-studio-publish-reactions-copy">
+                        <strong>{previewMetrics.reactions}</strong>
+                        <span>{translator.tr("reactions")}</span>
                   </div>
-                  <div className="cf-action-stack cf-studio-publish-actions">
-                    <NeonButton id="cf-studio-primary-action" glow busy={busy} onClick={() => void handlePrimaryAction()} disabled={busy}>
-                      {busy ? translator.tr("Working...") : primaryLabel}
-                    </NeonButton>
-                    <NeonButton variant="ghost" id="cf-studio-secondary-action" busy={busy} onClick={() => void handleSecondaryAction()} disabled={busy || secondaryDisabled}>
+                  </div>
+                    <div className="cf-studio-publish-inline-actions">
+                      <NeonButton className="cf-studio-inline-action" variant="ghost" id="cf-studio-secondary-action" busy={busy} onClick={() => void handleSecondaryAction()} disabled={busy || secondaryDisabled}>
                       {busy ? translator.tr("Working...") : secondaryLabel}
                     </NeonButton>
-                    <NeonButton variant="ghost" id="cf-studio-tertiary-action" busy={busy} onClick={() => void handleTertiaryAction()} disabled={busy}>
+                      <NeonButton className="cf-studio-inline-action" variant="ghost" id="cf-studio-tertiary-action" busy={busy} onClick={() => void handleTertiaryAction()} disabled={busy}>
                       {busy ? translator.tr("Working...") : tertiaryLabel}
                     </NeonButton>
                   </div>
                 </div>
-
-                <div className="cf-studio-foot-secondary">
-                  <div className="cf-studio-panel-copy cf-studio-foot-copy">
-                    <div className="cf-studio-mini-kicker">{translator.tr("Agent plan")}</div>
-                    <h3 className="cf-studio-foot-title">{translator.tr("Quick creative cues")}</h3>
-                    <p className="cf-inline-note">{translator.tr("What the agent understands from your current parameters.")}</p>
-                  </div>
-                  <div id="cf-studio-brief-summary" className="cf-studio-insights-inline" aria-live="polite">
-                    {insightCards.map((card, i) => (
-                      <motion.article
-                        key={card.title}
-                        className="cf-insight-card"
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: i * 0.06 }}
-                      >
-                        <div className="cf-insight-title">{card.title}</div>
-                        <div className="cf-insight-value">{card.value}</div>
-                        <div className="cf-insight-copy">{card.copy}</div>
-                      </motion.article>
-                    ))}
+                  <div className="cf-action-stack cf-studio-publish-actions">
+                    <NeonButton className="cf-studio-primary-cta" id="cf-studio-primary-action" glow busy={busy} onClick={() => void handlePrimaryAction()} disabled={busy}>
+                      {busy ? translator.tr("Working...") : primaryLabel}
+                    </NeonButton>
                   </div>
                 </div>
               </div>
-                  </article>
+            </article>
                 </div>
               </div>
 
               {desktopCanvas ? (
                 <div className="cf-studio-secondary-strip">
-                  <article className="cf-card cf-panel cf-studio-template-media-card">
-                    <div className="cf-studio-panel-head cf-studio-panel-head-simple">
-                      <div className="cf-studio-panel-copy">
-                        <div className="cf-studio-mini-kicker">{translator.tr("Template media")}</div>
-                        <h2 className="cf-studio-panel-title">{translator.tr("Place the artwork")}</h2>
-                        <p className="cf-inline-note">{translator.tr("Tune the background and publication artwork so the preview stays balanced while you edit the draft.")}</p>
-                      </div>
-                    </div>
-                    <div className="cf-studio-template-groups cf-studio-template-groups-media">
-                      {templateMediaSection}
-                    </div>
-                  </article>
+                  {templateBuilderCard}
+                  {studioInsightsPanel}
                 </div>
               ) : null}
             </div>
           </div>
         </div>
-        </section>
+      </section>
+
+      <AnimatePresence>
+        {templatePreviewOpen ? (
+          <motion.div
+            className="cf-template-preview-modal-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setTemplatePreviewOpen(false)}
+          >
+            <motion.section
+              className="cf-template-preview-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label={translator.tr("Expanded template preview")}
+              initial={{ opacity: 0, y: 24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 16, scale: 0.98 }}
+              transition={{ duration: 0.22, ease: "easeOut" }}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="cf-template-preview-modal-head">
+                <div className="cf-template-preview-modal-copy">
+                  <div className="cf-studio-mini-kicker">{translator.tr("Template preview")}</div>
+                  <h2>{translator.tr("Inspect the creative larger")}</h2>
+                  <p>{translator.tr("Review the background, hero image, title, and brand row before saving the template.")}</p>
+                </div>
+                <button type="button" className="cf-btn-ghost cf-template-preview-close" onClick={() => setTemplatePreviewOpen(false)}>
+                  {translator.tr("Close")}
+                </button>
+              </div>
+              <div className="cf-template-preview-modal-stage">
+                <div className="cf-template-preview-modal-canvas">
+                  <TemplateCanvas
+                    surface={previewSurface}
+                    pageName={page?.page_name || translator.tr("Connected page")}
+                    translator={translator}
+                    template={template}
+                    fallbackMediaUrl={currentImagePreviewUrl}
+                    titleText={templatePreviewTitle}
+                    supportText={templatePreviewSupport}
+                  />
+                </div>
+              </div>
+            </motion.section>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {error && !loading && !payload ? (
         <article className="cf-card cf-panel">

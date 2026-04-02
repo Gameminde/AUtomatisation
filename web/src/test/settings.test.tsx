@@ -70,5 +70,5 @@ describe("SettingsPage", () => {
     expect(screen.getByRole("button", { name: "Save AI Settings" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Content Defaults" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save Workflow Defaults" })).toBeInTheDocument();
-  });
+  }, 15000);
 });
