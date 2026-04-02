@@ -2253,7 +2253,7 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
             id="cf-studio-panel-idea"
             role="tabpanel"
             aria-labelledby="cf-studio-tab-idea"
-            className="cf-card cf-panel cf-studio-composer-card"
+            className="cf-card cf-panel cf-studio-composer-card mt-[107px] mb-[107px]"
             hidden={!desktopCanvas && composerSection !== "idea"}
             aria-hidden={!desktopCanvas && composerSection !== "idea"}
           >

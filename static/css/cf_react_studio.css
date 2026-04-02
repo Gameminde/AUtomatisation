@@ -1219,6 +1219,9 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
   margin-top: -6px;
 }
 
+.mt-\[107px\] { margin-top: 107px; }
+.mb-\[107px\] { margin-bottom: 107px; }
+
 .cf-studio-page[data-cf-studio-owned="split"] .cf-input-color {
   inline-size: 100%;
   block-size: 42px;
