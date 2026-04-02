@@ -104,7 +104,7 @@ const DEFAULT_TEMPLATE: StudioTemplateDesign = {
   mediaClarity: 100,
   mediaOffsetX: 0,
   mediaOffsetY: 0,
-  mediaFit: "contain",
+  mediaFit: "cover",
   titleScale: 100,
   titleOffsetY: 0,
   titleWidth: 94,
