@@ -2393,7 +2393,7 @@ export function StudioPage({ boot, translator, loading, error, payload, refresh 
                       ))}
                   </div>
                   ) : null}
-                  <article className="cf-card cf-panel cf-studio-preview-shell">
+                  <article className="cf-card cf-panel cf-studio-preview-shell pt-[-8px] mt-[-31px] mb-[-31px]">
                     <div id="cf-studio-preview-card" className="cf-phone-mockup-wrap" aria-live="polite">
                       <div className="cf-phone-frame">
                         <div className="cf-phone-notch" />
