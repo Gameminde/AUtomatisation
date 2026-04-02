@@ -223,10 +223,12 @@
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-status-chip {
   display: inline-flex;
   align-items: center;
-  min-height: var(--cf-studio-pill-h);
-  padding-inline: 11px;
+  min-height: 32px;
+  padding-inline: 12px;
   border-radius: 999px;
-  font: 700 0.72rem/1 var(--font-body);
+  font: 600 0.72rem/1 var(--font-body);
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(60, 50, 36, 0.09);
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-status-chip.is-ready {
@@ -628,7 +630,9 @@
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-secondary-strip {
-  margin-top: 4px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(60, 50, 36, 0.08);
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-route-card,
@@ -879,9 +883,9 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 .cf-studio-page[data-cf-studio-owned="split"] {
   --cf-studio-space-2: 12px;
   --cf-studio-space-3: 18px;
-  --cf-studio-panel-radius: 30px;
+  --cf-studio-panel-radius: 28px;
   --cf-studio-card-radius: 18px;
-  --cf-studio-field-radius: 18px;
+  --cf-studio-field-radius: 16px;
   --cf-studio-panel-pad: 20px;
   --cf-studio-control-h: 44px;
   --cf-studio-pill-h: 36px;
@@ -950,8 +954,6 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
   box-shadow: 0 18px 48px rgba(28, 24, 17, 0.05);
 }
 
-.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-canvas-statusline,
-.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-secondary-strip,
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-route-card {
   display: none;
 }
@@ -971,10 +973,10 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-card .cf-studio-panel-title {
-  max-width: 9ch;
-  font-size: clamp(2.15rem, 2.8vw, 3rem);
-  line-height: 0.93;
-  letter-spacing: -0.06em;
+  max-width: 16ch;
+  font-size: clamp(1.46rem, 1.85vw, 1.78rem);
+  line-height: 1.08;
+  letter-spacing: -0.04em;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-editor-card .cf-studio-panel-title,
@@ -1038,7 +1040,7 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-topcopy {
-  display: none;
+  display: grid;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-preview-topbar {
@@ -1119,8 +1121,8 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-card,
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-editor-card,
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-publish-card {
-  border-radius: 32px;
-  box-shadow: 0 18px 40px rgba(28, 24, 17, 0.05);
+  border-radius: 28px;
+  box-shadow: 0 14px 32px rgba(28, 24, 17, 0.06);
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-template-groups-media {
@@ -1381,8 +1383,10 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 }
 
 .cf-studio-page[data-cf-studio-owned="split"][data-studio-layout="side-preview"] .cf-studio-composer-card .cf-studio-panel-title {
-  max-width: 10.5ch;
-  font-size: clamp(1.8rem, 2.3vw, 2.45rem);
+  max-width: 16ch;
+  font-size: clamp(1.34rem, 1.68vw, 1.58rem);
+  line-height: 1.1;
+  letter-spacing: -0.035em;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"][data-studio-layout="side-preview"] .cf-studio-editor-card .cf-studio-panel-title,

@@ -737,9 +737,9 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-viewport {
   position: relative;
-  width: clamp(54%, var(--cf-template-media-width, 66%), 82%);
-  height: clamp(148px, 54%, 228px);
-  min-height: 148px;
+  width: clamp(52%, var(--cf-template-media-width, 64%), 78%);
+  height: clamp(130px, 50%, 210px);
+  min-height: 130px;
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -1002,15 +1002,15 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-viewport {
   position: relative;
-  width: clamp(76%, var(--cf-template-media-width, 78%), 100%);
-  max-width: 100%;
-  min-height: 138px;
+  width: clamp(58%, var(--cf-template-media-width, 68%), 82%);
+  max-width: 82%;
+  min-height: 120px;
   aspect-ratio: 1.16 / 0.9;
   overflow: hidden;
   display: grid;
   place-items: center;
   align-self: center;
-  border-radius: 18px;
+  border-radius: 14px;
   background: transparent;
   border: 0;
   box-shadow: none;
@@ -1143,15 +1143,19 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-so
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-zone {
-  align-items: start;
-  padding: 10px 0 2px;
+  align-items: center;
+  padding: 18px 16px 8px;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-viewport {
-  width: clamp(82%, var(--cf-template-media-width, 84%), 100%);
-  min-height: clamp(110px, var(--cf-template-media-height, 156px), 260px);
-  height: clamp(110px, var(--cf-template-media-height, 156px), 260px);
+  width: clamp(56%, var(--cf-template-media-width, 68%), 80%);
+  min-height: clamp(96px, var(--cf-template-media-height, 140px), 220px);
+  height: clamp(96px, var(--cf-template-media-height, 140px), 220px);
   aspect-ratio: auto;
+  border-radius: 14px;
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.18),
+    0 12px 28px rgba(0, 0, 0, 0.12);
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-template-media-viewport img {
