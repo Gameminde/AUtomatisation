@@ -79,7 +79,7 @@
     "left"
     "right"
     "finalize";
-  gap: 8px 15px;
+  gap: 8px 22px;
   align-items: start;
   min-width: 0;
 }
@@ -821,7 +821,7 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 
 @media (min-width: 1280px) and (max-width: 1365px) {
   .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-dashboard {
-    grid-template-columns: minmax(372px, 1fr) var(--cf-studio-rail-w) minmax(332px, 1fr);
+    grid-template-columns: minmax(300px, 1fr) var(--cf-studio-rail-w) minmax(270px, 1fr);
     grid-template-areas:
       ". preview-head controls"
       "left preview right"
@@ -862,7 +862,7 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 
 @media (min-width: 1366px) {
   .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-dashboard {
-    grid-template-columns: minmax(320px, 1.02fr) var(--cf-studio-rail-w) minmax(312px, 0.98fr) minmax(270px, 0.82fr);
+    grid-template-columns: minmax(280px, 1.02fr) var(--cf-studio-rail-w) minmax(268px, 0.98fr) minmax(240px, 0.82fr);
     grid-template-areas:
       ". preview-head controls controls"
       "left preview right finalize";
@@ -984,27 +984,27 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-panel-head {
-  padding: 18px 20px 14px;
+  padding: 15px 20px 11px;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-mini-kicker {
-  font-size: 0.7rem;
-  letter-spacing: 0.08em;
+  font-size: 0.62rem;
+  letter-spacing: 0.09em;
   color: #3f382d;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-card .cf-studio-panel-title {
-  max-width: 16ch;
-  font-size: clamp(1.46rem, 1.85vw, 1.78rem);
-  line-height: 1.08;
+  max-width: 18ch;
+  font-size: clamp(1.14rem, 1.48vw, 1.42rem);
+  line-height: 1.1;
   letter-spacing: -0.04em;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-editor-card .cf-studio-panel-title,
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-publish-card .cf-studio-panel-title {
-  font-size: 1.12rem;
-  line-height: 1.02;
-  letter-spacing: -0.045em;
+  font-size: 1rem;
+  line-height: 1.04;
+  letter-spacing: -0.04em;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-composer-grid {
@@ -1144,6 +1144,10 @@ body[data-system-dir="rtl"] .cf-studio-page[data-cf-studio-owned="split"] .cf-st
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-publish-card {
   border-radius: 28px;
   box-shadow: 0 14px 32px rgba(28, 24, 17, 0.06);
+}
+
+.cf-studio-page[data-cf-studio-owned="split"] .cf-studio-publish-card {
+  border-top: 3px solid #f5d000;
 }
 
 .cf-studio-page[data-cf-studio-owned="split"] .cf-studio-workbench > .cf-studio-mini-kicker {
